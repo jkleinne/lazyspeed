@@ -2,7 +2,7 @@ class Lazyspeed < Formula
   desc "Terminal-based internet speed test"
   homepage "https://github.com/jkleinne/lazyspeed"
   url "https://github.com/jkleinne/lazyspeed/archive/v0.1.2.tar.gz"
-  sha256 "910c07cab8fbb0e92bb9aa4579da23ab941e6256afe76156f64c602646413c15"
+  sha256 "ea450d8f6694484b77d386be54b1fb370d9ec622edc90982c6f5140593f32b9a"
   license "MIT"
 
   depends_on "go" => :build
