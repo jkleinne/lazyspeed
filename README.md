@@ -80,7 +80,7 @@ LazySpeed uses the [speedtest-go](https://github.com/showwin/speedtest-go) libra
 4. Performs upload speed test
 5. Displays the results
 
-The beautiful terminal user interface is built using:
+UI is built using:
 - [Bubble Tea](https://github.com/charmbracelet/bubbletea) - Terminal UI framework
 - [Bubbles](https://github.com/charmbracelet/bubbles) - TUI components
 - [Lip Gloss](https://github.com/charmbracelet/lipgloss) - Style definitions
