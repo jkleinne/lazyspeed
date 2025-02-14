@@ -47,6 +47,11 @@ Run the application:
 ./lazyspeed
 ```
 
+Display version information:
+```bash
+./lazyspeed version
+```
+
 ### Controls
 
 - Press `n` to start a new speed test

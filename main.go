@@ -146,6 +146,11 @@ func waitForProgress(progressChan chan model.ProgressUpdate, errChan chan error)
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "version" {
+		fmt.Println(GetVersionInfo())
+		os.Exit(0)
+	}
+
 	s := speedTest{
 		model:   model.NewModel(),
 		spinner: ui.DefaultSpinner,
