@@ -4,7 +4,7 @@ import "fmt"
 
 // Version information
 const (
-	Version   = "0.1.0"
+	Version   = "0.1.2"
 	BuildDate = "2024-02-14" // This should ideally be set during build time
 )
 
