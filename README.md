@@ -2,6 +2,10 @@
 
 A simple terminal-based internet speed test application built with Go and [Bubble Tea](https://github.com/charmbracelet/bubbletea).
 
+<img width="500" alt="image" src="https://github.com/user-attachments/assets/2988d63e-3fcf-42de-83f2-9bce5e00106f" />
+<img width="350" alt="image" src="https://github.com/user-attachments/assets/91a25e2b-3ef0-4d12-b2f0-4a18fff67c84" />
+
+
 ## Features
 
 - 📥 Download speed measurement
