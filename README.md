@@ -18,11 +18,23 @@ A simple terminal-based internet speed test application built with Go and [Bubbl
 
 ## Installation
 
-### Prerequisites
+### Using Homebrew
 
-- Go 1.21 or higher
+1. Add the tap:
+```bash
+brew tap jkleinne/tools
+```
+
+2. Install LazySpeed:
+```bash
+brew install lazyspeed
+```
 
 ### Building from Source
+
+#### Prerequisites
+
+- Go 1.21 or higher
 
 1. Clone the repository:
 ```bash
@@ -44,12 +56,12 @@ go build -o lazyspeed
 
 Run the application:
 ```bash
-./lazyspeed
+lazyspeed
 ```
 
 Display version information:
 ```bash
-./lazyspeed version
+lazyspeed version
 ```
 
 ### Controls
