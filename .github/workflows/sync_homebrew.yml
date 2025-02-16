@@ -1,9 +1,8 @@
 name: Sync Homebrew Formula
 
 on:
-  push:
-    tags:
-      - 'v*'
+  release:
+    types: [created]
 
 jobs:
   sync-formula:
