@@ -1,0 +1,71 @@
+name: Sync Homebrew Formula
+
+on:
+  release:
+    types: [created]
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  sync-formula:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main repository
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+
+      - name: Extract Version
+        id: extract_version
+        run: |
+          VERSION=$(grep -oP 'const Version = "\K[^"]+' version.go)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Calculate SHA256
+        id: sha256
+        run: |
+          curl -L "https://github.com/jkleinne/lazyspeed/archive/v${{ steps.extract_version.outputs.version }}.tar.gz" -o lazyspeed.tar.gz
+          SHA=$(sha256sum lazyspeed.tar.gz | cut -d ' ' -f 1)
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+
+      - name: Clone homebrew-tools repository
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          git clone https://$GH_TOKEN@github.com/jkleinne/homebrew-tools.git
+          cd homebrew-tools
+          git checkout main
+
+      - name: Update lazyspeed.rb formula
+        run: |
+          cd homebrew-tools
+          # Update version in URL
+          sed -i "s|/archive/v.*\.tar\.gz|/archive/v${{ steps.extract_version.outputs.version }}.tar.gz|" lazyspeed.rb
+          # Update SHA256
+          sed -i "s|sha256 \".*\"|sha256 \"${{ steps.sha256.outputs.sha }}\"|" lazyspeed.rb
+
+      - name: Commit and push changes
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          cd homebrew-tools
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add lazyspeed.rb
+          git commit -m "bot(version): update lazyspeed.rb to version ${{ steps.extract_version.outputs.version }}"
+          git push origin main
+
+      - name: Create GitHub release in homebrew-tools
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        with:
+          tag_name: v${{ steps.extract_version.outputs.version }}
+          release_name: Release ${{ steps.extract_version.outputs.version }}
+          draft: false
+          prerelease: false
