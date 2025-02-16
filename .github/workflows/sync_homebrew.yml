@@ -23,7 +23,7 @@ jobs:
       - name: Extract Version
         id: extract_version
         run: |
-          VERSION=$(grep -oP 'const Version = "\K[^"]+' version.go)
+          VERSION=$(grep -oP 'Version = "\K[^"]+' version.go)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Calculate SHA256
