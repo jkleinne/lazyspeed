@@ -3,18 +3,14 @@
 A simple terminal-based internet speed test application built with Go and [Bubble Tea](https://github.com/charmbracelet/bubbletea).
 
 <img width="480" alt="image" src="https://github.com/user-attachments/assets/2988d63e-3fcf-42de-83f2-9bce5e00106f" />
-<img width="350" alt="image" src="https://github.com/user-attachments/assets/91a25e2b-3ef0-4d12-b2f0-4a18fff67c84" />
-
+<img width="346" alt="image" src="https://github.com/user-attachments/assets/af8856ea-45c1-4d5a-8361-378ca76bc7e9" />
 
 ## Features
 
 - 📥 Download speed measurement
 - 📤 Upload speed measurement
 - 🔄 Ping/Latency testing
-- 📊 Jitter calculation
-- 🌍 Server information display
-- 📈 Real-time progress visualization
-- 🎨 Beautiful TUI with responsive design
+- 📊 Jitter calculation (Mean Absolute Deviation)
 
 ## Installation
 
