@@ -53,19 +53,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          cd homebrew-tools
+          cd homebrew-tools/Formula
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add lazyspeed.rb
           git commit -m "bot(version): update lazyspeed.rb to version ${{ steps.extract_version.outputs.version }}"
           git push origin main
 
-      - name: Create GitHub release in homebrew-tools
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-        with:
-          tag_name: v${{ steps.extract_version.outputs.version }}
-          release_name: Release ${{ steps.extract_version.outputs.version }}
-          draft: false
-          prerelease: false
+      # - name: Create GitHub release in homebrew-tools
+      #   uses: actions/create-release@v1
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+      #   with:
+      #     tag_name: v${{ steps.extract_version.outputs.version }}
+      #     release_name: Release ${{ steps.extract_version.outputs.version }}
+      #     draft: false
+      #     prerelease: false
