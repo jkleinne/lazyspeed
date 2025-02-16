@@ -83,7 +83,7 @@ func RenderResults(m *model.Model, width int) string {
 	resultBox.WriteString(fmt.Sprintf("🔄 Ping: %.2f ms\n", latest.Ping))
 	resultBox.WriteString(fmt.Sprintf("📊 Jitter: %.2f ms\n", latest.Jitter))
 	resultBox.WriteString(fmt.Sprintf("🌍 Server: %s (%s)\n", latest.ServerName, latest.ServerLoc))
-	resultBox.WriteString(fmt.Sprintf("🕒 Time: %s\n", latest.Timestamp.Format("15:04:05")))
+	resultBox.WriteString(fmt.Sprintf("🕒 Timestamp: %s\n", latest.Timestamp.Format("03:04:05 PM")))
 
 	if len(m.TestHistory) > 1 {
 		resultBox.WriteString("\nPrevious Tests:\n")
@@ -91,7 +91,7 @@ func RenderResults(m *model.Model, width int) string {
 		for i := len(m.TestHistory) - 2; i >= 0; i-- {
 			test := m.TestHistory[i]
 			resultBox.WriteString(fmt.Sprintf("[%s] DL: %.1f MBps, UL: %.1f MBps, Ping: %.1f ms, Jitter: %.1f ms\n",
-				test.Timestamp.Format("15:04:05"),
+				test.Timestamp.Format("03:04:05 PM"),
 				test.DownloadSpeed,
 				test.UploadSpeed,
 				test.Ping,
