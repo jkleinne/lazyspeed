@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jkleinne/lazyspeed/model"
@@ -43,14 +44,31 @@ func RenderTitle(width int) string {
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, title)
 }
 
-func RenderSpinner(s spinner.Model, width int, phase string) string {
+var DefaultProgress = progress.New(
+	progress.WithDefaultGradient(),
+	progress.WithWidth(50),
+	progress.WithoutPercentage(),
+)
+
+func RenderSpinner(s spinner.Model, width int, phase string, progressAmount float64) string {
 	spinnerView := spinnerStyle.Render(s.View())
 	phaseText := fmt.Sprintf("⏳ %s", phase)
 
-	content := lipgloss.JoinHorizontal(lipgloss.Left,
-		spinnerView,
-		"  ",
-		phaseText,
+	progressBar := DefaultProgress.ViewAs(progressAmount)
+	progressStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#7D56F4")).
+		PaddingLeft(2).
+		PaddingRight(2)
+
+	progressView := progressStyle.Render(progressBar)
+
+	content := lipgloss.JoinVertical(lipgloss.Center,
+		lipgloss.JoinHorizontal(lipgloss.Left,
+			spinnerView,
+			"  ",
+			phaseText,
+		),
+		progressView,
 	)
 
 	boxStyle := lipgloss.NewStyle().
