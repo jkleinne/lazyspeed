@@ -108,7 +108,7 @@ func (s *speedTest) View() string {
 	b.WriteString("\n\n")
 
 	if s.model.Testing {
-		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase))
+		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, s.model.Progress))
 		b.WriteString("\n\n")
 	}
 
