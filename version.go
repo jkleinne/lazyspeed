@@ -3,7 +3,7 @@ package main
 import "fmt"
 
 const (
-	Version   = "0.1.2_7"
+	Version   = "0.1.2_8"
 	BuildDate = "2025-02-24" // TODO: This should ideally be set during build time
 )
 
