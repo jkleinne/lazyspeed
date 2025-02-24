@@ -27,7 +27,7 @@ jobs:
       - name: Calculate SHA256
         id: sha256
         run: |
-          curl -L "https://github.com/jkleinne/lazyspeed/archive/v${{ steps.extract_version.outputs.version }}.tar.gz" -o lazyspeed.tar.gz
+          curl -L "https://github.com/jkleinne/lazyspeed/archive/refs/tags/v${{ steps.extract_version.outputs.version }}.tar.gz" -o lazyspeed.tar.gz
           SHA=$(sha256sum lazyspeed.tar.gz | cut -d ' ' -f 1)
           echo "sha=$SHA" >> $GITHUB_OUTPUT
 

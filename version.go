@@ -4,7 +4,7 @@ import "fmt"
 
 const (
 	Version   = "0.1.2"
-	BuildDate = "2025-02-19" // TODO: This should ideally be set during build time
+	BuildDate = "2025-02-24" // TODO: This should ideally be set during build time
 )
 
 func GetVersionInfo() string {
