@@ -43,7 +43,7 @@ jobs:
         run: |
           cd homebrew-tools/Formula
           # Update version in URL
-          sed -i "s|/archive/v.*\.tar\.gz|/archive/v${{ steps.extract_version.outputs.version }}.tar.gz|" lazyspeed.rb
+          sed -i "s|/archive/v.*\.tar\.gz|/archive/refs/tags/v${{ steps.extract_version.outputs.version }}.tar.gz|" lazyspeed.rb
           # Update SHA256
           sed -i "s|sha256 \".*\"|sha256 \"${{ steps.sha256.outputs.sha }}\"|" lazyspeed.rb
 
