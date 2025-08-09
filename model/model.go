@@ -80,7 +80,7 @@ func (m *Model) PerformSpeedTest(updateChan chan<- ProgressUpdate) error {
 		return serverList[i].Latency < serverList[j].Latency
 	})
 	server := serverList[0]
-	sendUpdate(0.15, fmt.Sprintf("Selected server: %s with latency %.2f ms", server.Name, server.Latency), updateChan)
+	sendUpdate(0.15, fmt.Sprintf("Selected server: %s with latency %.2f ms", server.Name, server.Latency.Seconds()*1000), updateChan)
 	sendUpdate(0.2, fmt.Sprintf("Selected server: %s", server.Name), updateChan)
 
 	sendUpdate(0.3, "Measuring ping and jitter...", updateChan)
