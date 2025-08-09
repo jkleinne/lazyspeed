@@ -43,9 +43,9 @@ cd lazyspeed
 go mod download
 ```
 
-3. Build the application:
+3. Build the application (setting version and build date via `ldflags`):
 ```bash
-go build -o lazyspeed
+go build -ldflags "-X main.Version=$(git describe --tags --always) -X main.BuildDate=$(date -u +%Y-%m-%d)" -o lazyspeed
 ```
 
 ## Usage
