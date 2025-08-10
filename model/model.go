@@ -25,25 +25,30 @@ type SpeedTestResult struct {
 }
 
 type Model struct {
-	Results       *SpeedTestResult
-	TestHistory   []*SpeedTestResult
-	Testing       bool
-	Progress      float64
-	CurrentPhase  string
-	Error         error
-	ShowHelp      bool
-	Width, Height int
-	PingResults   []float64 // Used for jitter calculation
+	Results         *SpeedTestResult
+	TestHistory     []*SpeedTestResult
+	Testing         bool
+	Progress        float64
+	CurrentPhase    string
+	Error           error
+	ShowHelp        bool
+	Width, Height   int
+	PingResults     []float64 // Used for jitter calculation
+	ServerList      speedtest.Servers
+	SelectingServer bool
+	Cursor          int
 }
 
 func NewModel() *Model {
 	return &Model{
-		Results:      nil,
-		TestHistory:  make([]*SpeedTestResult, 0),
-		Testing:      false,
-		Progress:     0,
-		CurrentPhase: "",
-		ShowHelp:     true,
+		Results:         nil,
+		TestHistory:     make([]*SpeedTestResult, 0),
+		Testing:         false,
+		Progress:        0,
+		CurrentPhase:    "",
+		ShowHelp:        true,
+		SelectingServer: false,
+		Cursor:          0,
 	}
 }
 
@@ -56,7 +61,22 @@ func sendUpdate(progress float64, phase string, updateChan chan<- ProgressUpdate
 	}
 }
 
-func (m *Model) PerformSpeedTest(updateChan chan<- ProgressUpdate) error {
+func (m *Model) FetchServerList() error {
+	m.CurrentPhase = "Fetching server list..."
+	serverList, err := speedtest.FetchServers()
+	if err != nil {
+		return fmt.Errorf("failed to fetch servers: %v", err)
+	}
+	sort.Slice(serverList, func(i, j int) bool {
+		return serverList[i].Latency < serverList[j].Latency
+	})
+	m.ServerList = serverList
+	m.CurrentPhase = ""
+	return nil
+}
+
+func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- ProgressUpdate) error {
+	var err error
 	m.Testing = true
 	m.Progress = 0
 	m.Error = nil
@@ -64,24 +84,7 @@ func (m *Model) PerformSpeedTest(updateChan chan<- ProgressUpdate) error {
 	m.PingResults = make([]float64, 0)
 
 	sendUpdate(0.0, "Initializing speed test...", updateChan)
-
-	sendUpdate(0.1, "Finding closest server...", updateChan)
-	serverList, err := speedtest.FetchServers()
-	if err != nil {
-		return fmt.Errorf("failed to fetch servers: %v", err)
-	}
-
-	if len(serverList) == 0 {
-		return fmt.Errorf("no servers available")
-	}
-
-	// Find the closest server
-	sort.Slice(serverList, func(i, j int) bool {
-		return serverList[i].Latency < serverList[j].Latency
-	})
-	server := serverList[0]
-	sendUpdate(0.15, fmt.Sprintf("Selected server: %s with latency %.2f ms", server.Name, server.Latency.Seconds()*1000), updateChan)
-	sendUpdate(0.2, fmt.Sprintf("Selected server: %s", server.Name), updateChan)
+	sendUpdate(0.2, fmt.Sprintf("Testing with server: %s", server.Name), updateChan)
 
 	sendUpdate(0.3, "Measuring ping and jitter...", updateChan)
 	var sumPing float64

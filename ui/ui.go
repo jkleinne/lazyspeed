@@ -132,10 +132,29 @@ func RenderError(err error, width int) string {
 func RenderHelp(width int) string {
 	help := strings.Builder{}
 	help.WriteString("\n")
-	help.WriteString("Press 'n' to start a new test\n")
-	help.WriteString("Press 'h' to toggle help\n")
-	help.WriteString("Press 'q' to quit\n")
+	help.WriteString("Controls:\n")
+	help.WriteString("  n: New Test\n")
+	help.WriteString("  h: Toggle Help\n")
+	help.WriteString("  q: Quit\n")
+	help.WriteString("\nIn Server Selection:\n")
+	help.WriteString("  ↑/↓, j/k: Navigate\n")
+	help.WriteString("  Enter: Select Server\n")
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center,
 		helpStyle.Render(help.String()))
+}
+
+func RenderServerSelection(m *model.Model, width int) string {
+	var b strings.Builder
+	b.WriteString("Select a server:\n\n")
+
+	for i, server := range m.ServerList {
+		if m.Cursor == i {
+			b.WriteString(fmt.Sprintf("> %s (%s) - %.2f ms\n", server.Name, server.Country, server.Latency.Seconds()*1000))
+		} else {
+			b.WriteString(fmt.Sprintf("  %s (%s) - %.2f ms\n", server.Name, server.Country, server.Latency.Seconds()*1000))
+		}
+	}
+
+	return lipgloss.PlaceHorizontal(width, lipgloss.Center, infoStyle.Render(b.String()))
 }

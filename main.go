@@ -38,12 +38,21 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "ctrl+c":
-			s.quitting = true
-			return s, tea.Quit
-		case "n":
-			if !s.model.Testing {
+		if s.model.SelectingServer {
+			switch msg.String() {
+			case "q", "ctrl+c":
+				s.quitting = true
+				return s, tea.Quit
+			case "up", "k":
+				if s.model.Cursor > 0 {
+					s.model.Cursor--
+				}
+			case "down", "j":
+				if s.model.Cursor < len(s.model.ServerList)-1 {
+					s.model.Cursor++
+				}
+			case "enter":
+				s.model.SelectingServer = false
 				s.model.Testing = true
 				s.model.Progress = 0
 				s.model.CurrentPhase = "Starting speed test..."
@@ -52,7 +61,8 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				s.progressChan = make(chan model.ProgressUpdate)
 				s.errChan = make(chan error, 1)
 				go func() {
-					err := s.model.PerformSpeedTest(s.progressChan)
+					server := s.model.ServerList[s.model.Cursor]
+					err := s.model.PerformSpeedTest(server, s.progressChan)
 					s.errChan <- err
 					close(s.progressChan)
 				}()
@@ -62,8 +72,19 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					waitForProgress(s.progressChan, s.errChan),
 				)
 			}
-		case "h":
-			s.model.ShowHelp = !s.model.ShowHelp
+		} else {
+			switch msg.String() {
+			case "q", "ctrl+c":
+				s.quitting = true
+				return s, tea.Quit
+			case "n":
+				if !s.model.Testing && !s.model.SelectingServer {
+					s.model.SelectingServer = true
+					s.model.ShowHelp = false
+				}
+			case "h":
+				s.model.ShowHelp = !s.model.ShowHelp
+			}
 		}
 
 	case tea.WindowSizeMsg:
@@ -103,27 +124,28 @@ func (s *speedTest) View() string {
 	var b strings.Builder
 
 	b.WriteString("\n")
-
 	b.WriteString(ui.RenderTitle(s.model.Width))
 	b.WriteString("\n\n")
 
-	if s.model.Testing {
+	if s.model.SelectingServer {
+		b.WriteString(ui.RenderServerSelection(s.model, s.model.Width))
+	} else if s.model.Testing {
 		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, s.model.Progress))
 		b.WriteString("\n\n")
-	}
+	} else {
+		if s.model.Results != nil || len(s.model.TestHistory) > 0 {
+			b.WriteString(ui.RenderResults(s.model, s.model.Width))
+			b.WriteString("\n")
+		}
 
-	if s.model.Results != nil || len(s.model.TestHistory) > 0 {
-		b.WriteString(ui.RenderResults(s.model, s.model.Width))
-		b.WriteString("\n")
-	}
+		if s.model.Error != nil {
+			b.WriteString("\n")
+			b.WriteString(ui.RenderError(s.model.Error, s.model.Width))
+		}
 
-	if s.model.Error != nil {
-		b.WriteString("\n")
-		b.WriteString(ui.RenderError(s.model.Error, s.model.Width))
-	}
-
-	if s.model.ShowHelp {
-		b.WriteString(ui.RenderHelp(s.model.Width))
+		if s.model.ShowHelp {
+			b.WriteString(ui.RenderHelp(s.model.Width))
+		}
 	}
 
 	b.WriteString("\n")
@@ -151,8 +173,14 @@ func main() {
 		os.Exit(0)
 	}
 
+	m := model.NewModel()
+	if err := m.FetchServerList(); err != nil {
+		fmt.Printf("Error fetching server list: %v\n", err)
+		os.Exit(1)
+	}
+
 	s := speedTest{
-		model:   model.NewModel(),
+		model:   m,
 		spinner: ui.DefaultSpinner,
 	}
 
