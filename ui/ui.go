@@ -150,9 +150,9 @@ func RenderServerSelection(m *model.Model, width int) string {
 
 	for i, server := range m.ServerList {
 		if m.Cursor == i {
-			b.WriteString(fmt.Sprintf("> %s (%s) - %.2f ms\n", server.Name, server.Country, server.Latency.Seconds()*1000))
+			b.WriteString(fmt.Sprintf("> %s: %s (%s) - %.2f ms\n", server.Sponsor, server.Name, server.Country, server.Latency.Seconds()*1000))
 		} else {
-			b.WriteString(fmt.Sprintf("  %s (%s) - %.2f ms\n", server.Name, server.Country, server.Latency.Seconds()*1000))
+			b.WriteString(fmt.Sprintf("  %s: %s (%s) - %.2f ms\n", server.Sponsor, server.Name, server.Country, server.Latency.Seconds()*1000))
 		}
 	}
 
