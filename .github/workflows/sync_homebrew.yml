@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Bump Homebrew formula
-        uses: dawidd6/action-homebrew-bump-formula
+        uses: dawidd6/action-homebrew-bump-formula@v5
         with:
           tap: jkleinne/homebrew-tools
           formula: lazyspeed
