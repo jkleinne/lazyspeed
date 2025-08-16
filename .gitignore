@@ -11,6 +11,8 @@
 # Go workspace file
 go.work
 
+context_portal
+
 # Binary output
 /lazyspeed
 
