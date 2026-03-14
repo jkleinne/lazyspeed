@@ -191,7 +191,7 @@ func RenderResults(m *model.Model, width int) string {
 
 	historyContent := lipgloss.JoinVertical(lipgloss.Left, label, "", tableStr)
 
-	content := lipgloss.JoinVertical(lipgloss.Left, latestContent, "\n", historyContent)
+	content := lipgloss.JoinVertical(lipgloss.Center, latestContent, "\n", historyContent)
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, content)
 }
