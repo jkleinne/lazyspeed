@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/progress"
@@ -91,6 +92,13 @@ func RenderResults(m *model.Model, width int) string {
 	}
 
 	resultBox := strings.Builder{}
+	// Pre-allocate buffer. ~250 bytes for latest test + ~85 bytes per history entry
+	estimatedSize := 250
+	if len(m.TestHistory) > 1 {
+		estimatedSize += (len(m.TestHistory) - 1) * 85
+	}
+	resultBox.Grow(estimatedSize)
+
 	resultBox.WriteString("\n")
 
 	latest := m.TestHistory[len(m.TestHistory)-1]
@@ -106,14 +114,22 @@ func RenderResults(m *model.Model, width int) string {
 	if len(m.TestHistory) > 1 {
 		resultBox.WriteString("\nPrevious Tests:\n")
 		resultBox.WriteString("──────────────\n")
+		var buf [128]byte
 		for i := len(m.TestHistory) - 2; i >= 0; i-- {
 			test := m.TestHistory[i]
-			resultBox.WriteString(fmt.Sprintf("[%s] DL: %.1f MBps, UL: %.1f MBps, Ping: %.1f ms, Jitter: %.1f ms\n",
-				test.Timestamp.Format("03:04:05 PM"),
-				test.DownloadSpeed,
-				test.UploadSpeed,
-				test.Ping,
-				test.Jitter))
+			b := buf[:0]
+			b = append(b, '[')
+			b = test.Timestamp.AppendFormat(b, "03:04:05 PM")
+			b = append(b, "] DL: "...)
+			b = strconv.AppendFloat(b, test.DownloadSpeed, 'f', 1, 64)
+			b = append(b, " MBps, UL: "...)
+			b = strconv.AppendFloat(b, test.UploadSpeed, 'f', 1, 64)
+			b = append(b, " MBps, Ping: "...)
+			b = strconv.AppendFloat(b, test.Ping, 'f', 1, 64)
+			b = append(b, " ms, Jitter: "...)
+			b = strconv.AppendFloat(b, test.Jitter, 'f', 1, 64)
+			b = append(b, " ms\n"...)
+			resultBox.Write(b)
 		}
 	}
 

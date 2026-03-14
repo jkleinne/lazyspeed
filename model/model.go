@@ -122,7 +122,9 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 
 	sendUpdate(0.5, "Starting download test...", updateChan)
 	done := make(chan struct{})
+	doneAck := make(chan struct{})
 	go func() {
+		defer close(doneAck)
 		start := time.Now()
 		ticker := time.NewTicker(200 * time.Millisecond)
 		defer ticker.Stop()
@@ -148,6 +150,7 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 	err = server.DownloadTest()
 	sendUpdate(0.75, fmt.Sprintf("Download test completed. server.DLSpeed: %f bps", server.DLSpeed), updateChan)
 	close(done)
+	<-doneAck
 	if err != nil {
 		return fmt.Errorf("download test failed: %v", err)
 	}
@@ -156,7 +159,9 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 
 	sendUpdate(0.8, "Starting upload test...", updateChan)
 	done = make(chan struct{})
+	doneAck = make(chan struct{})
 	go func() {
+		defer close(doneAck)
 		start := time.Now()
 		ticker := time.NewTicker(200 * time.Millisecond)
 		defer ticker.Stop()
@@ -180,6 +185,7 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 	}()
 	err = server.UploadTest()
 	close(done)
+	<-doneAck
 	if err != nil {
 		return fmt.Errorf("upload test failed: %v", err)
 	}
