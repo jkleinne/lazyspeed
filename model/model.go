@@ -123,7 +123,7 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 	sendUpdate(0.5, "Starting download test...", updateChan)
 	done := make(chan struct{})
 	go func() {
-		progress := 0.5
+		start := time.Now()
 		ticker := time.NewTicker(200 * time.Millisecond)
 		defer ticker.Stop()
 		for {
@@ -131,11 +131,17 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 			case <-done:
 				return
 			case <-ticker.C:
-				progress += 0.02
+				elapsed := time.Since(start)
+				progress := 0.5 + (float64(elapsed.Milliseconds())/15000.0)*0.25
 				if progress > 0.7 {
 					progress = 0.7
 				}
-				sendUpdate(progress, "Testing download speed...", updateChan)
+
+				// Fetch the Exponential Weighted Moving Average (EWMA) download rate in bytes/sec
+				rate := server.Context.GetEWMADownloadRate()
+				mbps := float64(rate) / 1000000.0
+
+				sendUpdate(progress, fmt.Sprintf("Testing download: %.2f MBps...", mbps), updateChan)
 			}
 		}
 	}()
@@ -151,7 +157,7 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 	sendUpdate(0.8, "Starting upload test...", updateChan)
 	done = make(chan struct{})
 	go func() {
-		progress := 0.8
+		start := time.Now()
 		ticker := time.NewTicker(200 * time.Millisecond)
 		defer ticker.Stop()
 		for {
@@ -159,11 +165,16 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 			case <-done:
 				return
 			case <-ticker.C:
-				progress += 0.01
-				if progress > 0.9 {
-					progress = 0.9
+				elapsed := time.Since(start)
+				progress := 0.8 + (float64(elapsed.Milliseconds())/15000.0)*0.15
+				if progress > 0.95 {
+					progress = 0.95
 				}
-				sendUpdate(progress, "Testing upload speed...", updateChan)
+
+				rate := server.Context.GetEWMAUploadRate()
+				mbps := float64(rate) / 1000000.0
+
+				sendUpdate(progress, fmt.Sprintf("Testing upload: %.2f MBps...", mbps), updateChan)
 			}
 		}
 	}()
