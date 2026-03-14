@@ -22,7 +22,9 @@ type SpeedTestResult struct {
 	Ping          float64
 	Jitter        float64
 	ServerName    string
+	ServerSponsor string
 	ServerLoc     string
+	Distance      float64
 	Timestamp     time.Time
 	UserIP        string
 	UserISP       string
@@ -273,7 +275,9 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 		Ping:          sumPing / float64(len(m.PingResults)),
 		Jitter:        jitter,
 		ServerName:    server.Name,
+		ServerSponsor: server.Sponsor,
 		ServerLoc:     server.Country,
+		Distance:      server.Distance,
 		Timestamp:     time.Now(),
 		UserIP:        userIP,
 		UserISP:       userISP,
