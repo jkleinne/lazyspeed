@@ -1,10 +1,12 @@
 package model
 
 import (
+	"encoding/json"
 	"fmt"
-	"time"
-
+	"os"
+	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/showwin/speedtest-go/speedtest"
 )
@@ -59,6 +61,63 @@ func sendUpdate(progress float64, phase string, updateChan chan<- ProgressUpdate
 			Phase:    phase,
 		}
 	}
+}
+
+func getHistoryFilePath() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(homeDir, ".lazyspeed_history.json"), nil
+}
+
+func (m *Model) LoadHistory() error {
+	historyPath, err := getHistoryFilePath()
+	if err != nil {
+		return err
+	}
+
+	data, err := os.ReadFile(historyPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // No history yet, that's fine
+		}
+		return fmt.Errorf("failed to read history file: %v", err)
+	}
+
+	if err := json.Unmarshal(data, &m.TestHistory); err != nil {
+		return fmt.Errorf("failed to parse history file: %v", err)
+	}
+
+	if len(m.TestHistory) > 0 {
+		m.Results = m.TestHistory[len(m.TestHistory)-1]
+	}
+
+	return nil
+}
+
+func (m *Model) SaveHistory() error {
+	historyPath, err := getHistoryFilePath()
+	if err != nil {
+		return err
+	}
+
+	// Keep only the last 50 tests
+	const maxHistorySize = 50
+	if len(m.TestHistory) > maxHistorySize {
+		m.TestHistory = m.TestHistory[len(m.TestHistory)-maxHistorySize:]
+	}
+
+	data, err := json.MarshalIndent(m.TestHistory, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to serialize history: %v", err)
+	}
+
+	if err := os.WriteFile(historyPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write history file: %v", err)
+	}
+
+	return nil
 }
 
 func (m *Model) FetchServerList() error {
@@ -204,6 +263,7 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 
 	m.Results = result
 	m.TestHistory = append(m.TestHistory, result)
+	_ = m.SaveHistory() // Persist after each test
 
 	sendUpdate(1.0, "Test completed", updateChan)
 	m.Testing = false
