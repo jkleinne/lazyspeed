@@ -22,8 +22,12 @@ type SpeedTestResult struct {
 	Ping          float64
 	Jitter        float64
 	ServerName    string
+	ServerSponsor string
 	ServerLoc     string
+	Distance      float64
 	Timestamp     time.Time
+	UserIP        string
+	UserISP       string
 }
 
 type Model struct {
@@ -39,6 +43,7 @@ type Model struct {
 	ServerList      speedtest.Servers
 	SelectingServer bool
 	Cursor          int
+	User            *speedtest.User
 }
 
 func NewModel() *Model {
@@ -143,6 +148,13 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 	m.PingResults = make([]float64, 0)
 
 	sendUpdate(0.0, "Initializing speed test...", updateChan)
+
+	sendUpdate(0.1, "Fetching network information...", updateChan)
+	user, userErr := speedtest.FetchUserInfo()
+	if userErr == nil {
+		m.User = user
+	}
+
 	sendUpdate(0.2, fmt.Sprintf("Testing with server: %s", server.Name), updateChan)
 
 	sendUpdate(0.3, "Measuring ping and jitter...", updateChan)
@@ -251,14 +263,24 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 	ulSpeed := float64(server.ULSpeed) / 1000000
 	sendUpdate(0.9, fmt.Sprintf("Upload complete: %.2f MBps", ulSpeed), updateChan)
 
+	var userIP, userISP string
+	if m.User != nil {
+		userIP = m.User.IP
+		userISP = m.User.Isp
+	}
+
 	result := &SpeedTestResult{
 		DownloadSpeed: dlSpeed,
 		UploadSpeed:   ulSpeed,
 		Ping:          sumPing / float64(len(m.PingResults)),
 		Jitter:        jitter,
 		ServerName:    server.Name,
+		ServerSponsor: server.Sponsor,
 		ServerLoc:     server.Country,
+		Distance:      server.Distance,
 		Timestamp:     time.Now(),
+		UserIP:        userIP,
+		UserISP:       userISP,
 	}
 
 	m.Results = result

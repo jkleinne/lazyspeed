@@ -116,7 +116,20 @@ func RenderResults(m *model.Model, width int) string {
 	latestBox.WriteString(fmt.Sprintf("🔄 Ping: %.2f ms\n", latest.Ping))
 	latestBox.WriteString(fmt.Sprintf("📊 Jitter: %.2f ms\n", latest.Jitter))
 	latestBox.WriteString(fmt.Sprintf("🌍 Server: %s (%s)\n", latest.ServerName, latest.ServerLoc))
+	if latest.ServerSponsor != "" {
+		latestBox.WriteString(fmt.Sprintf("🏢 Sponsor: %s\n", latest.ServerSponsor))
+	}
+	if latest.Distance > 0 {
+		latestBox.WriteString(fmt.Sprintf("📍 Distance: %.1f km\n", latest.Distance))
+	}
 	latestBox.WriteString(fmt.Sprintf("🕒 Timestamp: %s\n", latest.Timestamp.Format("03:04:05 PM")))
+	if latest.UserIP != "" {
+		ispInfo := latest.UserIP
+		if latest.UserISP != "" {
+			ispInfo = fmt.Sprintf("%s (%s)", latest.UserIP, latest.UserISP)
+		}
+		latestBox.WriteString(fmt.Sprintf("👤 IP: %s\n", ispInfo))
+	}
 	
 	latestContent := infoStyle.Render(latestBox.String())
 
@@ -124,17 +137,29 @@ func RenderResults(m *model.Model, width int) string {
 		return lipgloss.PlaceHorizontal(width, lipgloss.Center, latestContent)
 	}
 
-	headers := []string{"#", "Time", "Server", "DL (MBps)", "UL (MBps)", "Ping (ms)", "Jitter (ms)"}
+	headers := []string{"#", "Time", "Server", "Sponsor", "Dist (km)", "DL (MBps)", "UL (MBps)", "Ping (ms)", "Jitter (ms)"}
 
 	// Build rows newest-first (omitting the latest which is at index len-1)
 	rows := make([][]string, 0, len(m.TestHistory)-1)
 	for i := len(m.TestHistory) - 2; i >= 0; i-- {
 		test := m.TestHistory[i]
 		rowNum := i + 1
+
+		sponsorStr := "-"
+		if test.ServerSponsor != "" {
+			sponsorStr = test.ServerSponsor
+		}
+		distStr := "-"
+		if test.Distance > 0 {
+			distStr = fmt.Sprintf("%.1f", test.Distance)
+		}
+
 		rows = append(rows, []string{
 			fmt.Sprintf("%d", rowNum),
 			test.Timestamp.Format("Jan 02 03:04 PM"),
 			fmt.Sprintf("%s (%s)", test.ServerName, test.ServerLoc),
+			sponsorStr,
+			distStr,
 			fmt.Sprintf("%.2f", test.DownloadSpeed),
 			fmt.Sprintf("%.2f", test.UploadSpeed),
 			fmt.Sprintf("%.1f", test.Ping),
@@ -166,7 +191,7 @@ func RenderResults(m *model.Model, width int) string {
 
 	historyContent := lipgloss.JoinVertical(lipgloss.Left, label, "", tableStr)
 
-	content := lipgloss.JoinVertical(lipgloss.Left, latestContent, "\n", historyContent)
+	content := lipgloss.JoinVertical(lipgloss.Center, latestContent, "\n", historyContent)
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, content)
 }
