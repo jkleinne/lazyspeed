@@ -117,6 +117,13 @@ func RenderResults(m *model.Model, width int) string {
 	latestBox.WriteString(fmt.Sprintf("📊 Jitter: %.2f ms\n", latest.Jitter))
 	latestBox.WriteString(fmt.Sprintf("🌍 Server: %s (%s)\n", latest.ServerName, latest.ServerLoc))
 	latestBox.WriteString(fmt.Sprintf("🕒 Timestamp: %s\n", latest.Timestamp.Format("03:04:05 PM")))
+	if latest.UserIP != "" {
+		ispInfo := latest.UserIP
+		if latest.UserISP != "" {
+			ispInfo = fmt.Sprintf("%s (%s)", latest.UserIP, latest.UserISP)
+		}
+		latestBox.WriteString(fmt.Sprintf("👤 IP: %s\n", ispInfo))
+	}
 	
 	latestContent := infoStyle.Render(latestBox.String())
 
