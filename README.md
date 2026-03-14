@@ -3,7 +3,7 @@
 A simple terminal-based internet speed test application built with Go and [Bubble Tea](https://github.com/charmbracelet/bubbletea).
 
 <img width="480" alt="image" src="https://github.com/user-attachments/assets/2988d63e-3fcf-42de-83f2-9bce5e00106f" />
-<img width="346" alt="image" src="https://github.com/user-attachments/assets/af8856ea-45c1-4d5a-8361-378ca76bc7e9" />
+<img width="346" alt="image"  alt="image" src="https://github.com/user-attachments/assets/d191a282-760e-4b96-b93b-595c1c409104" />
 
 ## Features
 
@@ -45,7 +45,7 @@ go mod download
 
 3. Build the application (setting version and build date via `ldflags`):
 ```bash
-go build -ldflags "-X main.Version=$(git describe --tags --always) -X main.BuildDate=$(date -u +%Y-%m-%d)" -o lazyspeed
+go build
 ```
 
 ## Usage
