@@ -137,17 +137,29 @@ func RenderResults(m *model.Model, width int) string {
 		return lipgloss.PlaceHorizontal(width, lipgloss.Center, latestContent)
 	}
 
-	headers := []string{"#", "Time", "Server", "DL (MBps)", "UL (MBps)", "Ping (ms)", "Jitter (ms)"}
+	headers := []string{"#", "Time", "Server", "Sponsor", "Dist (km)", "DL (MBps)", "UL (MBps)", "Ping (ms)", "Jitter (ms)"}
 
 	// Build rows newest-first (omitting the latest which is at index len-1)
 	rows := make([][]string, 0, len(m.TestHistory)-1)
 	for i := len(m.TestHistory) - 2; i >= 0; i-- {
 		test := m.TestHistory[i]
 		rowNum := i + 1
+
+		sponsorStr := "-"
+		if test.ServerSponsor != "" {
+			sponsorStr = test.ServerSponsor
+		}
+		distStr := "-"
+		if test.Distance > 0 {
+			distStr = fmt.Sprintf("%.1f", test.Distance)
+		}
+
 		rows = append(rows, []string{
 			fmt.Sprintf("%d", rowNum),
 			test.Timestamp.Format("Jan 02 03:04 PM"),
 			fmt.Sprintf("%s (%s)", test.ServerName, test.ServerLoc),
+			sponsorStr,
+			distStr,
 			fmt.Sprintf("%.2f", test.DownloadSpeed),
 			fmt.Sprintf("%.2f", test.UploadSpeed),
 			fmt.Sprintf("%.1f", test.Ping),
