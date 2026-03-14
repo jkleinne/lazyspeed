@@ -52,6 +52,12 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					s.model.Cursor++
 				}
 			case "enter":
+				if s.model.Cursor < 0 || s.model.Cursor >= len(s.model.ServerList) {
+					s.model.Error = fmt.Errorf("invalid server selection")
+					s.model.SelectingServer = false
+					s.model.ShowHelp = false
+					return s, nil
+				}
 				s.model.SelectingServer = false
 				s.model.Testing = true
 				s.model.Progress = 0

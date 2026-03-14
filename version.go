@@ -6,20 +6,36 @@ import (
 	"time"
 )
 
+// Set via -ldflags by GoReleaser at build time.
+// When building locally with `go build`, these remain empty
+// and the function falls back to debug.ReadBuildInfo().
+var (
+	version = ""
+	commit  = ""
+	date    = ""
+)
+
 // Returns a formatted version string using embedded build info
 func GetVersionInfo() string {
-	version := "dev"
+	// Prefer values injected by GoReleaser via ldflags
+	if version != "" {
+		infoStr := fmt.Sprintf("lazyspeed version %s", version)
+		if date != "" {
+			infoStr += fmt.Sprintf(" (built: %s)", date)
+		}
+		return infoStr
+	}
+
+	// Fallback: read embedded build information (local `go build`)
+	ver := "dev"
 	buildDate := ""
 	commitHash := ""
 
-	// Read embedded build information
 	if info, ok := debug.ReadBuildInfo(); ok {
-		// 1. Check for the main module version
 		if info.Main.Version != "" && info.Main.Version != "(devel)" {
-			version = info.Main.Version
+			ver = info.Main.Version
 		}
 
-		// 2. Extract VCS information (used when building locally with 'go build' in a git repo)
 		for _, setting := range info.Settings {
 			switch setting.Key {
 			case "vcs.time":
@@ -28,7 +44,6 @@ func GetVersionInfo() string {
 					buildDate = t.Format("2006-01-02")
 				}
 			case "vcs.revision":
-				// Use short commit hash (first 7 characters)
 				if len(setting.Value) > 7 {
 					commitHash = setting.Value[:7]
 				} else {
@@ -37,13 +52,12 @@ func GetVersionInfo() string {
 			}
 		}
 
-		// If we are in dev mode but found a commit hash, use it for clarity
-		if version == "dev" && commitHash != "" {
-			version = fmt.Sprintf("dev (%s)", commitHash)
+		if ver == "dev" && commitHash != "" {
+			ver = fmt.Sprintf("dev (%s)", commitHash)
 		}
 	}
 
-	infoStr := fmt.Sprintf("lazyspeed version %s", version)
+	infoStr := fmt.Sprintf("lazyspeed version %s", ver)
 
 	if buildDate != "" {
 		infoStr += fmt.Sprintf(" (built: %s)", buildDate)
