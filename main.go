@@ -180,6 +180,10 @@ func main() {
 	}
 
 	m := model.NewModel()
+	if err := m.LoadHistory(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to load test history: %v\n", err)
+	}
+
 	if err := m.FetchServerList(); err != nil {
 		fmt.Printf("Error fetching server list: %v\n", err)
 		os.Exit(1)

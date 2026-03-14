@@ -2,12 +2,12 @@ package ui
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 	"github.com/jkleinne/lazyspeed/model"
 )
 
@@ -38,6 +38,21 @@ var (
 		}),
 		spinner.WithStyle(spinnerStyle),
 	)
+
+	// Table styles
+	headerStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#FAFAFA")).
+			Background(lipgloss.Color("#7D56F4")).
+			Padding(0, 1)
+
+	evenRowStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#CCCCCC")).
+			Padding(0, 1)
+
+	oddRowStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#999999")).
+			Padding(0, 1)
 )
 
 func RenderTitle(width int) string {
@@ -91,50 +106,69 @@ func RenderResults(m *model.Model, width int) string {
 		return ""
 	}
 
-	resultBox := strings.Builder{}
-	// Pre-allocate buffer. ~250 bytes for latest test + ~85 bytes per history entry
-	estimatedSize := 250
-	if len(m.TestHistory) > 1 {
-		estimatedSize += (len(m.TestHistory) - 1) * 85
-	}
-	resultBox.Grow(estimatedSize)
-
-	resultBox.WriteString("\n")
-
 	latest := m.TestHistory[len(m.TestHistory)-1]
-	resultBox.WriteString("Latest Test Results:\n")
-	resultBox.WriteString("──────────────────────\n")
-	resultBox.WriteString(fmt.Sprintf("📥 Download: %.2f MBps\n", latest.DownloadSpeed))
-	resultBox.WriteString(fmt.Sprintf("📤 Upload: %.2f MBps\n", latest.UploadSpeed))
-	resultBox.WriteString(fmt.Sprintf("🔄 Ping: %.2f ms\n", latest.Ping))
-	resultBox.WriteString(fmt.Sprintf("📊 Jitter: %.2f ms\n", latest.Jitter))
-	resultBox.WriteString(fmt.Sprintf("🌍 Server: %s (%s)\n", latest.ServerName, latest.ServerLoc))
-	resultBox.WriteString(fmt.Sprintf("🕒 Timestamp: %s\n", latest.Timestamp.Format("03:04:05 PM")))
+	
+	latestBox := strings.Builder{}
+	latestBox.WriteString("Latest Test Results:\n")
+	latestBox.WriteString("──────────────────────\n")
+	latestBox.WriteString(fmt.Sprintf("📥 Download: %.2f MBps\n", latest.DownloadSpeed))
+	latestBox.WriteString(fmt.Sprintf("📤 Upload: %.2f MBps\n", latest.UploadSpeed))
+	latestBox.WriteString(fmt.Sprintf("🔄 Ping: %.2f ms\n", latest.Ping))
+	latestBox.WriteString(fmt.Sprintf("📊 Jitter: %.2f ms\n", latest.Jitter))
+	latestBox.WriteString(fmt.Sprintf("🌍 Server: %s (%s)\n", latest.ServerName, latest.ServerLoc))
+	latestBox.WriteString(fmt.Sprintf("🕒 Timestamp: %s\n", latest.Timestamp.Format("03:04:05 PM")))
+	
+	latestContent := infoStyle.Render(latestBox.String())
 
-	if len(m.TestHistory) > 1 {
-		resultBox.WriteString("\nPrevious Tests:\n")
-		resultBox.WriteString("──────────────\n")
-		var buf [128]byte
-		for i := len(m.TestHistory) - 2; i >= 0; i-- {
-			test := m.TestHistory[i]
-			b := buf[:0]
-			b = append(b, '[')
-			b = test.Timestamp.AppendFormat(b, "03:04:05 PM")
-			b = append(b, "] DL: "...)
-			b = strconv.AppendFloat(b, test.DownloadSpeed, 'f', 1, 64)
-			b = append(b, " MBps, UL: "...)
-			b = strconv.AppendFloat(b, test.UploadSpeed, 'f', 1, 64)
-			b = append(b, " MBps, Ping: "...)
-			b = strconv.AppendFloat(b, test.Ping, 'f', 1, 64)
-			b = append(b, " ms, Jitter: "...)
-			b = strconv.AppendFloat(b, test.Jitter, 'f', 1, 64)
-			b = append(b, " ms\n"...)
-			resultBox.Write(b)
-		}
+	if len(m.TestHistory) == 1 {
+		return lipgloss.PlaceHorizontal(width, lipgloss.Center, latestContent)
 	}
 
-	return lipgloss.PlaceHorizontal(width, lipgloss.Center,
-		infoStyle.Render(resultBox.String()))
+	headers := []string{"#", "Time", "Server", "DL (MBps)", "UL (MBps)", "Ping (ms)", "Jitter (ms)"}
+
+	// Build rows newest-first (omitting the latest which is at index len-1)
+	rows := make([][]string, 0, len(m.TestHistory)-1)
+	for i := len(m.TestHistory) - 2; i >= 0; i-- {
+		test := m.TestHistory[i]
+		rowNum := i + 1
+		rows = append(rows, []string{
+			fmt.Sprintf("%d", rowNum),
+			test.Timestamp.Format("Jan 02 03:04 PM"),
+			fmt.Sprintf("%s (%s)", test.ServerName, test.ServerLoc),
+			fmt.Sprintf("%.2f", test.DownloadSpeed),
+			fmt.Sprintf("%.2f", test.UploadSpeed),
+			fmt.Sprintf("%.1f", test.Ping),
+			fmt.Sprintf("%.1f", test.Jitter),
+		})
+	}
+
+	t := table.New().
+		Headers(headers...).
+		Rows(rows...).
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			if row == table.HeaderRow {
+				return headerStyle
+			}
+			if row%2 == 0 {
+				return evenRowStyle
+			}
+			return oddRowStyle
+		})
+
+	tableStr := t.Render()
+
+	label := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#7D56F4")).
+		Bold(true).
+		Render("📊 Previous Tests")
+
+	historyContent := lipgloss.JoinVertical(lipgloss.Left, label, "", tableStr)
+
+	content := lipgloss.JoinVertical(lipgloss.Left, latestContent, "\n", historyContent)
+
+	return lipgloss.PlaceHorizontal(width, lipgloss.Center, content)
 }
 
 func RenderError(err error, width int) string {
