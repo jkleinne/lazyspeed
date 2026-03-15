@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -167,7 +168,7 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 			if len(m.PingResults) > 1 {
 				// Calculate current jitter for display
 				lastIdx := len(m.PingResults) - 1
-				currentJitter := abs(m.PingResults[lastIdx] - m.PingResults[lastIdx-1])
+				currentJitter := math.Abs(m.PingResults[lastIdx] - m.PingResults[lastIdx-1])
 				sendUpdate(0.3+float64(i+1)*0.02,
 					fmt.Sprintf("Ping: %.1f ms, Jitter: %.1f ms (%d/10)",
 						ping, currentJitter, i+1), updateChan)
@@ -186,7 +187,7 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 	if len(m.PingResults) > 1 {
 		var sum float64
 		for i := 1; i < len(m.PingResults); i++ {
-			sum += abs(m.PingResults[i] - m.PingResults[i-1])
+			sum += math.Abs(m.PingResults[i] - m.PingResults[i-1])
 		}
 		jitter = sum / float64(len(m.PingResults)-1)
 	}
@@ -290,11 +291,4 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 	sendUpdate(1.0, "Test completed", updateChan)
 	m.Testing = false
 	return nil
-}
-
-func abs(x float64) float64 {
-	if x < 0 {
-		return -x
-	}
-	return x
 }
