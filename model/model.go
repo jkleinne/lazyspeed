@@ -13,6 +13,14 @@ import (
 	"github.com/showwin/speedtest-go/speedtest"
 )
 
+const (
+	bytesToMB               = 1_000_000
+	pingIterations          = 10
+	progressInterval        = 200 * time.Millisecond
+	pingDelay               = 100 * time.Millisecond
+	estimatedTestDurationMs = 15_000
+)
+
 type ProgressUpdate struct {
 	Progress float64
 	Phase    string
@@ -40,6 +48,7 @@ type Model struct {
 	Progress               float64
 	CurrentPhase           string
 	Error                  error
+	Warning                string
 	ShowHelp               bool
 	Width, Height          int
 	PingResults            []float64 // Used for jitter calculation
@@ -149,6 +158,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	m.Testing = true
 	m.Progress = 0
 	m.Error = nil
+	m.Warning = ""
 	m.Results = nil
 	m.PingResults = make([]float64, 0)
 
@@ -158,6 +168,8 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	user, userErr := speedtest.FetchUserInfo()
 	if userErr == nil {
 		m.User = user
+	} else {
+		m.Warning = fmt.Sprintf("could not fetch network info: %v", userErr)
 	}
 
 	if ctx.Err() != nil {
@@ -169,7 +181,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 
 	sendUpdate(0.3, "Measuring ping and jitter...", updateChan)
 	var sumPing float64
-	for i := 0; i < 10; i++ {
+	for i := 0; i < pingIterations; i++ {
 		if ctx.Err() != nil {
 			m.Testing = false
 			return ctx.Err()
@@ -183,11 +195,11 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 				lastIdx := len(m.PingResults) - 1
 				currentJitter := math.Abs(m.PingResults[lastIdx] - m.PingResults[lastIdx-1])
 				sendUpdate(0.3+float64(i+1)*0.02,
-					fmt.Sprintf("Ping: %.1f ms, Jitter: %.1f ms (%d/10)",
-						ping, currentJitter, i+1), updateChan)
+					fmt.Sprintf("Ping: %.1f ms, Jitter: %.1f ms (%d/%d)",
+						ping, currentJitter, i+1, pingIterations), updateChan)
 			} else {
 				sendUpdate(0.3+float64(i+1)*0.02,
-					fmt.Sprintf("Ping: %.1f ms (%d/10)", ping, i+1), updateChan)
+					fmt.Sprintf("Ping: %.1f ms (%d/%d)", ping, i+1, pingIterations), updateChan)
 			}
 		})
 		if err != nil {
@@ -197,7 +209,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		case <-ctx.Done():
 			m.Testing = false
 			return ctx.Err()
-		case <-time.After(100 * time.Millisecond): // Small delay between pings
+		case <-time.After(pingDelay): // Small delay between pings
 		}
 	}
 
@@ -221,7 +233,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	go func() {
 		defer close(doneAck)
 		start := time.Now()
-		ticker := time.NewTicker(200 * time.Millisecond)
+		ticker := time.NewTicker(progressInterval)
 		defer ticker.Stop()
 		for {
 			select {
@@ -231,14 +243,14 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 				return
 			case <-ticker.C:
 				elapsed := time.Since(start)
-				progress := 0.5 + (float64(elapsed.Milliseconds())/15000.0)*0.25
+				progress := 0.5 + (float64(elapsed.Milliseconds())/estimatedTestDurationMs)*0.25
 				if progress > 0.7 {
 					progress = 0.7
 				}
 
 				// Fetch the Exponential Weighted Moving Average (EWMA) download rate in bytes/sec
 				rate := server.Context.GetEWMADownloadRate()
-				mbps := float64(rate) / 1000000.0
+				mbps := float64(rate) / bytesToMB
 
 				sendUpdate(progress, fmt.Sprintf("Testing download: %.2f MBps...", mbps), updateChan)
 			}
@@ -255,7 +267,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		m.Testing = false
 		return fmt.Errorf("download test failed: %v", err)
 	}
-	dlSpeed := float64(server.DLSpeed) / 1000000
+	dlSpeed := float64(server.DLSpeed) / bytesToMB
 	sendUpdate(0.75, fmt.Sprintf("Download complete: %.2f MBps", dlSpeed), updateChan)
 
 	sendUpdate(0.8, "Starting upload test...", updateChan)
@@ -264,7 +276,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	go func() {
 		defer close(doneAck)
 		start := time.Now()
-		ticker := time.NewTicker(200 * time.Millisecond)
+		ticker := time.NewTicker(progressInterval)
 		defer ticker.Stop()
 		for {
 			select {
@@ -274,13 +286,13 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 				return
 			case <-ticker.C:
 				elapsed := time.Since(start)
-				progress := 0.8 + (float64(elapsed.Milliseconds())/15000.0)*0.15
+				progress := 0.8 + (float64(elapsed.Milliseconds())/estimatedTestDurationMs)*0.15
 				if progress > 0.95 {
 					progress = 0.95
 				}
 
 				rate := server.Context.GetEWMAUploadRate()
-				mbps := float64(rate) / 1000000.0
+				mbps := float64(rate) / bytesToMB
 
 				sendUpdate(progress, fmt.Sprintf("Testing upload: %.2f MBps...", mbps), updateChan)
 			}
@@ -297,7 +309,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		m.Testing = false
 		return fmt.Errorf("upload test failed: %v", err)
 	}
-	ulSpeed := float64(server.ULSpeed) / 1000000
+	ulSpeed := float64(server.ULSpeed) / bytesToMB
 	sendUpdate(0.9, fmt.Sprintf("Upload complete: %.2f MBps", ulSpeed), updateChan)
 
 	var userIP, userISP string
@@ -306,10 +318,15 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		userISP = m.User.Isp
 	}
 
+	var avgPing float64
+	if len(m.PingResults) > 0 {
+		avgPing = sumPing / float64(len(m.PingResults))
+	}
+
 	result := &SpeedTestResult{
 		DownloadSpeed: dlSpeed,
 		UploadSpeed:   ulSpeed,
-		Ping:          sumPing / float64(len(m.PingResults)),
+		Ping:          avgPing,
 		Jitter:        jitter,
 		ServerName:    server.Name,
 		ServerSponsor: server.Sponsor,
@@ -322,7 +339,9 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 
 	m.Results = result
 	m.TestHistory = append(m.TestHistory, result)
-	_ = m.SaveHistory() // Persist after each test
+	if saveErr := m.SaveHistory(); saveErr != nil {
+		m.Warning = fmt.Sprintf("failed to save history: %v", saveErr)
+	}
 
 	sendUpdate(1.0, "Test completed", updateChan)
 	m.Testing = false

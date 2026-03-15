@@ -213,6 +213,11 @@ func (s *speedTest) View() string {
 			b.WriteString(ui.RenderError(s.model.Error, s.model.Width))
 		}
 
+		if s.model.Warning != "" {
+			b.WriteString("\n")
+			b.WriteString(ui.RenderWarning(s.model.Warning, s.model.Width))
+		}
+
 		if s.model.ShowHelp {
 			b.WriteString(ui.RenderHelp(s.model.Width))
 		}

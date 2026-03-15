@@ -25,6 +25,9 @@ var (
 	errorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FF0000"))
 
+	warningStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FFA500"))
+
 	helpStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#626262"))
 
@@ -107,7 +110,7 @@ func RenderResults(m *model.Model, width int) string {
 	}
 
 	latest := m.TestHistory[len(m.TestHistory)-1]
-	
+
 	latestBox := strings.Builder{}
 	latestBox.WriteString("Latest Test Results:\n")
 	latestBox.WriteString("──────────────────────\n")
@@ -130,7 +133,7 @@ func RenderResults(m *model.Model, width int) string {
 		}
 		latestBox.WriteString(fmt.Sprintf("👤 IP: %s\n", ispInfo))
 	}
-	
+
 	latestContent := infoStyle.Render(latestBox.String())
 
 	if len(m.TestHistory) == 1 {
@@ -202,6 +205,14 @@ func RenderError(err error, width int) string {
 	}
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center,
 		errorStyle.Render(fmt.Sprintf("❌ Error: %v", err)))
+}
+
+func RenderWarning(warning string, width int) string {
+	if warning == "" {
+		return ""
+	}
+	return lipgloss.PlaceHorizontal(width, lipgloss.Center,
+		warningStyle.Render(fmt.Sprintf("⚠️ Warning: %s", warning)))
 }
 
 func RenderHelp(width int) string {
