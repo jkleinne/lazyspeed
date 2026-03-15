@@ -2,9 +2,12 @@ package model
 
 import (
 	"context"
+	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -387,5 +390,116 @@ func TestConfigDrivenPingCount(t *testing.T) {
 
 	if pingCallCount != 3 {
 		t.Errorf("Expected 3 ping calls (from config), got %d", pingCallCount)
+	}
+}
+
+func TestExportResultJSON(t *testing.T) {
+	dir := t.TempDir()
+	result := &SpeedTestResult{
+		DownloadSpeed: 99.5,
+		UploadSpeed:   55.2,
+		Ping:          12.0,
+		Jitter:        1.5,
+		ServerName:    "Test Server",
+		ServerLoc:     "US",
+		UserIP:        "1.2.3.4",
+		UserISP:       "TestISP",
+		Timestamp:     time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC),
+	}
+
+	path, err := ExportResult(result, "json", dir)
+	if err != nil {
+		t.Fatalf("ExportResult JSON failed: %v", err)
+	}
+	if !strings.HasSuffix(path, ".json") {
+		t.Errorf("Expected .json suffix, got %q", path)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("Could not read exported file: %v", err)
+	}
+	var got SpeedTestResult
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Could not parse exported JSON: %v", err)
+	}
+	if got.DownloadSpeed != result.DownloadSpeed {
+		t.Errorf("Expected DownloadSpeed %.2f, got %.2f", result.DownloadSpeed, got.DownloadSpeed)
+	}
+	if got.ServerName != result.ServerName {
+		t.Errorf("Expected ServerName %q, got %q", result.ServerName, got.ServerName)
+	}
+}
+
+func TestExportResultCSV(t *testing.T) {
+	dir := t.TempDir()
+	result := &SpeedTestResult{
+		DownloadSpeed: 88.0,
+		UploadSpeed:   44.0,
+		Ping:          8.0,
+		Jitter:        0.5,
+		ServerName:    "CSV Server",
+		ServerLoc:     "EU",
+		UserIP:        "2.3.4.5",
+		UserISP:       "EuroISP",
+		Timestamp:     time.Date(2026, 3, 15, 11, 0, 0, 0, time.UTC),
+	}
+
+	path, err := ExportResult(result, "csv", dir)
+	if err != nil {
+		t.Fatalf("ExportResult CSV failed: %v", err)
+	}
+	if !strings.HasSuffix(path, ".csv") {
+		t.Errorf("Expected .csv suffix, got %q", path)
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("Could not open exported file: %v", err)
+	}
+	defer f.Close()
+
+	r := csv.NewReader(f)
+	records, err := r.ReadAll()
+	if err != nil {
+		t.Fatalf("Could not parse exported CSV: %v", err)
+	}
+	// Header + 1 data row
+	if len(records) != 2 {
+		t.Fatalf("Expected 2 CSV records, got %d", len(records))
+	}
+	if records[0][0] != "timestamp" {
+		t.Errorf("Expected first header to be 'timestamp', got %q", records[0][0])
+	}
+	if records[1][1] != "CSV Server" {
+		t.Errorf("Expected server name in CSV data row, got %q", records[1][1])
+	}
+}
+
+func TestExportResultUnknownFormat(t *testing.T) {
+	dir := t.TempDir()
+	result := &SpeedTestResult{Timestamp: time.Now()}
+
+	_, err := ExportResult(result, "xml", dir)
+	if err == nil {
+		t.Errorf("Expected error for unknown format, got nil")
+	}
+	if !strings.Contains(err.Error(), "xml") {
+		t.Errorf("Expected error to mention the bad format, got %q", err.Error())
+	}
+}
+
+func TestExportResultFilenameContainsTimestamp(t *testing.T) {
+	dir := t.TempDir()
+	ts := time.Date(2026, 3, 15, 12, 30, 45, 0, time.UTC)
+	result := &SpeedTestResult{Timestamp: ts}
+
+	path, err := ExportResult(result, "json", dir)
+	if err != nil {
+		t.Fatalf("ExportResult failed: %v", err)
+	}
+	base := filepath.Base(path)
+	if !strings.Contains(base, "20260315_123045") {
+		t.Errorf("Expected filename to contain timestamp '20260315_123045', got %q", base)
 	}
 }

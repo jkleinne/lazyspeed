@@ -165,3 +165,93 @@ func TestView(t *testing.T) {
 		t.Errorf("Expected testing view")
 	}
 }
+
+func TestUpdateExportKeyOpensPrompt(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: time.Now()}
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
+	newS := newModel.(*speedTest)
+
+	if !newS.model.Exporting {
+		t.Errorf("Expected Exporting to be true after pressing e")
+	}
+}
+
+func TestUpdateExportKeyNoOpWithoutResult(t *testing.T) {
+	m := model.NewDefaultModel()
+	// m.Results is nil
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
+	newS := newModel.(*speedTest)
+
+	if newS.model.Exporting {
+		t.Errorf("Expected Exporting to remain false when there is no result")
+	}
+}
+
+func TestUpdateExportEscCancels(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: time.Now()}
+	m.Exporting = true
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	newS := newModel.(*speedTest)
+
+	if newS.model.Exporting {
+		t.Errorf("Expected Exporting to be false after Esc")
+	}
+}
+
+func TestUpdateExportDoneMsgSuccess(t *testing.T) {
+	m := model.NewDefaultModel()
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	newModel, _ := s.Update(exportDoneMsg{path: "/tmp/lazyspeed_test.json"})
+	newS := newModel.(*speedTest)
+
+	if !strings.Contains(newS.model.ExportMessage, "/tmp/lazyspeed_test.json") {
+		t.Errorf("Expected export path in ExportMessage, got %q", newS.model.ExportMessage)
+	}
+}
+
+func TestUpdateExportDoneMsgError(t *testing.T) {
+	m := model.NewDefaultModel()
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	newModel, _ := s.Update(exportDoneMsg{err: errors.New("write failed")})
+	newS := newModel.(*speedTest)
+
+	if !strings.Contains(newS.model.ExportMessage, "write failed") {
+		t.Errorf("Expected error text in ExportMessage, got %q", newS.model.ExportMessage)
+	}
+}
+
+func TestViewExportPrompt(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: time.Now()}
+	m.TestHistory = []*model.SpeedTestResult{m.Results}
+	m.Exporting = true
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	view := s.View()
+	if !strings.Contains(view, "[j] JSON") {
+		t.Errorf("Expected export prompt in view when Exporting is true")
+	}
+}
+
+func TestViewExportMessage(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: time.Now()}
+	m.TestHistory = []*model.SpeedTestResult{m.Results}
+	m.ExportMessage = "Saved to /tmp/lazyspeed_result.json"
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	view := s.View()
+	if !strings.Contains(view, "Saved to") {
+		t.Errorf("Expected export message in view when ExportMessage is set")
+	}
+}

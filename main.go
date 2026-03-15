@@ -13,6 +13,12 @@ import (
 	"github.com/jkleinne/lazyspeed/ui"
 )
 
+// exportDoneMsg is sent when an in-TUI export operation completes.
+type exportDoneMsg struct {
+	path string
+	err  error
+}
+
 const keyCtrlC = "ctrl+c"
 
 type speedTest struct {
@@ -70,6 +76,21 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// Export format prompt takes priority over all other key handlers
+		if s.model.Exporting {
+			switch msg.String() {
+			case "j":
+				s.model.Exporting = false
+				return s, exportCmd(s.model.Results, "json")
+			case "c":
+				s.model.Exporting = false
+				return s, exportCmd(s.model.Results, "csv")
+			case "esc", "q", keyCtrlC:
+				s.model.Exporting = false
+			}
+			return s, nil
+		}
+
 		if s.model.FetchingServers && s.model.PendingServerSelection {
 			// Spinner is visible while waiting for server list — only allow quit
 			switch msg.String() {
@@ -138,6 +159,11 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					s.model.SelectingServer = true
 					s.model.ShowHelp = false
 				}
+			case "e":
+				if !s.model.Testing && s.model.Results != nil {
+					s.model.Exporting = true
+					s.model.ExportMessage = ""
+				}
 			case "h":
 				s.model.ShowHelp = !s.model.ShowHelp
 			}
@@ -184,6 +210,14 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.model.Results = nil
 		}
 		return s, nil
+
+	case exportDoneMsg:
+		if msg.err != nil {
+			s.model.ExportMessage = fmt.Sprintf("Export failed: %v", msg.err)
+		} else {
+			s.model.ExportMessage = fmt.Sprintf("Saved to %s", msg.path)
+		}
+		return s, nil
 	}
 
 	return s, cmd
@@ -220,8 +254,16 @@ func (s *speedTest) View() string {
 			b.WriteString(ui.RenderWarning(s.model.Warning, s.model.Width))
 		}
 
+		if s.model.Exporting {
+			b.WriteString("\n")
+			b.WriteString(ui.RenderExportPrompt(s.model.Width))
+		} else if s.model.ExportMessage != "" {
+			b.WriteString("\n")
+			b.WriteString(ui.RenderExportMessage(s.model.ExportMessage, s.model.Width))
+		}
+
 		if s.model.ShowHelp {
-			b.WriteString(ui.RenderHelp(s.model.Width))
+			b.WriteString(ui.RenderHelp(s.model.Width, s.model.Results != nil))
 		}
 	}
 
@@ -241,6 +283,18 @@ func waitForProgress(progressChan chan model.ProgressUpdate, errChan chan error)
 			Progress: update.Progress,
 			Phase:    update.Phase,
 		}
+	}
+}
+
+// exportCmd runs the file export in a goroutine and returns the result as a tea.Cmd.
+func exportCmd(result *model.SpeedTestResult, format string) tea.Cmd {
+	return func() tea.Msg {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return exportDoneMsg{err: fmt.Errorf("could not determine working directory: %v", err)}
+		}
+		path, err := model.ExportResult(result, format, cwd)
+		return exportDoneMsg{path: path, err: err}
 	}
 }
 

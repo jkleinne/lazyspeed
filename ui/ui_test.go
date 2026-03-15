@@ -167,9 +167,51 @@ func TestRenderWarning(t *testing.T) {
 }
 
 func TestRenderHelp(t *testing.T) {
-	res := RenderHelp(100)
+	// Without a result: no export hint
+	res := RenderHelp(100, false)
 	if !strings.Contains(res, "Controls:") || !strings.Contains(res, "n: New Test") {
 		t.Errorf("Expected help controls to be present")
+	}
+	if strings.Contains(res, "e: Export") {
+		t.Errorf("Did not expect export hint when hasResult is false")
+	}
+
+	// With a result: export hint shown
+	res = RenderHelp(100, true)
+	if !strings.Contains(res, "e: Export Result") {
+		t.Errorf("Expected export hint when hasResult is true")
+	}
+}
+
+func TestRenderExportPrompt(t *testing.T) {
+	res := RenderExportPrompt(100)
+	if !strings.Contains(res, "[j] JSON") {
+		t.Errorf("Expected JSON option in export prompt")
+	}
+	if !strings.Contains(res, "[c] CSV") {
+		t.Errorf("Expected CSV option in export prompt")
+	}
+	if !strings.Contains(res, "[Esc] cancel") {
+		t.Errorf("Expected cancel option in export prompt")
+	}
+
+	// Zero width should not panic
+	res = RenderExportPrompt(0)
+	if !strings.Contains(res, "[j] JSON") {
+		t.Errorf("Expected JSON option even at zero width")
+	}
+}
+
+func TestRenderExportMessage(t *testing.T) {
+	// Empty message returns empty string
+	if RenderExportMessage("", 100) != "" {
+		t.Errorf("Expected empty string for empty message")
+	}
+
+	// Non-empty message is rendered
+	res := RenderExportMessage("Saved to /tmp/lazyspeed_20260101_120000.json", 100)
+	if !strings.Contains(res, "Saved to") {
+		t.Errorf("Expected message text in render output")
 	}
 }
 

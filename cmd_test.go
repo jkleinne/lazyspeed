@@ -1,7 +1,12 @@
 package main
 
 import (
+	"bytes"
+	"encoding/csv"
 	"encoding/json"
+	"io"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -112,5 +117,192 @@ func TestMarshalJSONResultsMultiple(t *testing.T) {
 		if _, ok := item["download_speed"]; !ok {
 			t.Errorf("Expected download_speed key in array item %d", i)
 		}
+	}
+}
+
+// captureStdout redirects os.Stdout during fn and returns what was written.
+func captureStdout(fn func()) string {
+	r, w, _ := os.Pipe()
+	origStdout := os.Stdout
+	os.Stdout = w
+
+	fn()
+
+	w.Close()
+	os.Stdout = origStdout
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	return buf.String()
+}
+
+// makeHistoryEntries builds a slice of SpeedTestResult values for use in tests.
+func makeHistoryEntries(n int) []*model.SpeedTestResult {
+	results := make([]*model.SpeedTestResult, n)
+	for i := range n {
+		results[i] = &model.SpeedTestResult{
+			DownloadSpeed: float64(100 + i),
+			UploadSpeed:   float64(50 + i),
+			Ping:          float64(10 + i),
+			Jitter:        1.0,
+			ServerName:    "Server",
+			ServerLoc:     "US",
+			UserIP:        "1.2.3.4",
+			UserISP:       "TestISP",
+			Timestamp:     time.Date(2026, 1, i+1, 12, 0, 0, 0, time.UTC),
+		}
+	}
+	return results
+}
+
+func TestHistoryFormatJSON(t *testing.T) {
+	// Write temp history file
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	m := model.NewDefaultModel()
+	m.TestHistory = makeHistoryEntries(3)
+	if err := m.SaveHistory(); err != nil {
+		t.Fatalf("SaveHistory failed: %v", err)
+	}
+
+	// Reset globals
+	origFormat := historyFormat
+	origLast := historyLast
+	origClear := historyClear
+	defer func() {
+		historyFormat = origFormat
+		historyLast = origLast
+		historyClear = origClear
+	}()
+
+	historyFormat = historyFormatJSON
+	historyLast = 0
+	historyClear = false
+
+	out := captureStdout(runHistory)
+
+	var arr []map[string]any
+	if err := json.Unmarshal([]byte(out), &arr); err != nil {
+		t.Fatalf("Expected valid JSON array, got parse error: %v\noutput: %s", err, out)
+	}
+	if len(arr) != 3 {
+		t.Errorf("Expected 3 entries, got %d", len(arr))
+	}
+	if _, ok := arr[0]["download_speed"]; !ok {
+		t.Errorf("Expected download_speed key in JSON output")
+	}
+}
+
+func TestHistoryFormatCSV(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	m := model.NewDefaultModel()
+	m.TestHistory = makeHistoryEntries(2)
+	if err := m.SaveHistory(); err != nil {
+		t.Fatalf("SaveHistory failed: %v", err)
+	}
+
+	origFormat := historyFormat
+	origLast := historyLast
+	origClear := historyClear
+	defer func() {
+		historyFormat = origFormat
+		historyLast = origLast
+		historyClear = origClear
+	}()
+
+	historyFormat = historyFormatCSV
+	historyLast = 0
+	historyClear = false
+
+	out := captureStdout(runHistory)
+
+	r := csv.NewReader(strings.NewReader(out))
+	records, err := r.ReadAll()
+	if err != nil {
+		t.Fatalf("Expected valid CSV, got parse error: %v\noutput: %s", err, out)
+	}
+
+	// Header + 2 data rows
+	if len(records) != 3 {
+		t.Errorf("Expected 3 CSV records (header + 2 rows), got %d", len(records))
+	}
+	if records[0][0] != "timestamp" {
+		t.Errorf("Expected first header column to be 'timestamp', got %q", records[0][0])
+	}
+	expectedHeaders := []string{"timestamp", "server", "country", "download_mbps", "upload_mbps", "ping_ms", "jitter_ms", "ip", "isp"}
+	for i, h := range expectedHeaders {
+		if records[0][i] != h {
+			t.Errorf("Expected header[%d] = %q, got %q", i, h, records[0][i])
+		}
+	}
+}
+
+func TestHistoryLastFlag(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	m := model.NewDefaultModel()
+	m.TestHistory = makeHistoryEntries(5)
+	if err := m.SaveHistory(); err != nil {
+		t.Fatalf("SaveHistory failed: %v", err)
+	}
+
+	origFormat := historyFormat
+	origLast := historyLast
+	origClear := historyClear
+	defer func() {
+		historyFormat = origFormat
+		historyLast = origLast
+		historyClear = origClear
+	}()
+
+	historyFormat = historyFormatJSON
+	historyLast = 2
+	historyClear = false
+
+	out := captureStdout(runHistory)
+
+	var arr []map[string]any
+	if err := json.Unmarshal([]byte(out), &arr); err != nil {
+		t.Fatalf("Expected valid JSON array, got parse error: %v\noutput: %s", err, out)
+	}
+	if len(arr) != 2 {
+		t.Errorf("Expected 2 entries with --last 2, got %d", len(arr))
+	}
+}
+
+func TestHistoryLastFlagExceedsLength(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	m := model.NewDefaultModel()
+	m.TestHistory = makeHistoryEntries(3)
+	if err := m.SaveHistory(); err != nil {
+		t.Fatalf("SaveHistory failed: %v", err)
+	}
+
+	origFormat := historyFormat
+	origLast := historyLast
+	origClear := historyClear
+	defer func() {
+		historyFormat = origFormat
+		historyLast = origLast
+		historyClear = origClear
+	}()
+
+	historyFormat = historyFormatJSON
+	historyLast = 100 // more than available
+	historyClear = false
+
+	out := captureStdout(runHistory)
+
+	var arr []map[string]any
+	if err := json.Unmarshal([]byte(out), &arr); err != nil {
+		t.Fatalf("Expected valid JSON array, got parse error: %v\noutput: %s", err, out)
+	}
+	if len(arr) != 3 {
+		t.Errorf("Expected all 3 entries when --last exceeds length, got %d", len(arr))
 	}
 }

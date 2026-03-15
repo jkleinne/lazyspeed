@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -45,6 +46,7 @@ type RunOptions struct {
 	SkipUpload   bool
 }
 
+// Model holds all application state for the TUI and speed test orchestration.
 type Model struct {
 	Results                *SpeedTestResult
 	TestHistory            []*SpeedTestResult
@@ -64,6 +66,11 @@ type Model struct {
 	PendingServerSelection bool
 	Cursor                 int
 	User                   *speedtest.User
+	// Exporting is true when the TUI is showing the inline export format prompt.
+	Exporting bool
+	// ExportMessage is set after an export attempt (success path or error) and
+	// shown briefly in the TUI view.
+	ExportMessage string
 }
 
 func NewModel(backend Backend, cfg *Config) *Model {
@@ -382,6 +389,50 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	sendUpdate(1.0, "Test completed", updateChan)
 	m.Testing = false
 	return nil
+}
+
+// ExportResult writes result to a file named lazyspeed_<timestamp>.<ext> in dir.
+// format must be "json" or "csv". It returns the full path of the written file.
+func ExportResult(result *SpeedTestResult, format string, dir string) (string, error) {
+	ts := result.Timestamp.Format("20060102_150405")
+	switch format {
+	case "json":
+		path := filepath.Join(dir, fmt.Sprintf("lazyspeed_%s.json", ts))
+		data, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			return "", fmt.Errorf("failed to serialise result: %v", err)
+		}
+		if err := os.WriteFile(path, data, 0644); err != nil {
+			return "", fmt.Errorf("failed to write file: %v", err)
+		}
+		return path, nil
+
+	case "csv":
+		path := filepath.Join(dir, fmt.Sprintf("lazyspeed_%s.csv", ts))
+		f, err := os.Create(path)
+		if err != nil {
+			return "", fmt.Errorf("failed to create file: %v", err)
+		}
+		defer f.Close()
+		w := csv.NewWriter(f)
+		_ = w.Write([]string{"timestamp", "server", "country", "download_mbps", "upload_mbps", "ping_ms", "jitter_ms", "ip", "isp"})
+		_ = w.Write([]string{
+			result.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
+			result.ServerName,
+			result.ServerLoc,
+			fmt.Sprintf("%.2f", result.DownloadSpeed),
+			fmt.Sprintf("%.2f", result.UploadSpeed),
+			fmt.Sprintf("%.2f", result.Ping),
+			fmt.Sprintf("%.2f", result.Jitter),
+			result.UserIP,
+			result.UserISP,
+		})
+		w.Flush()
+		return path, nil
+
+	default:
+		return "", fmt.Errorf("unknown format %q: must be \"json\" or \"csv\"", format)
+	}
 }
 
 func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts RunOptions) (*SpeedTestResult, error) {
