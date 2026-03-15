@@ -27,17 +27,22 @@ type ProgressUpdate struct {
 }
 
 type SpeedTestResult struct {
-	DownloadSpeed float64
-	UploadSpeed   float64
-	Ping          float64
-	Jitter        float64
-	ServerName    string
-	ServerSponsor string
-	ServerLoc     string
-	Distance      float64
-	Timestamp     time.Time
-	UserIP        string
-	UserISP       string
+	DownloadSpeed float64   `json:"download_speed"`
+	UploadSpeed   float64   `json:"upload_speed"`
+	Ping          float64   `json:"ping"`
+	Jitter        float64   `json:"jitter"`
+	ServerName    string    `json:"server_name"`
+	ServerSponsor string    `json:"server_sponsor"`
+	ServerLoc     string    `json:"server_loc"`
+	Distance      float64   `json:"distance"`
+	Timestamp     time.Time `json:"timestamp"`
+	UserIP        string    `json:"user_ip"`
+	UserISP       string    `json:"user_isp"`
+}
+
+type RunOptions struct {
+	SkipDownload bool
+	SkipUpload   bool
 }
 
 type Model struct {
@@ -352,4 +357,89 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	sendUpdate(1.0, "Test completed", updateChan)
 	m.Testing = false
 	return nil
+}
+
+func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts RunOptions) (*SpeedTestResult, error) {
+	user, _ := m.Backend.FetchUserInfo()
+	var userIP, userISP string
+	if user != nil {
+		userIP = user.IP
+		userISP = user.Isp
+	}
+
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
+	var sumPing float64
+	var jitter float64
+	pingResults := make([]float64, 0)
+
+	for i := 0; i < pingIterations; i++ {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		err := m.Backend.PingTest(server, func(latency time.Duration) {
+			ping := float64(latency.Milliseconds())
+			pingResults = append(pingResults, ping)
+			sumPing += ping
+		})
+		if err != nil {
+			continue
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(pingDelay):
+		}
+	}
+
+	if len(pingResults) > 1 {
+		var sum float64
+		for i := 1; i < len(pingResults); i++ {
+			sum += math.Abs(pingResults[i] - pingResults[i-1])
+		}
+		jitter = sum / float64(len(pingResults)-1)
+	}
+
+	var avgPing float64
+	if len(pingResults) > 0 {
+		avgPing = sumPing / float64(len(pingResults))
+	}
+
+	var dlSpeed, ulSpeed float64
+
+	if !opts.SkipDownload {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if err := m.Backend.DownloadTest(server); err != nil {
+			return nil, fmt.Errorf("download test failed: %w", err)
+		}
+		dlSpeed = float64(server.DLSpeed) / bytesToMB
+	}
+
+	if !opts.SkipUpload {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if err := m.Backend.UploadTest(server); err != nil {
+			return nil, fmt.Errorf("upload test failed: %w", err)
+		}
+		ulSpeed = float64(server.ULSpeed) / bytesToMB
+	}
+
+	return &SpeedTestResult{
+		DownloadSpeed: dlSpeed,
+		UploadSpeed:   ulSpeed,
+		Ping:          avgPing,
+		Jitter:        jitter,
+		ServerName:    server.Name,
+		ServerSponsor: server.Sponsor,
+		ServerLoc:     server.Country,
+		Distance:      server.Distance,
+		Timestamp:     time.Now(),
+		UserIP:        userIP,
+		UserISP:       userISP,
+	}, nil
 }
