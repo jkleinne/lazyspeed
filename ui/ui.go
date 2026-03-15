@@ -215,11 +215,15 @@ func RenderWarning(warning string, width int) string {
 		warningStyle.Render(fmt.Sprintf("⚠️ Warning: %s", warning)))
 }
 
-func RenderHelp(width int) string {
+// RenderHelp renders the help overlay. Pass hasResult=true to include the export hint.
+func RenderHelp(width int, hasResult bool) string {
 	help := strings.Builder{}
 	help.WriteString("\n")
 	help.WriteString("Controls:\n")
 	help.WriteString("  n: New Test\n")
+	if hasResult {
+		help.WriteString("  e: Export Result\n")
+	}
 	help.WriteString("  h: Toggle Help\n")
 	help.WriteString("  q: Quit\n")
 	help.WriteString("\nIn Server Selection:\n")
@@ -228,6 +232,22 @@ func RenderHelp(width int) string {
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center,
 		helpStyle.Render(help.String()))
+}
+
+// RenderExportPrompt renders the inline format selection prompt shown when the
+// user presses 'e' after a test completes.
+func RenderExportPrompt(width int) string {
+	prompt := helpStyle.Render("Export result:  [j] JSON  [c] CSV  [Esc] cancel")
+	return lipgloss.PlaceHorizontal(width, lipgloss.Center, prompt)
+}
+
+// RenderExportMessage renders the success or error message after an export.
+func RenderExportMessage(msg string, width int) string {
+	if msg == "" {
+		return ""
+	}
+	return lipgloss.PlaceHorizontal(width, lipgloss.Center,
+		infoStyle.Render(msg))
 }
 
 func RenderServerSelection(m *model.Model, width int) string {
