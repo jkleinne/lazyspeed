@@ -175,7 +175,7 @@ func TestHistoryFormatJSON(t *testing.T) {
 		historyClear = origClear
 	}()
 
-	historyFormat = "json"
+	historyFormat = historyFormatJSON
 	historyLast = 0
 	historyClear = false
 
@@ -212,7 +212,7 @@ func TestHistoryFormatCSV(t *testing.T) {
 		historyClear = origClear
 	}()
 
-	historyFormat = "csv"
+	historyFormat = historyFormatCSV
 	historyLast = 0
 	historyClear = false
 
@@ -258,7 +258,7 @@ func TestHistoryLastFlag(t *testing.T) {
 		historyClear = origClear
 	}()
 
-	historyFormat = "json"
+	historyFormat = historyFormatJSON
 	historyLast = 2
 	historyClear = false
 
@@ -292,7 +292,7 @@ func TestHistoryLastFlagExceedsLength(t *testing.T) {
 		historyClear = origClear
 	}()
 
-	historyFormat = "json"
+	historyFormat = historyFormatJSON
 	historyLast = 100 // more than available
 	historyClear = false
 
