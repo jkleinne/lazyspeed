@@ -59,13 +59,17 @@ type Model struct {
 	PingResults            []float64 // Used for jitter calculation
 	ServerList             speedtest.Servers
 	Backend                Backend
+	Config                 *Config
 	SelectingServer        bool
 	PendingServerSelection bool
 	Cursor                 int
 	User                   *speedtest.User
 }
 
-func NewModel(backend Backend) *Model {
+func NewModel(backend Backend, cfg *Config) *Model {
+	if cfg == nil {
+		cfg = DefaultConfig()
+	}
 	return &Model{
 		Results:         nil,
 		TestHistory:     make([]*SpeedTestResult, 0),
@@ -76,11 +80,16 @@ func NewModel(backend Backend) *Model {
 		SelectingServer: false,
 		Cursor:          0,
 		Backend:         backend,
+		Config:          cfg,
 	}
 }
 
 func NewDefaultModel() *Model {
-	return NewModel(&realBackend{})
+	cfg, err := LoadConfig()
+	if err != nil {
+		cfg = DefaultConfig()
+	}
+	return NewModel(&realBackend{}, cfg)
 }
 
 func sendUpdate(progress float64, phase string, updateChan chan<- ProgressUpdate) {
@@ -92,18 +101,21 @@ func sendUpdate(progress float64, phase string, updateChan chan<- ProgressUpdate
 	}
 }
 
-func getHistoryFilePath() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
+func (m *Model) historyPath() (string, error) {
+	if m.Config != nil && m.Config.History.Path != "" {
+		return m.Config.History.Path, nil
 	}
-	return filepath.Join(homeDir, ".lazyspeed_history.json"), nil
+	return defaultHistoryPath(), nil
 }
 
 func (m *Model) LoadHistory() error {
-	historyPath, err := getHistoryFilePath()
+	historyPath, err := m.historyPath()
 	if err != nil {
 		return err
+	}
+	// Ensure the parent directory exists
+	if err := os.MkdirAll(filepath.Dir(historyPath), 0700); err != nil {
+		return fmt.Errorf("failed to create history directory: %v", err)
 	}
 
 	data, err := os.ReadFile(historyPath)
@@ -126,15 +138,22 @@ func (m *Model) LoadHistory() error {
 }
 
 func (m *Model) SaveHistory() error {
-	historyPath, err := getHistoryFilePath()
+	historyPath, err := m.historyPath()
 	if err != nil {
 		return err
 	}
 
-	// Keep only the last 50 tests
-	const maxHistorySize = 50
-	if len(m.TestHistory) > maxHistorySize {
-		m.TestHistory = m.TestHistory[len(m.TestHistory)-maxHistorySize:]
+	// Ensure the parent directory exists
+	if err := os.MkdirAll(filepath.Dir(historyPath), 0700); err != nil {
+		return fmt.Errorf("failed to create history directory: %v", err)
+	}
+
+	maxEntries := defaultMaxEntries
+	if m.Config != nil && m.Config.History.MaxEntries > 0 {
+		maxEntries = m.Config.History.MaxEntries
+	}
+	if len(m.TestHistory) > maxEntries {
+		m.TestHistory = m.TestHistory[len(m.TestHistory)-maxEntries:]
 	}
 
 	data, err := json.MarshalIndent(m.TestHistory, "", "  ")
@@ -142,7 +161,8 @@ func (m *Model) SaveHistory() error {
 		return fmt.Errorf("failed to serialize history: %v", err)
 	}
 
-	if err := os.WriteFile(historyPath, data, 0644); err != nil {
+	// 0600: history contains the user's IP address (PII)
+	if err := os.WriteFile(historyPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write history file: %v", err)
 	}
 
@@ -190,9 +210,14 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 
 	sendUpdate(0.2, fmt.Sprintf("Testing with server: %s", server.Name), updateChan)
 
+	pingCount := pingIterations
+	if m.Config != nil && m.Config.Test.PingCount > 0 {
+		pingCount = m.Config.Test.PingCount
+	}
+
 	sendUpdate(0.3, "Measuring ping and jitter...", updateChan)
 	var sumPing float64
-	for i := 0; i < pingIterations; i++ {
+	for i := 0; i < pingCount; i++ {
 		if ctx.Err() != nil {
 			m.Testing = false
 			return ctx.Err()
@@ -207,10 +232,10 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 				currentJitter := math.Abs(m.PingResults[lastIdx] - m.PingResults[lastIdx-1])
 				sendUpdate(0.3+float64(i+1)*0.02,
 					fmt.Sprintf("Ping: %.1f ms, Jitter: %.1f ms (%d/%d)",
-						ping, currentJitter, i+1, pingIterations), updateChan)
+						ping, currentJitter, i+1, pingCount), updateChan)
 			} else {
 				sendUpdate(0.3+float64(i+1)*0.02,
-					fmt.Sprintf("Ping: %.1f ms (%d/%d)", ping, i+1, pingIterations), updateChan)
+					fmt.Sprintf("Ping: %.1f ms (%d/%d)", ping, i+1, pingCount), updateChan)
 			}
 		})
 		if err != nil {
@@ -375,7 +400,12 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 	var jitter float64
 	pingResults := make([]float64, 0)
 
-	for i := 0; i < pingIterations; i++ {
+	headlessPingCount := pingIterations
+	if m.Config != nil && m.Config.Test.PingCount > 0 {
+		headlessPingCount = m.Config.Test.PingCount
+	}
+
+	for i := 0; i < headlessPingCount; i++ {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}

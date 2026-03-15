@@ -42,53 +42,64 @@ func init() {
 }
 
 func runHeadlessTest() {
+	m := model.NewDefaultModel()
+	ctx := context.Background()
+
+	if !runJSON && !runCSV && !runSimple {
+		fmt.Println("Fetching server list...")
+	}
+
+	if err := m.FetchServerList(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "Error fetching servers: %v\n", err)
+		os.Exit(1)
+	}
+
+	if len(m.ServerList) == 0 {
+		fmt.Fprintf(os.Stderr, "Error: no servers found\n")
+		os.Exit(1)
+	}
+
+	server := m.ServerList[0] // Auto-select fastest by default
+	if runServerID != "" {
+		found := false
+		for _, s := range m.ServerList {
+			if s.ID == runServerID {
+				server = s
+				found = true
+				break
+			}
+		}
+		if !found {
+			fmt.Fprintf(os.Stderr, "Error: server %s not found\n", runServerID)
+			os.Exit(1)
+		}
+	}
+
+	if !runJSON && !runCSV && !runSimple {
+		fmt.Printf("Selected server: %s (%s)\n", server.Name, server.Country)
+	}
+
+	opts := model.RunOptions{
+		SkipDownload: runNoDownload,
+		SkipUpload:   runNoUpload,
+	}
+
+	// Load history once before the loop so results accumulate correctly
+	_ = m.LoadHistory()
+
+	var csvWriter *csv.Writer
+	if runCSV {
+		csvWriter = csv.NewWriter(os.Stdout)
+		_ = csvWriter.Write([]string{"timestamp", "server", "country", "download_mbps", "upload_mbps", "ping_ms", "jitter_ms", "ip", "isp"})
+	}
+
 	for i := 0; i < runCount; i++ {
 		if runCount > 1 && !runJSON && !runCSV {
 			fmt.Printf("\n--- Test %d of %d ---\n", i+1, runCount)
 		}
 
-		m := model.NewDefaultModel()
-
-		ctx := context.Background()
-
 		if !runJSON && !runCSV && !runSimple {
-			fmt.Println("Fetching server list...")
-		}
-
-		if err := m.FetchServerList(ctx); err != nil {
-			fmt.Fprintf(os.Stderr, "Error fetching servers: %v\n", err)
-			os.Exit(1)
-		}
-
-		if len(m.ServerList) == 0 {
-			fmt.Fprintf(os.Stderr, "Error: no servers found\n")
-			os.Exit(1)
-		}
-
-		server := m.ServerList[0] // Auto-select fastest by default
-		if runServerID != "" {
-			found := false
-			for _, s := range m.ServerList {
-				if s.ID == runServerID {
-					server = s
-					found = true
-					break
-				}
-			}
-			if !found {
-				fmt.Fprintf(os.Stderr, "Error: server %s not found\n", runServerID)
-				os.Exit(1)
-			}
-		}
-
-		if !runJSON && !runCSV && !runSimple {
-			fmt.Printf("Selected server: %s (%s)\n", server.Name, server.Country)
 			fmt.Println("Running speed test...")
-		}
-
-		opts := model.RunOptions{
-			SkipDownload: runNoDownload,
-			SkipUpload:   runNoUpload,
 		}
 
 		res, err := m.RunHeadless(ctx, server, opts)
@@ -97,21 +108,15 @@ func runHeadlessTest() {
 			os.Exit(1)
 		}
 
-		// Persist headless tests to history as well
-		if err := m.LoadHistory(); err == nil {
-			m.TestHistory = append(m.TestHistory, res)
-			_ = m.SaveHistory() // ignore headless save errors
-		}
+		// Persist result to history
+		m.TestHistory = append(m.TestHistory, res)
+		_ = m.SaveHistory() // ignore headless save errors
 
 		if runJSON {
 			data, _ := json.MarshalIndent(res, "", "  ")
 			fmt.Println(string(data))
 		} else if runCSV {
-			w := csv.NewWriter(os.Stdout)
-			if i == 0 { // Write header only once
-				_ = w.Write([]string{"timestamp", "server", "country", "download_mbps", "upload_mbps", "ping_ms", "jitter_ms", "ip", "isp"})
-			}
-			_ = w.Write([]string{
+			_ = csvWriter.Write([]string{
 				res.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
 				res.ServerName,
 				res.ServerLoc,
@@ -122,7 +127,7 @@ func runHeadlessTest() {
 				res.UserIP,
 				res.UserISP,
 			})
-			w.Flush()
+			csvWriter.Flush()
 		} else if runSimple {
 			fmt.Printf("DL: %.2f MBps | UL: %.2f MBps | Ping: %.2f ms\n", res.DownloadSpeed, res.UploadSpeed, res.Ping)
 		} else {
