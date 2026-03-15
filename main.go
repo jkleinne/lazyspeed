@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -243,7 +244,38 @@ func waitForProgress(progressChan chan model.ProgressUpdate, errChan chan error)
 	}
 }
 
+func migrateHistoryIfNeeded() {
+	legacy, err := model.LegacyHistoryPath()
+	if err != nil {
+		return
+	}
+	// Check if the legacy file exists
+	if _, err := os.Stat(legacy); os.IsNotExist(err) {
+		return
+	}
+	// Check if the new path already exists — don't overwrite
+	newPath := model.DefaultConfig().History.Path
+	if _, err := os.Stat(newPath); err == nil {
+		return
+	}
+	// Copy legacy → new path
+	data, err := os.ReadFile(legacy)
+	if err != nil {
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(newPath), 0700); err != nil {
+		return
+	}
+	if err := os.WriteFile(newPath, data, 0600); err != nil {
+		return
+	}
+	// Remove the legacy file
+	_ = os.Remove(legacy)
+	fmt.Fprintf(os.Stderr, "Info: migrated history from %s to %s\n", legacy, newPath)
+}
+
 func runTUI() {
+	migrateHistoryIfNeeded()
 	m := model.NewDefaultModel()
 	if err := m.LoadHistory(); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load test history: %v\n", err)

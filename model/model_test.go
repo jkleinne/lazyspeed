@@ -56,7 +56,7 @@ func (m *mockBackend) UploadTest(server *speedtest.Server) error {
 }
 
 func TestNewModel(t *testing.T) {
-	m := NewModel(&mockBackend{})
+	m := NewModel(&mockBackend{}, nil)
 
 	if m.Results != nil {
 		t.Errorf("Expected Results to be nil, got %v", m.Results)
@@ -97,7 +97,7 @@ func TestHistoryLoadSave(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
-	m := NewModel(&mockBackend{})
+	m := NewModel(&mockBackend{}, nil)
 
 	// Case 1: missing file (no error)
 	err := m.LoadHistory()
@@ -124,7 +124,7 @@ func TestHistoryLoadSave(t *testing.T) {
 		t.Fatalf("SaveHistory with data failed: %v", err)
 	}
 
-	m2 := NewModel(&mockBackend{})
+	m2 := NewModel(&mockBackend{}, nil)
 	err = m2.LoadHistory()
 	if err != nil {
 		t.Fatalf("LoadHistory with data failed: %v", err)
@@ -145,7 +145,7 @@ func TestHistoryLoadSave(t *testing.T) {
 		t.Fatalf("SaveHistory > max size failed: %v", err)
 	}
 
-	m3 := NewModel(&mockBackend{})
+	m3 := NewModel(&mockBackend{}, nil)
 	err = m3.LoadHistory()
 	if err != nil {
 		t.Fatalf("LoadHistory > max size failed: %v", err)
@@ -154,8 +154,8 @@ func TestHistoryLoadSave(t *testing.T) {
 		t.Errorf("Expected exactly 50 history items, got %d", len(m3.TestHistory))
 	}
 
-	// Case 5: Corrupt JSON
-	historyPath := filepath.Join(tmpDir, ".lazyspeed_history.json")
+	// Case 5: Corrupt JSON — write corrupt data to the XDG path
+	historyPath := filepath.Join(tmpDir, ".local", "share", "lazyspeed", "history.json")
 	_ = os.WriteFile(historyPath, []byte("invalid json"), 0644)
 	err = m3.LoadHistory()
 	if err == nil {
@@ -173,7 +173,7 @@ func TestFetchServerList(t *testing.T) {
 				&speedtest.Server{Name: "Server B", Latency: 20 * time.Millisecond},
 			}, nil
 		},
-	})
+	}, nil)
 
 	err := m.FetchServerList(context.Background())
 	if err != nil {
@@ -192,7 +192,7 @@ func TestFetchServerList(t *testing.T) {
 		fetchServersFn: func() (speedtest.Servers, error) {
 			return nil, errors.New("backend error")
 		},
-	})
+	}, nil)
 	err = m.FetchServerList(context.Background())
 	if err == nil || err.Error() != "failed to fetch servers: backend error" {
 		t.Errorf("Expected backend error, got %v", err)
@@ -226,7 +226,7 @@ func TestPerformSpeedTest(t *testing.T) {
 			s.ULSpeed = 50 * bytesToMB // 50 MBps
 			return nil
 		},
-	})
+	}, nil)
 
 	ctx := context.Background()
 	updateChan := make(chan ProgressUpdate, 100) // Buffer so it doesn't block
@@ -266,7 +266,7 @@ func TestPerformSpeedTestFailures(t *testing.T) {
 		pingTestFn: func(_ *speedtest.Server, _ func(time.Duration)) error {
 			return errors.New("ping failed")
 		},
-	})
+	}, nil)
 	updateChan := make(chan ProgressUpdate, 100)
 	_ = m.PerformSpeedTest(ctx, server, updateChan)
 	if m.Results != nil && m.Results.Ping != 0.0 {
@@ -278,9 +278,114 @@ func TestPerformSpeedTestFailures(t *testing.T) {
 		downloadTestFn: func(_ *speedtest.Server) error {
 			return errors.New("dl failed")
 		},
-	})
+	}, nil)
 	err := m.PerformSpeedTest(ctx, server, updateChan)
 	if err == nil || err.Error() != "download test failed: dl failed" {
 		t.Errorf("Expected download error, got %v", err)
+	}
+}
+
+func TestDefaultConfig(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if cfg.History.MaxEntries != 50 {
+		t.Errorf("Expected default max entries 50, got %d", cfg.History.MaxEntries)
+	}
+	if cfg.Test.PingCount != 10 {
+		t.Errorf("Expected default ping count 10, got %d", cfg.Test.PingCount)
+	}
+	if cfg.History.Path == "" {
+		t.Errorf("Expected non-empty default history path")
+	}
+}
+
+func TestLoadConfigMissingFile(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("Expected no error on missing config, got %v", err)
+	}
+	if cfg.History.MaxEntries != 50 {
+		t.Errorf("Expected default max entries, got %d", cfg.History.MaxEntries)
+	}
+}
+
+func TestLoadConfigPartial(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	// Write a partial config
+	configDir := filepath.Join(tmpDir, "lazyspeed")
+	_ = os.MkdirAll(configDir, 0700)
+	_ = os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte("test:\n  ping_count: 5\n"), 0600)
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if cfg.Test.PingCount != 5 {
+		t.Errorf("Expected ping_count 5, got %d", cfg.Test.PingCount)
+	}
+	// Unspecified fields should retain defaults
+	if cfg.History.MaxEntries != 50 {
+		t.Errorf("Expected default max_entries 50, got %d", cfg.History.MaxEntries)
+	}
+}
+
+func TestLoadConfigInvalidYAML(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	configDir := filepath.Join(tmpDir, "lazyspeed")
+	_ = os.MkdirAll(configDir, 0700)
+	_ = os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte("history:\n  max_entries: [unclosed\n"), 0600)
+
+	_, err := LoadConfig()
+	if err == nil {
+		t.Errorf("Expected error on invalid YAML config, got nil")
+	}
+}
+
+func TestConfigDrivenHistoryPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	customPath := filepath.Join(tmpDir, "custom_history.json")
+
+	cfg := DefaultConfig()
+	cfg.History.Path = customPath
+
+	m := NewModel(&mockBackend{}, cfg)
+	m.TestHistory = []*SpeedTestResult{{DownloadSpeed: 99}}
+
+	if err := m.SaveHistory(); err != nil {
+		t.Fatalf("SaveHistory failed: %v", err)
+	}
+
+	if _, err := os.Stat(customPath); os.IsNotExist(err) {
+		t.Errorf("Expected history file at custom path %s", customPath)
+	}
+}
+
+func TestConfigDrivenPingCount(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	pingCallCount := 0
+	cfg := DefaultConfig()
+	cfg.Test.PingCount = 3
+
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			pingCallCount++
+			fn(10 * time.Millisecond)
+			return nil
+		},
+	}, cfg)
+
+	updateChan := make(chan ProgressUpdate, 100)
+	server := &speedtest.Server{}
+	_ = m.PerformSpeedTest(context.Background(), server, updateChan)
+
+	if pingCallCount != 3 {
+		t.Errorf("Expected 3 ping calls (from config), got %d", pingCallCount)
 	}
 }
