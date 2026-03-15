@@ -1,6 +1,8 @@
 module github.com/jkleinne/lazyspeed
 
-go 1.21
+go 1.22
+
+toolchain go1.26.1
 
 require (
 	github.com/charmbracelet/bubbles v0.20.0
@@ -28,5 +30,5 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/sync v0.11.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
-	golang.org/x/text v0.3.8 // indirect
+	golang.org/x/text v0.21.0 // indirect
 )

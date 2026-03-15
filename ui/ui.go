@@ -175,7 +175,7 @@ func RenderResults(m *model.Model, width int) string {
 		Rows(rows...).
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))).
-		StyleFunc(func(row, col int) lipgloss.Style {
+		StyleFunc(func(row, _ int) lipgloss.Style {
 			if row == table.HeaderRow {
 				return headerStyle
 			}
