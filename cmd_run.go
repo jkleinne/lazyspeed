@@ -24,13 +24,19 @@ var (
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Run a speed test non-interactively",
+	PreRunE: func(_ *cobra.Command, _ []string) error {
+		if runCount < 1 {
+			return fmt.Errorf("--count must be at least 1, got %d", runCount)
+		}
+		return nil
+	},
 	Run: func(_ *cobra.Command, _ []string) {
 		runHeadlessTest()
 	},
 }
 
 func init() {
-	runCmd.Flags().BoolVar(&runJSON, "json", false, "Output results as JSON to stdout")
+	runCmd.Flags().BoolVar(&runJSON, "json", false, "Output as JSON; single run emits a bare object, --count N>1 emits a JSON array")
 	runCmd.Flags().BoolVar(&runCSV, "csv", false, "Output results as CSV to stdout")
 	runCmd.Flags().BoolVar(&runSimple, "simple", false, "Minimal output (one line: DL/UL/Ping)")
 	runCmd.Flags().StringVar(&runServerID, "server", "", "Skip server selection, use a specific server ID")
@@ -93,6 +99,10 @@ func runHeadlessTest() {
 		_ = csvWriter.Write([]string{"timestamp", "server", "country", "download_mbps", "upload_mbps", "ping_ms", "jitter_ms", "ip", "isp"})
 	}
 
+	// Collect results for JSON mode so we can emit valid JSON after all runs.
+	// (Printing one object per iteration produces invalid JSON when --count > 1.)
+	var jsonResults []*model.SpeedTestResult
+
 	for i := 0; i < runCount; i++ {
 		if runCount > 1 && !runJSON && !runCSV {
 			fmt.Printf("\n--- Test %d of %d ---\n", i+1, runCount)
@@ -113,8 +123,7 @@ func runHeadlessTest() {
 		_ = m.SaveHistory() // ignore headless save errors
 
 		if runJSON {
-			data, _ := json.MarshalIndent(res, "", "  ")
-			fmt.Println(string(data))
+			jsonResults = append(jsonResults, res)
 		} else if runCSV {
 			_ = csvWriter.Write([]string{
 				res.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
@@ -136,5 +145,33 @@ func runHeadlessTest() {
 			fmt.Printf("🔄 Ping: %.2f ms\n", res.Ping)
 			fmt.Printf("📊 Jitter: %.2f ms\n", res.Jitter)
 		}
+	}
+
+	// Emit JSON output after all runs so the result is always valid JSON.
+	// --count 1 → bare object (backward-compatible with existing scripts).
+	// --count N → JSON array.
+	if runJSON {
+		data, err := marshalJSONResults(jsonResults)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error serialising results: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println(string(data))
+	}
+}
+
+// marshalJSONResults serialises speed test results for --json output.
+// A single result is marshalled as a bare JSON object to preserve
+// backward-compatibility with existing scripts.
+// Multiple results are marshalled as a JSON array so the output is
+// always valid JSON regardless of --count.
+func marshalJSONResults(results []*model.SpeedTestResult) ([]byte, error) {
+	switch len(results) {
+	case 0:
+		return []byte("[]"), nil
+	case 1:
+		return json.MarshalIndent(results[0], "", "  ")
+	default:
+		return json.MarshalIndent(results, "", "  ")
 	}
 }
