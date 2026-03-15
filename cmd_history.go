@@ -11,6 +11,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	historyFormatJSON = "json"
+	historyFormatCSV  = "csv"
+)
+
 var (
 	historyClear  bool
 	historyFormat string
@@ -21,8 +26,8 @@ var historyCmd = &cobra.Command{
 	Use:   "history",
 	Short: "View or export test history",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		if historyFormat != "" && historyFormat != "json" && historyFormat != "csv" {
-			return fmt.Errorf("invalid --format %q: must be \"json\" or \"csv\"", historyFormat)
+		if historyFormat != "" && historyFormat != historyFormatJSON && historyFormat != historyFormatCSV {
+			return fmt.Errorf("invalid --format %q: must be %q or %q", historyFormat, historyFormatJSON, historyFormatCSV)
 		}
 		if historyLast < 0 {
 			return fmt.Errorf("--last must be >= 0, got %d", historyLast)
@@ -63,7 +68,7 @@ func runHistory() {
 	}
 
 	switch historyFormat {
-	case "json":
+	case historyFormatJSON:
 		data, err := json.MarshalIndent(entries, "", "  ")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error serialising history: %v\n", err)
@@ -71,7 +76,7 @@ func runHistory() {
 		}
 		fmt.Println(string(data))
 
-	case "csv":
+	case historyFormatCSV:
 		w := csv.NewWriter(os.Stdout)
 		_ = w.Write([]string{"timestamp", "server", "country", "download_mbps", "upload_mbps", "ping_ms", "jitter_ms", "ip", "isp"})
 		for _, res := range entries {
