@@ -53,13 +53,14 @@ type Model struct {
 	Width, Height          int
 	PingResults            []float64 // Used for jitter calculation
 	ServerList             speedtest.Servers
+	Backend                Backend
 	SelectingServer        bool
 	PendingServerSelection bool
 	Cursor                 int
 	User                   *speedtest.User
 }
 
-func NewModel() *Model {
+func NewModel(backend Backend) *Model {
 	return &Model{
 		Results:         nil,
 		TestHistory:     make([]*SpeedTestResult, 0),
@@ -69,7 +70,12 @@ func NewModel() *Model {
 		ShowHelp:        true,
 		SelectingServer: false,
 		Cursor:          0,
+		Backend:         backend,
 	}
+}
+
+func NewDefaultModel() *Model {
+	return NewModel(&realBackend{})
 }
 
 func sendUpdate(progress float64, phase string, updateChan chan<- ProgressUpdate) {
@@ -139,7 +145,7 @@ func (m *Model) SaveHistory() error {
 }
 
 func (m *Model) FetchServerList(ctx context.Context) error {
-	serverList, err := speedtest.FetchServers()
+	serverList, err := m.Backend.FetchServers()
 	if err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -165,7 +171,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	sendUpdate(0.0, "Initializing speed test...", updateChan)
 
 	sendUpdate(0.1, "Fetching network information...", updateChan)
-	user, userErr := speedtest.FetchUserInfo()
+	user, userErr := m.Backend.FetchUserInfo()
 	if userErr == nil {
 		m.User = user
 	} else {
@@ -186,7 +192,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 			m.Testing = false
 			return ctx.Err()
 		}
-		err := server.PingTest(func(latency time.Duration) {
+		err := m.Backend.PingTest(server, func(latency time.Duration) {
 			ping := float64(latency.Milliseconds())
 			m.PingResults = append(m.PingResults, ping)
 			sumPing += ping
@@ -256,7 +262,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 			}
 		}
 	}()
-	err = server.DownloadTest()
+	err = m.Backend.DownloadTest(server)
 	close(done)
 	<-doneAck
 	if ctx.Err() != nil {
@@ -298,7 +304,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 			}
 		}
 	}()
-	err = server.UploadTest()
+	err = m.Backend.UploadTest(server)
 	close(done)
 	<-doneAck
 	if ctx.Err() != nil {

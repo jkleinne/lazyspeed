@@ -248,7 +248,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	m := model.NewModel()
+	m := model.NewDefaultModel()
 	if err := m.LoadHistory(); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load test history: %v\n", err)
 	}
