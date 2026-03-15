@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -18,6 +19,7 @@ type speedTest struct {
 	err          error
 	progressChan chan model.ProgressUpdate
 	errChan      chan error
+	cancelTest   context.CancelFunc
 }
 
 type progressMsg struct {
@@ -29,8 +31,36 @@ type testComplete struct {
 	err error
 }
 
+type serverListMsg struct {
+	err error
+}
+
+func fetchServerListCmd(m *model.Model) tea.Cmd {
+	return func() tea.Msg {
+		err := m.FetchServerList(context.Background())
+		return serverListMsg{err: err}
+	}
+}
+
 func (s *speedTest) Init() tea.Cmd {
-	return s.spinner.Tick
+	s.model.FetchingServers = true
+	cmds := []tea.Cmd{fetchServerListCmd(s.model)}
+
+	if len(s.model.TestHistory) == 0 {
+		// First launch: show loading spinner since there's nothing else to display
+		s.model.PendingServerSelection = true
+		s.model.CurrentPhase = "Fetching server list..."
+		cmds = append(cmds, s.spinner.Tick)
+	}
+
+	return tea.Batch(cmds...)
+}
+
+func (s *speedTest) cancelTestIfRunning() {
+	if s.cancelTest != nil {
+		s.cancelTest()
+		s.cancelTest = nil
+	}
 }
 
 func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -38,7 +68,14 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if s.model.SelectingServer {
+		if s.model.FetchingServers && s.model.PendingServerSelection {
+			// Spinner is visible while waiting for server list — only allow quit
+			switch msg.String() {
+			case "q", "ctrl+c":
+				s.quitting = true
+				return s, tea.Quit
+			}
+		} else if s.model.SelectingServer {
 			switch msg.String() {
 			case "q", "ctrl+c":
 				s.quitting = true
@@ -64,15 +101,18 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				s.model.CurrentPhase = "Starting speed test..."
 				s.model.Error = nil
 
+				ctx, cancel := context.WithCancel(context.Background())
+				s.cancelTest = cancel
+
 				s.progressChan = make(chan model.ProgressUpdate)
 				s.errChan = make(chan error, 1)
 				go func() {
 					server := s.model.ServerList[s.model.Cursor]
-					err := s.model.PerformSpeedTest(server, s.progressChan)
+					err := s.model.PerformSpeedTest(ctx, server, s.progressChan)
 					s.errChan <- err
 					close(s.progressChan)
 				}()
-				s.model.ShowHelp = false // Hide help when starting speed test
+				s.model.ShowHelp = false
 				return s, tea.Batch(
 					s.spinner.Tick,
 					waitForProgress(s.progressChan, s.errChan),
@@ -81,10 +121,18 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			switch msg.String() {
 			case "q", "ctrl+c":
+				s.cancelTestIfRunning()
 				s.quitting = true
 				return s, tea.Quit
 			case "n":
 				if !s.model.Testing && !s.model.SelectingServer {
+					if s.model.FetchingServers {
+						// Servers still loading — show the spinner and queue the transition
+						s.model.PendingServerSelection = true
+						s.model.CurrentPhase = "Fetching server list..."
+						s.model.ShowHelp = false
+						return s, s.spinner.Tick
+					}
 					s.model.SelectingServer = true
 					s.model.ShowHelp = false
 				}
@@ -102,6 +150,18 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.spinner, tickCmd = s.spinner.Update(msg)
 		return s, tickCmd
 
+	case serverListMsg:
+		s.model.FetchingServers = false
+		s.model.CurrentPhase = ""
+		if msg.err != nil {
+			s.model.Error = msg.err
+			s.model.PendingServerSelection = false
+		} else if s.model.PendingServerSelection || len(s.model.TestHistory) == 0 {
+			s.model.SelectingServer = true
+			s.model.PendingServerSelection = false
+		}
+		return s, nil
+
 	case progressMsg:
 		s.model.Progress = msg.Progress
 		s.model.CurrentPhase = msg.Phase
@@ -115,6 +175,7 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return s, nil
 
 	case testComplete:
+		s.cancelTest = nil
 		s.model.Testing = false
 		if msg.err != nil {
 			s.model.Error = msg.err
@@ -133,7 +194,10 @@ func (s *speedTest) View() string {
 	b.WriteString(ui.RenderTitle(s.model.Width))
 	b.WriteString("\n\n")
 
-	if s.model.SelectingServer {
+	if s.model.FetchingServers && s.model.PendingServerSelection {
+		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, 0))
+		b.WriteString("\n\n")
+	} else if s.model.SelectingServer {
 		b.WriteString(ui.RenderServerSelection(s.model, s.model.Width))
 	} else if s.model.Testing {
 		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, s.model.Progress))
@@ -182,11 +246,6 @@ func main() {
 	m := model.NewModel()
 	if err := m.LoadHistory(); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load test history: %v\n", err)
-	}
-
-	if err := m.FetchServerList(); err != nil {
-		fmt.Printf("Error fetching server list: %v\n", err)
-		os.Exit(1)
 	}
 
 	s := speedTest{

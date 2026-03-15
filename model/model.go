@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -32,19 +33,21 @@ type SpeedTestResult struct {
 }
 
 type Model struct {
-	Results         *SpeedTestResult
-	TestHistory     []*SpeedTestResult
-	Testing         bool
-	Progress        float64
-	CurrentPhase    string
-	Error           error
-	ShowHelp        bool
-	Width, Height   int
-	PingResults     []float64 // Used for jitter calculation
-	ServerList      speedtest.Servers
-	SelectingServer bool
-	Cursor          int
-	User            *speedtest.User
+	Results                *SpeedTestResult
+	TestHistory            []*SpeedTestResult
+	Testing                bool
+	FetchingServers        bool
+	Progress               float64
+	CurrentPhase           string
+	Error                  error
+	ShowHelp               bool
+	Width, Height          int
+	PingResults            []float64 // Used for jitter calculation
+	ServerList             speedtest.Servers
+	SelectingServer        bool
+	PendingServerSelection bool
+	Cursor                 int
+	User                   *speedtest.User
 }
 
 func NewModel() *Model {
@@ -126,21 +129,22 @@ func (m *Model) SaveHistory() error {
 	return nil
 }
 
-func (m *Model) FetchServerList() error {
-	m.CurrentPhase = "Fetching server list..."
+func (m *Model) FetchServerList(ctx context.Context) error {
 	serverList, err := speedtest.FetchServers()
 	if err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		return fmt.Errorf("failed to fetch servers: %v", err)
 	}
 	sort.Slice(serverList, func(i, j int) bool {
 		return serverList[i].Latency < serverList[j].Latency
 	})
 	m.ServerList = serverList
-	m.CurrentPhase = ""
 	return nil
 }
 
-func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- ProgressUpdate) error {
+func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, updateChan chan<- ProgressUpdate) error {
 	var err error
 	m.Testing = true
 	m.Progress = 0
@@ -156,11 +160,20 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 		m.User = user
 	}
 
+	if ctx.Err() != nil {
+		m.Testing = false
+		return ctx.Err()
+	}
+
 	sendUpdate(0.2, fmt.Sprintf("Testing with server: %s", server.Name), updateChan)
 
 	sendUpdate(0.3, "Measuring ping and jitter...", updateChan)
 	var sumPing float64
 	for i := 0; i < 10; i++ {
+		if ctx.Err() != nil {
+			m.Testing = false
+			return ctx.Err()
+		}
 		err := server.PingTest(func(latency time.Duration) {
 			ping := float64(latency.Milliseconds())
 			m.PingResults = append(m.PingResults, ping)
@@ -180,7 +193,12 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 		if err != nil {
 			continue
 		}
-		time.Sleep(100 * time.Millisecond) // Small delay between pings
+		select {
+		case <-ctx.Done():
+			m.Testing = false
+			return ctx.Err()
+		case <-time.After(100 * time.Millisecond): // Small delay between pings
+		}
 	}
 
 	var jitter float64
@@ -190,6 +208,11 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 			sum += math.Abs(m.PingResults[i] - m.PingResults[i-1])
 		}
 		jitter = sum / float64(len(m.PingResults)-1)
+	}
+
+	if ctx.Err() != nil {
+		m.Testing = false
+		return ctx.Err()
 	}
 
 	sendUpdate(0.5, "Starting download test...", updateChan)
@@ -203,6 +226,8 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 		for {
 			select {
 			case <-done:
+				return
+			case <-ctx.Done():
 				return
 			case <-ticker.C:
 				elapsed := time.Since(start)
@@ -220,14 +245,18 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 		}
 	}()
 	err = server.DownloadTest()
-	sendUpdate(0.75, fmt.Sprintf("Download test completed. server.DLSpeed: %f bps", server.DLSpeed), updateChan)
 	close(done)
 	<-doneAck
+	if ctx.Err() != nil {
+		m.Testing = false
+		return ctx.Err()
+	}
 	if err != nil {
+		m.Testing = false
 		return fmt.Errorf("download test failed: %v", err)
 	}
 	dlSpeed := float64(server.DLSpeed) / 1000000
-	sendUpdate(0.7, fmt.Sprintf("Download complete: %.2f MBps (server.DLSpeed: %f)", dlSpeed, server.DLSpeed), updateChan)
+	sendUpdate(0.75, fmt.Sprintf("Download complete: %.2f MBps", dlSpeed), updateChan)
 
 	sendUpdate(0.8, "Starting upload test...", updateChan)
 	done = make(chan struct{})
@@ -240,6 +269,8 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 		for {
 			select {
 			case <-done:
+				return
+			case <-ctx.Done():
 				return
 			case <-ticker.C:
 				elapsed := time.Since(start)
@@ -258,7 +289,12 @@ func (m *Model) PerformSpeedTest(server *speedtest.Server, updateChan chan<- Pro
 	err = server.UploadTest()
 	close(done)
 	<-doneAck
+	if ctx.Err() != nil {
+		m.Testing = false
+		return ctx.Err()
+	}
 	if err != nil {
+		m.Testing = false
 		return fmt.Errorf("upload test failed: %v", err)
 	}
 	ulSpeed := float64(server.ULSpeed) / 1000000
