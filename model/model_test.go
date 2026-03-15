@@ -156,7 +156,7 @@ func TestHistoryLoadSave(t *testing.T) {
 
 	// Case 5: Corrupt JSON
 	historyPath := filepath.Join(tmpDir, ".lazyspeed_history.json")
-	os.WriteFile(historyPath, []byte("invalid json"), 0644)
+	_ = os.WriteFile(historyPath, []byte("invalid json"), 0644)
 	err = m3.LoadHistory()
 	if err == nil {
 		t.Errorf("Expected error loading corrupt JSON, got nil")
@@ -212,18 +212,18 @@ func TestPerformSpeedTest(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
 	m := NewModel(&mockBackend{
-		pingTestFn: func(server *speedtest.Server, fn func(time.Duration)) error {
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
 			// Simulate a few successful pings
 			fn(10 * time.Millisecond)
 			fn(12 * time.Millisecond)
 			return nil
 		},
-		downloadTestFn: func(server *speedtest.Server) error {
-			server.DLSpeed = 100 * bytesToMB // 100 MBps
+		downloadTestFn: func(s *speedtest.Server) error {
+			s.DLSpeed = 100 * bytesToMB // 100 MBps
 			return nil
 		},
-		uploadTestFn: func(server *speedtest.Server) error {
-			server.ULSpeed = 50 * bytesToMB // 50 MBps
+		uploadTestFn: func(s *speedtest.Server) error {
+			s.ULSpeed = 50 * bytesToMB // 50 MBps
 			return nil
 		},
 	})
@@ -263,7 +263,7 @@ func TestPerformSpeedTestFailures(t *testing.T) {
 
 	// Case: All pings fail
 	m := NewModel(&mockBackend{
-		pingTestFn: func(server *speedtest.Server, fn func(time.Duration)) error {
+		pingTestFn: func(_ *speedtest.Server, _ func(time.Duration)) error {
 			return errors.New("ping failed")
 		},
 	})
@@ -275,7 +275,7 @@ func TestPerformSpeedTestFailures(t *testing.T) {
 
 	// Case: Download fails
 	m = NewModel(&mockBackend{
-		downloadTestFn: func(server *speedtest.Server) error {
+		downloadTestFn: func(_ *speedtest.Server) error {
 			return errors.New("dl failed")
 		},
 	})

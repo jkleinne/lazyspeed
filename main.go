@@ -12,11 +12,12 @@ import (
 	"github.com/jkleinne/lazyspeed/ui"
 )
 
+const keyCtrlC = "ctrl+c"
+
 type speedTest struct {
 	model        *model.Model
 	spinner      spinner.Model
 	quitting     bool
-	err          error
 	progressChan chan model.ProgressUpdate
 	errChan      chan error
 	cancelTest   context.CancelFunc
@@ -71,13 +72,13 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if s.model.FetchingServers && s.model.PendingServerSelection {
 			// Spinner is visible while waiting for server list — only allow quit
 			switch msg.String() {
-			case "q", "ctrl+c":
+			case "q", keyCtrlC:
 				s.quitting = true
 				return s, tea.Quit
 			}
 		} else if s.model.SelectingServer {
 			switch msg.String() {
-			case "q", "ctrl+c":
+			case "q", keyCtrlC:
 				s.quitting = true
 				return s, tea.Quit
 			case "up", "k":
@@ -120,7 +121,7 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		} else {
 			switch msg.String() {
-			case "q", "ctrl+c":
+			case "q", keyCtrlC:
 				s.cancelTestIfRunning()
 				s.quitting = true
 				return s, tea.Quit
