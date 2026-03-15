@@ -243,12 +243,7 @@ func waitForProgress(progressChan chan model.ProgressUpdate, errChan chan error)
 	}
 }
 
-func main() {
-	if len(os.Args) > 1 && os.Args[1] == "version" {
-		fmt.Println(GetVersionInfo())
-		os.Exit(0)
-	}
-
+func runTUI() {
 	m := model.NewDefaultModel()
 	if err := m.LoadHistory(); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load test history: %v\n", err)
@@ -263,4 +258,8 @@ func main() {
 		fmt.Printf("Error running program: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func main() {
+	Execute()
 }
