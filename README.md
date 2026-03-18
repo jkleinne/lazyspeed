@@ -11,6 +11,11 @@ A simple terminal-based internet speed test application built with Go and [Bubbl
 - 📤 Upload speed measurement
 - 🔄 Ping/Latency testing
 - 📊 Jitter calculation (Mean Absolute Deviation)
+- 🖥️ Headless CLI mode (`lazyspeed run`) for scripting and CI
+- 📜 Test history tracking with persistent storage
+- 📁 JSON and CSV result export (CLI and TUI)
+- ⚙️ XDG-compliant YAML configuration
+- 🔁 Multi-test runs (`--count N`)
 
 ## Installation
 
@@ -30,7 +35,7 @@ brew install lazyspeed
 
 #### Prerequisites
 
-- Go 1.21 or higher
+- Go 1.24.2 or higher
 
 1. Clone the repository:
 ```bash
@@ -50,21 +55,106 @@ go build
 
 ## Usage
 
-Run the application:
+### TUI Mode
+
+Launch the interactive terminal UI:
 ```bash
 lazyspeed
 ```
 
-Display version information:
+### `run` — Headless Speed Test
+
+Run a speed test non-interactively (useful for scripting and CI):
+```bash
+# Default output
+lazyspeed run
+
+# JSON output
+lazyspeed run --json
+
+# CSV output
+lazyspeed run --csv
+
+# Minimal one-line output (DL/UL/Ping)
+lazyspeed run --simple
+
+# Use a specific server
+lazyspeed run --server <server-id>
+
+# Skip upload or download
+lazyspeed run --no-upload
+lazyspeed run --no-download
+
+# Run multiple tests
+lazyspeed run --count 5 --json
+```
+
+### `history` — View Test History
+
+```bash
+# Display history as a table
+lazyspeed history
+
+# Export as JSON or CSV
+lazyspeed history --format json
+lazyspeed history --format csv
+
+# Limit to last N results
+lazyspeed history --last 10 --format json
+
+# Clear all history
+lazyspeed history --clear
+```
+
+### `version`
+
 ```bash
 lazyspeed version
 ```
 
-### Controls
+### TUI Controls
 
-- Press `n` to start a new speed test
-- Press `h` to toggle help menu
-- Press `q` to quit the application
+| Key | Action |
+|-----|--------|
+| `n` | Start a new speed test |
+| `e` | Export latest result (after test completes) |
+| `h` | Toggle help overlay |
+| `q` / `Ctrl+C` | Quit |
+
+**Server selection:**
+
+| Key | Action |
+|-----|--------|
+| `↑`/`↓` or `k`/`j` | Navigate server list |
+| `Enter` | Select server |
+| `q` / `Ctrl+C` | Quit |
+
+**Export prompt (after pressing `e`):**
+
+| Key | Action |
+|-----|--------|
+| `j` | Export as JSON |
+| `c` | Export as CSV |
+| `Esc` / `q` / `Ctrl+C` | Cancel |
+
+## Configuration
+
+LazySpeed uses XDG-compliant paths for configuration and data storage.
+
+**Config file:** `~/.config/lazyspeed/config.yaml`
+
+```yaml
+history:
+  max_entries: 50    # Maximum history entries to keep (default: 50)
+  path: ""           # Override history file path (default: ~/.local/share/lazyspeed/history.json)
+
+test:
+  ping_count: 10     # Number of ping measurements per test (default: 10)
+```
+
+**History file:** `~/.local/share/lazyspeed/history.json`
+
+The config file is optional — all settings have sensible defaults. If migrating from an older version, history is automatically moved from the legacy path (`~/.lazyspeed_history.json`).
 
 ## How it Works
 
