@@ -322,7 +322,7 @@ func TestPerformSpeedTest(t *testing.T) {
 			return nil
 		},
 		uploadTestFn: func(s *speedtest.Server) error {
-			s.ULSpeed = 50 * bytesToMbps // 50 MBps
+			s.ULSpeed = 50 * bytesToMbps // 50 Mbps
 			return nil
 		},
 	}, nil)
