@@ -41,6 +41,28 @@ type SpeedTestResult struct {
 	UserISP       string    `json:"user_isp"`
 }
 
+// UnmarshalJSON supports reading both the current "server_country" key and
+// the legacy "server_loc" key so that existing history files are loaded
+// without data loss.
+func (r *SpeedTestResult) UnmarshalJSON(data []byte) error {
+	// Alias avoids infinite recursion through the custom UnmarshalJSON.
+	type Alias SpeedTestResult
+	aux := &struct {
+		*Alias
+		ServerLoc string `json:"server_loc"`
+	}{
+		Alias: (*Alias)(r),
+	}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	// Prefer the canonical key; fall back to the legacy key.
+	if r.ServerCountry == "" && aux.ServerLoc != "" {
+		r.ServerCountry = aux.ServerLoc
+	}
+	return nil
+}
+
 type RunOptions struct {
 	SkipDownload bool
 	SkipUpload   bool
@@ -373,7 +395,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		Jitter:        jitter,
 		ServerName:    server.Name,
 		ServerSponsor: server.Sponsor,
-		ServerCountry:     server.Country,
+		ServerCountry: server.Country,
 		Distance:      server.Distance,
 		Timestamp:     time.Now(),
 		UserIP:        userIP,
@@ -428,6 +450,9 @@ func ExportResult(result *SpeedTestResult, format string, dir string) (string, e
 			result.UserISP,
 		})
 		w.Flush()
+		if err := w.Error(); err != nil {
+			return "", fmt.Errorf("failed to flush CSV writer: %v", err)
+		}
 		return path, nil
 
 	default:
@@ -517,7 +542,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		Jitter:        jitter,
 		ServerName:    server.Name,
 		ServerSponsor: server.Sponsor,
-		ServerCountry:     server.Country,
+		ServerCountry: server.Country,
 		Distance:      server.Distance,
 		Timestamp:     time.Now(),
 		UserIP:        userIP,

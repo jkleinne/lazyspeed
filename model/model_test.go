@@ -85,6 +85,75 @@ func TestSpeedTestResultJSONKeys(t *testing.T) {
 	}
 }
 
+func TestUnmarshalJSONLegacyServerLoc(t *testing.T) {
+	tests := []struct {
+		name        string
+		jsonInput   string
+		wantCountry string
+	}{
+		{
+			name:        "Legacy server_loc only",
+			jsonInput:   `{"server_loc":"Germany","download_speed":50}`,
+			wantCountry: "Germany",
+		},
+		{
+			name:        "Current server_country only",
+			jsonInput:   `{"server_country":"France","download_speed":50}`,
+			wantCountry: "France",
+		},
+		{
+			name:        "Both keys — server_country wins",
+			jsonInput:   `{"server_country":"France","server_loc":"Germany","download_speed":50}`,
+			wantCountry: "France",
+		},
+		{
+			name:        "Neither key",
+			jsonInput:   `{"download_speed":50}`,
+			wantCountry: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var r SpeedTestResult
+			if err := json.Unmarshal([]byte(tt.jsonInput), &r); err != nil {
+				t.Fatalf("Unmarshal failed: %v", err)
+			}
+			if r.ServerCountry != tt.wantCountry {
+				t.Errorf("Expected ServerCountry %q, got %q", tt.wantCountry, r.ServerCountry)
+			}
+		})
+	}
+}
+
+func TestLoadHistoryWithLegacyServerLoc(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	// Write a history file with legacy "server_loc" entries
+	historyDir := filepath.Join(tmpDir, ".local", "share", "lazyspeed")
+	_ = os.MkdirAll(historyDir, 0700)
+	legacyJSON := `[
+		{"download_speed":100,"server_loc":"Germany","timestamp":"2026-03-19T00:00:00Z"},
+		{"download_speed":200,"server_country":"France","timestamp":"2026-03-19T01:00:00Z"}
+	]`
+	_ = os.WriteFile(filepath.Join(historyDir, "history.json"), []byte(legacyJSON), 0600)
+
+	m := NewModel(&mockBackend{}, nil)
+	if err := m.LoadHistory(); err != nil {
+		t.Fatalf("LoadHistory failed: %v", err)
+	}
+	if len(m.TestHistory) != 2 {
+		t.Fatalf("Expected 2 history entries, got %d", len(m.TestHistory))
+	}
+	if m.TestHistory[0].ServerCountry != "Germany" {
+		t.Errorf("Expected legacy entry ServerCountry 'Germany', got %q", m.TestHistory[0].ServerCountry)
+	}
+	if m.TestHistory[1].ServerCountry != "France" {
+		t.Errorf("Expected current entry ServerCountry 'France', got %q", m.TestHistory[1].ServerCountry)
+	}
+}
+
 func TestNewModel(t *testing.T) {
 	m := NewModel(&mockBackend{}, nil)
 
@@ -249,7 +318,7 @@ func TestPerformSpeedTest(t *testing.T) {
 			return nil
 		},
 		downloadTestFn: func(s *speedtest.Server) error {
-			s.DLSpeed = 100 * bytesToMbps // 100 MBps
+			s.DLSpeed = 100 * bytesToMbps // 100 Mbps
 			return nil
 		},
 		uploadTestFn: func(s *speedtest.Server) error {
@@ -431,7 +500,7 @@ func TestExportResultJSON(t *testing.T) {
 		Ping:          12.0,
 		Jitter:        1.5,
 		ServerName:    "Test Server",
-		ServerCountry:     "US",
+		ServerCountry: "US",
 		UserIP:        "1.2.3.4",
 		UserISP:       "TestISP",
 		Timestamp:     time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC),
@@ -477,7 +546,7 @@ func TestExportResultCSV(t *testing.T) {
 		Ping:          8.0,
 		Jitter:        0.5,
 		ServerName:    "CSV Server",
-		ServerCountry:     "EU",
+		ServerCountry: "EU",
 		UserIP:        "2.3.4.5",
 		UserISP:       "EuroISP",
 		Timestamp:     time.Date(2026, 3, 15, 11, 0, 0, 0, time.UTC),

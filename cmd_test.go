@@ -145,7 +145,7 @@ func makeHistoryEntries(n int) []*model.SpeedTestResult {
 			Ping:          float64(10 + i),
 			Jitter:        1.0,
 			ServerName:    "Server",
-			ServerCountry:     "US",
+			ServerCountry: "US",
 			UserIP:        "1.2.3.4",
 			UserISP:       "TestISP",
 			Timestamp:     time.Date(2026, 1, i+1, 12, 0, 0, 0, time.UTC),
