@@ -503,3 +503,555 @@ func TestExportResultFilenameContainsTimestamp(t *testing.T) {
 		t.Errorf("Expected filename to contain timestamp '20260315_123045', got %q", base)
 	}
 }
+
+func TestRunHeadless(t *testing.T) {
+	tests := []struct {
+		name         string
+		opts         RunOptions
+		pingCount    int
+		setupBackend func(t *testing.T) *mockBackend
+		wantErr      string
+		checkResult  func(t *testing.T, res *SpeedTestResult)
+	}{
+		{
+			name:      "Happy path",
+			opts:      RunOptions{},
+			pingCount: 2,
+			setupBackend: func(_ *testing.T) *mockBackend {
+				return &mockBackend{
+					pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+						fn(10 * time.Millisecond)
+						return nil
+					},
+					downloadTestFn: func(s *speedtest.Server) error {
+						s.DLSpeed = 100 * bytesToMB
+						return nil
+					},
+					uploadTestFn: func(s *speedtest.Server) error {
+						s.ULSpeed = 50 * bytesToMB
+						return nil
+					},
+				}
+			},
+			checkResult: func(t *testing.T, res *SpeedTestResult) {
+				if res.DownloadSpeed != 100.0 {
+					t.Errorf("Expected DL 100.0, got %f", res.DownloadSpeed)
+				}
+				if res.UploadSpeed != 50.0 {
+					t.Errorf("Expected UL 50.0, got %f", res.UploadSpeed)
+				}
+				if res.Ping == 0 {
+					t.Errorf("Expected non-zero ping")
+				}
+				if res.UserIP != "127.0.0.1" {
+					t.Errorf("Expected UserIP 127.0.0.1, got %s", res.UserIP)
+				}
+				if res.UserISP != "Test ISP" {
+					t.Errorf("Expected UserISP Test ISP, got %s", res.UserISP)
+				}
+			},
+		},
+		{
+			name:      "Skip download",
+			opts:      RunOptions{SkipDownload: true},
+			pingCount: 2,
+			setupBackend: func(t *testing.T) *mockBackend {
+				return &mockBackend{
+					pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+						fn(10 * time.Millisecond)
+						return nil
+					},
+					downloadTestFn: func(_ *speedtest.Server) error {
+						t.Fatal("downloadTestFn should not be called when SkipDownload is true")
+						return nil
+					},
+					uploadTestFn: func(s *speedtest.Server) error {
+						s.ULSpeed = 50 * bytesToMB
+						return nil
+					},
+				}
+			},
+			checkResult: func(t *testing.T, res *SpeedTestResult) {
+				if res.DownloadSpeed != 0 {
+					t.Errorf("Expected DL 0, got %f", res.DownloadSpeed)
+				}
+				if res.UploadSpeed != 50.0 {
+					t.Errorf("Expected UL 50.0, got %f", res.UploadSpeed)
+				}
+			},
+		},
+		{
+			name:      "Skip upload",
+			opts:      RunOptions{SkipUpload: true},
+			pingCount: 2,
+			setupBackend: func(t *testing.T) *mockBackend {
+				return &mockBackend{
+					pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+						fn(10 * time.Millisecond)
+						return nil
+					},
+					downloadTestFn: func(s *speedtest.Server) error {
+						s.DLSpeed = 100 * bytesToMB
+						return nil
+					},
+					uploadTestFn: func(_ *speedtest.Server) error {
+						t.Fatal("uploadTestFn should not be called when SkipUpload is true")
+						return nil
+					},
+				}
+			},
+			checkResult: func(t *testing.T, res *SpeedTestResult) {
+				if res.DownloadSpeed != 100.0 {
+					t.Errorf("Expected DL 100.0, got %f", res.DownloadSpeed)
+				}
+				if res.UploadSpeed != 0 {
+					t.Errorf("Expected UL 0, got %f", res.UploadSpeed)
+				}
+			},
+		},
+		{
+			name:      "Skip both",
+			opts:      RunOptions{SkipDownload: true, SkipUpload: true},
+			pingCount: 2,
+			setupBackend: func(t *testing.T) *mockBackend {
+				return &mockBackend{
+					pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+						fn(10 * time.Millisecond)
+						return nil
+					},
+					downloadTestFn: func(_ *speedtest.Server) error {
+						t.Fatal("downloadTestFn should not be called")
+						return nil
+					},
+					uploadTestFn: func(_ *speedtest.Server) error {
+						t.Fatal("uploadTestFn should not be called")
+						return nil
+					},
+				}
+			},
+			checkResult: func(t *testing.T, res *SpeedTestResult) {
+				if res.DownloadSpeed != 0 {
+					t.Errorf("Expected DL 0, got %f", res.DownloadSpeed)
+				}
+				if res.UploadSpeed != 0 {
+					t.Errorf("Expected UL 0, got %f", res.UploadSpeed)
+				}
+			},
+		},
+		{
+			name:      "Download failure",
+			opts:      RunOptions{},
+			pingCount: 2,
+			setupBackend: func(_ *testing.T) *mockBackend {
+				return &mockBackend{
+					pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+						fn(10 * time.Millisecond)
+						return nil
+					},
+					downloadTestFn: func(_ *speedtest.Server) error {
+						return errors.New("connection reset")
+					},
+				}
+			},
+			wantErr: "download test failed",
+		},
+		{
+			name:      "Upload failure",
+			opts:      RunOptions{},
+			pingCount: 2,
+			setupBackend: func(_ *testing.T) *mockBackend {
+				return &mockBackend{
+					pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+						fn(10 * time.Millisecond)
+						return nil
+					},
+					downloadTestFn: func(s *speedtest.Server) error {
+						s.DLSpeed = 100 * bytesToMB
+						return nil
+					},
+					uploadTestFn: func(_ *speedtest.Server) error {
+						return errors.New("upload timeout")
+					},
+				}
+			},
+			wantErr: "upload test failed",
+		},
+		{
+			name:      "User info failure",
+			opts:      RunOptions{},
+			pingCount: 2,
+			setupBackend: func(_ *testing.T) *mockBackend {
+				return &mockBackend{
+					fetchUserInfoFn: func() (*speedtest.User, error) {
+						return nil, errors.New("network error")
+					},
+					pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+						fn(10 * time.Millisecond)
+						return nil
+					},
+					downloadTestFn: func(s *speedtest.Server) error {
+						s.DLSpeed = 100 * bytesToMB
+						return nil
+					},
+					uploadTestFn: func(s *speedtest.Server) error {
+						s.ULSpeed = 50 * bytesToMB
+						return nil
+					},
+				}
+			},
+			checkResult: func(t *testing.T, res *SpeedTestResult) {
+				if res.UserIP != "" {
+					t.Errorf("Expected empty UserIP, got %s", res.UserIP)
+				}
+				if res.UserISP != "" {
+					t.Errorf("Expected empty UserISP, got %s", res.UserISP)
+				}
+			},
+		},
+		{
+			name:      "All pings fail",
+			opts:      RunOptions{},
+			pingCount: 2,
+			setupBackend: func(_ *testing.T) *mockBackend {
+				return &mockBackend{
+					pingTestFn: func(_ *speedtest.Server, _ func(time.Duration)) error {
+						return errors.New("ping timeout")
+					},
+					downloadTestFn: func(s *speedtest.Server) error {
+						s.DLSpeed = 100 * bytesToMB
+						return nil
+					},
+					uploadTestFn: func(s *speedtest.Server) error {
+						s.ULSpeed = 50 * bytesToMB
+						return nil
+					},
+				}
+			},
+			checkResult: func(t *testing.T, res *SpeedTestResult) {
+				if res.Ping != 0 {
+					t.Errorf("Expected Ping 0, got %f", res.Ping)
+				}
+				if res.Jitter != 0 {
+					t.Errorf("Expected Jitter 0, got %f", res.Jitter)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := DefaultConfig()
+			cfg.Test.PingCount = tt.pingCount
+
+			backend := tt.setupBackend(t)
+			m := NewModel(backend, cfg)
+			server := &speedtest.Server{Name: "Test", Country: "US"}
+
+			res, err := m.RunHeadless(context.Background(), server, tt.opts)
+
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Fatalf("Expected error containing %q, got nil", tt.wantErr)
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("Expected error containing %q, got %q", tt.wantErr, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			if res == nil {
+				t.Fatalf("Expected non-nil result")
+			}
+			if tt.checkResult != nil {
+				tt.checkResult(t, res)
+			}
+		})
+	}
+
+	// Config ping count — tested separately because it needs a call counter
+	t.Run("Config ping count", func(t *testing.T) {
+		pingCallCount := 0
+		cfg := DefaultConfig()
+		cfg.Test.PingCount = 3
+		m := NewModel(&mockBackend{
+			pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+				pingCallCount++
+				fn(10 * time.Millisecond)
+				return nil
+			},
+			downloadTestFn: func(s *speedtest.Server) error {
+				s.DLSpeed = 100 * bytesToMB
+				return nil
+			},
+			uploadTestFn: func(s *speedtest.Server) error {
+				s.ULSpeed = 50 * bytesToMB
+				return nil
+			},
+		}, cfg)
+
+		_, err := m.RunHeadless(context.Background(), &speedtest.Server{}, RunOptions{})
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if pingCallCount != 3 {
+			t.Errorf("Expected 3 ping calls, got %d", pingCallCount)
+		}
+	})
+}
+
+func TestRunHeadlessContextCancellation(t *testing.T) {
+	t.Run("Pre-cancelled context", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.Test.PingCount = 2
+		m := NewModel(&mockBackend{}, cfg)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := m.RunHeadless(ctx, &speedtest.Server{}, RunOptions{})
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("Expected context.Canceled, got %v", err)
+		}
+	})
+
+	t.Run("Mid-test cancel", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cfg := DefaultConfig()
+		cfg.Test.PingCount = 2
+		m := NewModel(&mockBackend{
+			pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+				fn(10 * time.Millisecond)
+				return nil
+			},
+			downloadTestFn: func(_ *speedtest.Server) error {
+				cancel()
+				return nil
+			},
+		}, cfg)
+
+		_, err := m.RunHeadless(ctx, &speedtest.Server{}, RunOptions{})
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("Expected context.Canceled, got %v", err)
+		}
+	})
+}
+
+func TestPerformSpeedTestUploadFailure(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(10 * time.Millisecond)
+			return nil
+		},
+		downloadTestFn: func(s *speedtest.Server) error {
+			s.DLSpeed = 100 * bytesToMB
+			return nil
+		},
+		uploadTestFn: func(_ *speedtest.Server) error {
+			return errors.New("upload timeout")
+		},
+	}, nil)
+
+	err := m.PerformSpeedTest(context.Background(), &speedtest.Server{}, make(chan ProgressUpdate, 100))
+	if err == nil || !strings.Contains(err.Error(), "upload test failed") {
+		t.Errorf("Expected error containing 'upload test failed', got %v", err)
+	}
+}
+
+func TestPerformSpeedTestContextCancellation(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	callCount := 0
+
+	cfg := DefaultConfig()
+	cfg.Test.PingCount = 3
+
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			callCount++
+			if callCount == 2 {
+				cancel()
+			}
+			fn(10 * time.Millisecond)
+			return nil
+		},
+	}, cfg)
+
+	err := m.PerformSpeedTest(ctx, &speedtest.Server{}, make(chan ProgressUpdate, 100))
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("Expected context.Canceled, got %v", err)
+	}
+	if m.Testing {
+		t.Errorf("Expected Testing to be false after cancellation")
+	}
+}
+
+func TestSendUpdate(t *testing.T) {
+	t.Run("Nil channel", func(t *testing.T) {
+		sendUpdate(0.5, "test", nil)
+	})
+
+	t.Run("Buffered channel", func(t *testing.T) {
+		ch := make(chan ProgressUpdate, 1)
+		sendUpdate(0.5, "test phase", ch)
+
+		update := <-ch
+		if update.Progress != 0.5 {
+			t.Errorf("Expected Progress 0.5, got %f", update.Progress)
+		}
+		if update.Phase != "test phase" {
+			t.Errorf("Expected Phase 'test phase', got %s", update.Phase)
+		}
+	})
+}
+
+func TestPerformSpeedTestJitterCalculation(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	latencies := []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 15 * time.Millisecond}
+	callIdx := 0
+
+	cfg := DefaultConfig()
+	cfg.Test.PingCount = 3
+
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(latencies[callIdx])
+			callIdx++
+			return nil
+		},
+		downloadTestFn: func(s *speedtest.Server) error {
+			s.DLSpeed = 100 * bytesToMB
+			return nil
+		},
+		uploadTestFn: func(s *speedtest.Server) error {
+			s.ULSpeed = 50 * bytesToMB
+			return nil
+		},
+	}, cfg)
+
+	err := m.PerformSpeedTest(context.Background(), &speedtest.Server{}, make(chan ProgressUpdate, 100))
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if m.Results.Ping != 15.0 {
+		t.Errorf("Expected avg ping 15.0, got %f", m.Results.Ping)
+	}
+	if m.Results.Jitter != 7.5 {
+		t.Errorf("Expected jitter 7.5, got %f", m.Results.Jitter)
+	}
+}
+
+func TestPerformSpeedTestUserInfoFailure(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	m := NewModel(&mockBackend{
+		fetchUserInfoFn: func() (*speedtest.User, error) {
+			return nil, errors.New("network error")
+		},
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(10 * time.Millisecond)
+			return nil
+		},
+		downloadTestFn: func(s *speedtest.Server) error {
+			s.DLSpeed = 100 * bytesToMB
+			return nil
+		},
+		uploadTestFn: func(s *speedtest.Server) error {
+			s.ULSpeed = 50 * bytesToMB
+			return nil
+		},
+	}, nil)
+
+	err := m.PerformSpeedTest(context.Background(), &speedtest.Server{}, make(chan ProgressUpdate, 100))
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if m.Warning == "" {
+		t.Errorf("Expected non-empty warning")
+	}
+	if m.Results.UserIP != "" {
+		t.Errorf("Expected empty UserIP, got %s", m.Results.UserIP)
+	}
+}
+
+func TestPerformSpeedTestProgressChannel(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	cfg := DefaultConfig()
+	cfg.Test.PingCount = 1
+
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(10 * time.Millisecond)
+			return nil
+		},
+		downloadTestFn: func(s *speedtest.Server) error {
+			s.DLSpeed = 100 * bytesToMB
+			return nil
+		},
+		uploadTestFn: func(s *speedtest.Server) error {
+			s.ULSpeed = 50 * bytesToMB
+			return nil
+		},
+	}, cfg)
+
+	updateChan := make(chan ProgressUpdate, 100)
+	err := m.PerformSpeedTest(context.Background(), &speedtest.Server{}, updateChan)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	var updates []ProgressUpdate
+drain:
+	for {
+		select {
+		case u := <-updateChan:
+			updates = append(updates, u)
+		default:
+			break drain
+		}
+	}
+
+	if len(updates) == 0 {
+		t.Fatalf("Expected at least one progress update")
+	}
+	lastUpdate := updates[len(updates)-1]
+	if lastUpdate.Phase != "Test completed" {
+		t.Errorf("Expected final phase 'Test completed', got %s", lastUpdate.Phase)
+	}
+}
+
+func TestFetchServerListEmptyResult(t *testing.T) {
+	m := NewModel(&mockBackend{
+		fetchServersFn: func() (speedtest.Servers, error) {
+			return speedtest.Servers{}, nil
+		},
+	}, nil)
+
+	err := m.FetchServerList(context.Background())
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+	if len(m.ServerList) != 0 {
+		t.Errorf("Expected empty ServerList, got %d servers", len(m.ServerList))
+	}
+}
+
+func TestLegacyHistoryPath(t *testing.T) {
+	t.Setenv("HOME", "/tmp/fakehome")
+
+	path, err := LegacyHistoryPath()
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if path != "/tmp/fakehome/.lazyspeed_history.json" {
+		t.Errorf("Expected /tmp/fakehome/.lazyspeed_history.json, got %s", path)
+	}
+}
