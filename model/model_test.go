@@ -892,7 +892,7 @@ func TestPerformSpeedTestContextCancellation(t *testing.T) {
 }
 
 func TestSendUpdate(t *testing.T) {
-	t.Run("Nil channel", func(t *testing.T) {
+	t.Run("Nil channel", func(_ *testing.T) {
 		sendUpdate(0.5, "test", nil)
 	})
 
