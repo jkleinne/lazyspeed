@@ -102,7 +102,7 @@ func TestRenderResults(t *testing.T) {
 			Ping:          10.5,
 			Jitter:        2.1,
 			ServerName:    "Test Server",
-			ServerLoc:     "Test City",
+			ServerCountry: "US",
 			Timestamp:     time.Now(),
 		},
 	}
@@ -240,6 +240,55 @@ func TestRenderServerSelection(t *testing.T) {
 	}
 }
 
+func TestRenderResultsMissingSponsorDistance(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.TestHistory = []*model.SpeedTestResult{
+		{
+			DownloadSpeed: 80.0,
+			UploadSpeed:   40.0,
+			Ping:          15.0,
+			Jitter:        2.0,
+			ServerName:    "Old Server",
+			ServerCountry: "DE",
+			ServerSponsor: "",
+			Distance:      0,
+			Timestamp:     time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
+		},
+		{
+			DownloadSpeed: 100.0,
+			UploadSpeed:   50.0,
+			Ping:          10.0,
+			Jitter:        1.0,
+			ServerName:    "New Server",
+			ServerCountry: "US",
+			ServerSponsor: "Valid Sponsor",
+			Distance:      42.5,
+			Timestamp:     time.Date(2026, 1, 2, 12, 0, 0, 0, time.UTC),
+		},
+	}
+
+	res := RenderResults(m, 120)
+
+	if !strings.Contains(res, "Previous Tests") {
+		t.Errorf("Expected 'Previous Tests' label for 2 entries")
+	}
+	// Old server entry should appear in the history table
+	if !strings.Contains(res, "Old Server") {
+		t.Errorf("Expected 'Old Server' in table row")
+	}
+	// Latest entry's sponsor should appear in the results box
+	if !strings.Contains(res, "Valid Sponsor") {
+		t.Errorf("Expected 'Valid Sponsor' in latest results")
+	}
+	if !strings.Contains(res, "42.5 km") {
+		t.Errorf("Expected '42.5 km' distance in latest results")
+	}
+	// Old entry has zero distance — table should render "-", not "0.0"
+	if strings.Contains(res, "0.0 km") {
+		t.Errorf("Expected zero distance to render as '-', not '0.0 km'")
+	}
+}
+
 func TestRenderResultsManyEntries(t *testing.T) {
 	m := model.NewDefaultModel()
 	m.TestHistory = make([]*model.SpeedTestResult, 5)
@@ -250,7 +299,7 @@ func TestRenderResultsManyEntries(t *testing.T) {
 			Ping:          float64(10 + i),
 			Jitter:        1.0,
 			ServerName:    "TestServer",
-			ServerLoc:     "US",
+			ServerCountry: "US",
 			Timestamp:     time.Now(),
 		}
 	}

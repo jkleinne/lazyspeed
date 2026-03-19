@@ -128,7 +128,7 @@ func runHeadlessTest() {
 			_ = csvWriter.Write([]string{
 				res.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
 				res.ServerName,
-				res.ServerLoc,
+				res.ServerCountry,
 				fmt.Sprintf("%.2f", res.DownloadSpeed),
 				fmt.Sprintf("%.2f", res.UploadSpeed),
 				fmt.Sprintf("%.2f", res.Ping),
@@ -138,12 +138,9 @@ func runHeadlessTest() {
 			})
 			csvWriter.Flush()
 		} else if runSimple {
-			fmt.Printf("DL: %.2f MBps | UL: %.2f MBps | Ping: %.2f ms\n", res.DownloadSpeed, res.UploadSpeed, res.Ping)
+			fmt.Println(formatSimpleResult(res))
 		} else {
-			fmt.Printf("\n📥 Download: %.2f MBps\n", res.DownloadSpeed)
-			fmt.Printf("📤 Upload: %.2f MBps\n", res.UploadSpeed)
-			fmt.Printf("🔄 Ping: %.2f ms\n", res.Ping)
-			fmt.Printf("📊 Jitter: %.2f ms\n", res.Jitter)
+			fmt.Println(formatDefaultResult(res))
 		}
 	}
 
@@ -158,6 +155,17 @@ func runHeadlessTest() {
 		}
 		fmt.Println(string(data))
 	}
+}
+
+// formatSimpleResult formats a speed test result as a one-line string.
+func formatSimpleResult(res *model.SpeedTestResult) string {
+	return fmt.Sprintf("DL: %.2f Mbps | UL: %.2f Mbps | Ping: %.2f ms", res.DownloadSpeed, res.UploadSpeed, res.Ping)
+}
+
+// formatDefaultResult formats a speed test result with emoji prefixes.
+func formatDefaultResult(res *model.SpeedTestResult) string {
+	return fmt.Sprintf("\n📥 Download: %.2f Mbps\n📤 Upload: %.2f Mbps\n🔄 Ping: %.2f ms\n📊 Jitter: %.2f ms",
+		res.DownloadSpeed, res.UploadSpeed, res.Ping, res.Jitter)
 }
 
 // marshalJSONResults serialises speed test results for --json output.

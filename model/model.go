@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	bytesToMB               = 1_000_000
+	bytesToMbps             = 125_000
 	pingIterations          = 10
 	progressInterval        = 200 * time.Millisecond
 	pingDelay               = 100 * time.Millisecond
@@ -34,11 +34,33 @@ type SpeedTestResult struct {
 	Jitter        float64   `json:"jitter"`
 	ServerName    string    `json:"server_name"`
 	ServerSponsor string    `json:"server_sponsor"`
-	ServerLoc     string    `json:"server_loc"`
+	ServerCountry string    `json:"server_country"`
 	Distance      float64   `json:"distance"`
 	Timestamp     time.Time `json:"timestamp"`
 	UserIP        string    `json:"user_ip"`
 	UserISP       string    `json:"user_isp"`
+}
+
+// UnmarshalJSON supports reading both the current "server_country" key and
+// the legacy "server_loc" key so that existing history files are loaded
+// without data loss.
+func (r *SpeedTestResult) UnmarshalJSON(data []byte) error {
+	// Alias avoids infinite recursion through the custom UnmarshalJSON.
+	type Alias SpeedTestResult
+	aux := &struct {
+		*Alias
+		ServerLoc string `json:"server_loc"`
+	}{
+		Alias: (*Alias)(r),
+	}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	// Prefer the canonical key; fall back to the legacy key.
+	if r.ServerCountry == "" && aux.ServerLoc != "" {
+		r.ServerCountry = aux.ServerLoc
+	}
+	return nil
 }
 
 type RunOptions struct {
@@ -293,9 +315,9 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 
 				// Fetch the Exponential Weighted Moving Average (EWMA) download rate in bytes/sec
 				rate := server.Context.GetEWMADownloadRate()
-				mbps := float64(rate) / bytesToMB
+				mbps := float64(rate) / bytesToMbps
 
-				sendUpdate(progress, fmt.Sprintf("Testing download: %.2f MBps...", mbps), updateChan)
+				sendUpdate(progress, fmt.Sprintf("Testing download: %.2f Mbps...", mbps), updateChan)
 			}
 		}
 	}()
@@ -310,8 +332,8 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		m.Testing = false
 		return fmt.Errorf("download test failed: %v", err)
 	}
-	dlSpeed := float64(server.DLSpeed) / bytesToMB
-	sendUpdate(0.75, fmt.Sprintf("Download complete: %.2f MBps", dlSpeed), updateChan)
+	dlSpeed := float64(server.DLSpeed) / bytesToMbps
+	sendUpdate(0.75, fmt.Sprintf("Download complete: %.2f Mbps", dlSpeed), updateChan)
 
 	sendUpdate(0.8, "Starting upload test...", updateChan)
 	done = make(chan struct{})
@@ -335,9 +357,9 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 				}
 
 				rate := server.Context.GetEWMAUploadRate()
-				mbps := float64(rate) / bytesToMB
+				mbps := float64(rate) / bytesToMbps
 
-				sendUpdate(progress, fmt.Sprintf("Testing upload: %.2f MBps...", mbps), updateChan)
+				sendUpdate(progress, fmt.Sprintf("Testing upload: %.2f Mbps...", mbps), updateChan)
 			}
 		}
 	}()
@@ -352,8 +374,8 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		m.Testing = false
 		return fmt.Errorf("upload test failed: %v", err)
 	}
-	ulSpeed := float64(server.ULSpeed) / bytesToMB
-	sendUpdate(0.9, fmt.Sprintf("Upload complete: %.2f MBps", ulSpeed), updateChan)
+	ulSpeed := float64(server.ULSpeed) / bytesToMbps
+	sendUpdate(0.9, fmt.Sprintf("Upload complete: %.2f Mbps", ulSpeed), updateChan)
 
 	var userIP, userISP string
 	if m.User != nil {
@@ -373,7 +395,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		Jitter:        jitter,
 		ServerName:    server.Name,
 		ServerSponsor: server.Sponsor,
-		ServerLoc:     server.Country,
+		ServerCountry: server.Country,
 		Distance:      server.Distance,
 		Timestamp:     time.Now(),
 		UserIP:        userIP,
@@ -409,7 +431,7 @@ func ExportResult(result *SpeedTestResult, format string, dir string) (string, e
 
 	case "csv":
 		path := filepath.Join(dir, fmt.Sprintf("lazyspeed_%s.csv", ts))
-		f, err := os.Create(path)
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
 			return "", fmt.Errorf("failed to create file: %v", err)
 		}
@@ -419,7 +441,7 @@ func ExportResult(result *SpeedTestResult, format string, dir string) (string, e
 		_ = w.Write([]string{
 			result.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
 			result.ServerName,
-			result.ServerLoc,
+			result.ServerCountry,
 			fmt.Sprintf("%.2f", result.DownloadSpeed),
 			fmt.Sprintf("%.2f", result.UploadSpeed),
 			fmt.Sprintf("%.2f", result.Ping),
@@ -428,6 +450,9 @@ func ExportResult(result *SpeedTestResult, format string, dir string) (string, e
 			result.UserISP,
 		})
 		w.Flush()
+		if err := w.Error(); err != nil {
+			return "", fmt.Errorf("failed to flush CSV writer: %v", err)
+		}
 		return path, nil
 
 	default:
@@ -497,7 +522,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		if err := m.Backend.DownloadTest(server); err != nil {
 			return nil, fmt.Errorf("download test failed: %w", err)
 		}
-		dlSpeed = float64(server.DLSpeed) / bytesToMB
+		dlSpeed = float64(server.DLSpeed) / bytesToMbps
 	}
 
 	if !opts.SkipUpload {
@@ -507,7 +532,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		if err := m.Backend.UploadTest(server); err != nil {
 			return nil, fmt.Errorf("upload test failed: %w", err)
 		}
-		ulSpeed = float64(server.ULSpeed) / bytesToMB
+		ulSpeed = float64(server.ULSpeed) / bytesToMbps
 	}
 
 	return &SpeedTestResult{
@@ -517,7 +542,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		Jitter:        jitter,
 		ServerName:    server.Name,
 		ServerSponsor: server.Sponsor,
-		ServerLoc:     server.Country,
+		ServerCountry: server.Country,
 		Distance:      server.Distance,
 		Timestamp:     time.Now(),
 		UserIP:        userIP,

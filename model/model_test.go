@@ -58,6 +58,102 @@ func (m *mockBackend) UploadTest(server *speedtest.Server) error {
 	return nil
 }
 
+func TestSpeedTestResultJSONKeys(t *testing.T) {
+	result := SpeedTestResult{
+		ServerCountry: "Germany",
+		Timestamp:     time.Date(2026, 3, 19, 0, 0, 0, 0, time.UTC),
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("Failed to marshal SpeedTestResult: %v", err)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("Failed to unmarshal into map: %v", err)
+	}
+
+	if _, ok := raw["server_country"]; !ok {
+		t.Errorf("Expected key 'server_country' in JSON output, got keys: %v", raw)
+	}
+	if _, ok := raw["server_loc"]; ok {
+		t.Errorf("Unexpected legacy key 'server_loc' in JSON output")
+	}
+	if raw["server_country"] != "Germany" {
+		t.Errorf("Expected server_country 'Germany', got %v", raw["server_country"])
+	}
+}
+
+func TestUnmarshalJSONLegacyServerLoc(t *testing.T) {
+	tests := []struct {
+		name        string
+		jsonInput   string
+		wantCountry string
+	}{
+		{
+			name:        "Legacy server_loc only",
+			jsonInput:   `{"server_loc":"Germany","download_speed":50}`,
+			wantCountry: "Germany",
+		},
+		{
+			name:        "Current server_country only",
+			jsonInput:   `{"server_country":"France","download_speed":50}`,
+			wantCountry: "France",
+		},
+		{
+			name:        "Both keys — server_country wins",
+			jsonInput:   `{"server_country":"France","server_loc":"Germany","download_speed":50}`,
+			wantCountry: "France",
+		},
+		{
+			name:        "Neither key",
+			jsonInput:   `{"download_speed":50}`,
+			wantCountry: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var r SpeedTestResult
+			if err := json.Unmarshal([]byte(tt.jsonInput), &r); err != nil {
+				t.Fatalf("Unmarshal failed: %v", err)
+			}
+			if r.ServerCountry != tt.wantCountry {
+				t.Errorf("Expected ServerCountry %q, got %q", tt.wantCountry, r.ServerCountry)
+			}
+		})
+	}
+}
+
+func TestLoadHistoryWithLegacyServerLoc(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	// Write a history file with legacy "server_loc" entries
+	historyDir := filepath.Join(tmpDir, ".local", "share", "lazyspeed")
+	_ = os.MkdirAll(historyDir, 0700)
+	legacyJSON := `[
+		{"download_speed":100,"server_loc":"Germany","timestamp":"2026-03-19T00:00:00Z"},
+		{"download_speed":200,"server_country":"France","timestamp":"2026-03-19T01:00:00Z"}
+	]`
+	_ = os.WriteFile(filepath.Join(historyDir, "history.json"), []byte(legacyJSON), 0600)
+
+	m := NewModel(&mockBackend{}, nil)
+	if err := m.LoadHistory(); err != nil {
+		t.Fatalf("LoadHistory failed: %v", err)
+	}
+	if len(m.TestHistory) != 2 {
+		t.Fatalf("Expected 2 history entries, got %d", len(m.TestHistory))
+	}
+	if m.TestHistory[0].ServerCountry != "Germany" {
+		t.Errorf("Expected legacy entry ServerCountry 'Germany', got %q", m.TestHistory[0].ServerCountry)
+	}
+	if m.TestHistory[1].ServerCountry != "France" {
+		t.Errorf("Expected current entry ServerCountry 'France', got %q", m.TestHistory[1].ServerCountry)
+	}
+}
+
 func TestNewModel(t *testing.T) {
 	m := NewModel(&mockBackend{}, nil)
 
@@ -222,11 +318,11 @@ func TestPerformSpeedTest(t *testing.T) {
 			return nil
 		},
 		downloadTestFn: func(s *speedtest.Server) error {
-			s.DLSpeed = 100 * bytesToMB // 100 MBps
+			s.DLSpeed = 100 * bytesToMbps // 100 Mbps
 			return nil
 		},
 		uploadTestFn: func(s *speedtest.Server) error {
-			s.ULSpeed = 50 * bytesToMB // 50 MBps
+			s.ULSpeed = 50 * bytesToMbps // 50 Mbps
 			return nil
 		},
 	}, nil)
@@ -253,6 +349,9 @@ func TestPerformSpeedTest(t *testing.T) {
 	}
 	if m.Results.UploadSpeed != 50.0 {
 		t.Errorf("Expected UL speed 50.0, got %f", m.Results.UploadSpeed)
+	}
+	if m.Results.ServerCountry != "Test Country" {
+		t.Errorf("Expected ServerCountry 'Test Country', got %q", m.Results.ServerCountry)
 	}
 	if m.Testing != false {
 		t.Errorf("Expected Testing to be false at end")
@@ -401,7 +500,7 @@ func TestExportResultJSON(t *testing.T) {
 		Ping:          12.0,
 		Jitter:        1.5,
 		ServerName:    "Test Server",
-		ServerLoc:     "US",
+		ServerCountry: "US",
 		UserIP:        "1.2.3.4",
 		UserISP:       "TestISP",
 		Timestamp:     time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC),
@@ -429,6 +528,14 @@ func TestExportResultJSON(t *testing.T) {
 	if got.ServerName != result.ServerName {
 		t.Errorf("Expected ServerName %q, got %q", result.ServerName, got.ServerName)
 	}
+
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Could not stat exported file: %v", err)
+	}
+	if perm := fi.Mode().Perm(); perm != 0644 {
+		t.Errorf("Expected file permissions 0644, got %04o", perm)
+	}
 }
 
 func TestExportResultCSV(t *testing.T) {
@@ -439,7 +546,7 @@ func TestExportResultCSV(t *testing.T) {
 		Ping:          8.0,
 		Jitter:        0.5,
 		ServerName:    "CSV Server",
-		ServerLoc:     "EU",
+		ServerCountry: "EU",
 		UserIP:        "2.3.4.5",
 		UserISP:       "EuroISP",
 		Timestamp:     time.Date(2026, 3, 15, 11, 0, 0, 0, time.UTC),
@@ -473,6 +580,17 @@ func TestExportResultCSV(t *testing.T) {
 	}
 	if records[1][1] != "CSV Server" {
 		t.Errorf("Expected server name in CSV data row, got %q", records[1][1])
+	}
+	if records[1][2] != "EU" {
+		t.Errorf("Expected country 'EU' in CSV data row, got %q", records[1][2])
+	}
+
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Could not stat exported CSV file: %v", err)
+	}
+	if perm := fi.Mode().Perm(); perm != 0644 {
+		t.Errorf("Expected file permissions 0644, got %04o", perm)
 	}
 }
 
@@ -524,11 +642,11 @@ func TestRunHeadless(t *testing.T) {
 						return nil
 					},
 					downloadTestFn: func(s *speedtest.Server) error {
-						s.DLSpeed = 100 * bytesToMB
+						s.DLSpeed = 100 * bytesToMbps
 						return nil
 					},
 					uploadTestFn: func(s *speedtest.Server) error {
-						s.ULSpeed = 50 * bytesToMB
+						s.ULSpeed = 50 * bytesToMbps
 						return nil
 					},
 				}
@@ -549,6 +667,9 @@ func TestRunHeadless(t *testing.T) {
 				if res.UserISP != "Test ISP" {
 					t.Errorf("Expected UserISP Test ISP, got %s", res.UserISP)
 				}
+				if res.ServerCountry != "US" {
+					t.Errorf("Expected ServerCountry 'US', got %q", res.ServerCountry)
+				}
 			},
 		},
 		{
@@ -566,7 +687,7 @@ func TestRunHeadless(t *testing.T) {
 						return nil
 					},
 					uploadTestFn: func(s *speedtest.Server) error {
-						s.ULSpeed = 50 * bytesToMB
+						s.ULSpeed = 50 * bytesToMbps
 						return nil
 					},
 				}
@@ -591,7 +712,7 @@ func TestRunHeadless(t *testing.T) {
 						return nil
 					},
 					downloadTestFn: func(s *speedtest.Server) error {
-						s.DLSpeed = 100 * bytesToMB
+						s.DLSpeed = 100 * bytesToMbps
 						return nil
 					},
 					uploadTestFn: func(_ *speedtest.Server) error {
@@ -666,7 +787,7 @@ func TestRunHeadless(t *testing.T) {
 						return nil
 					},
 					downloadTestFn: func(s *speedtest.Server) error {
-						s.DLSpeed = 100 * bytesToMB
+						s.DLSpeed = 100 * bytesToMbps
 						return nil
 					},
 					uploadTestFn: func(_ *speedtest.Server) error {
@@ -690,11 +811,11 @@ func TestRunHeadless(t *testing.T) {
 						return nil
 					},
 					downloadTestFn: func(s *speedtest.Server) error {
-						s.DLSpeed = 100 * bytesToMB
+						s.DLSpeed = 100 * bytesToMbps
 						return nil
 					},
 					uploadTestFn: func(s *speedtest.Server) error {
-						s.ULSpeed = 50 * bytesToMB
+						s.ULSpeed = 50 * bytesToMbps
 						return nil
 					},
 				}
@@ -718,11 +839,11 @@ func TestRunHeadless(t *testing.T) {
 						return errors.New("ping timeout")
 					},
 					downloadTestFn: func(s *speedtest.Server) error {
-						s.DLSpeed = 100 * bytesToMB
+						s.DLSpeed = 100 * bytesToMbps
 						return nil
 					},
 					uploadTestFn: func(s *speedtest.Server) error {
-						s.ULSpeed = 50 * bytesToMB
+						s.ULSpeed = 50 * bytesToMbps
 						return nil
 					},
 				}
@@ -783,11 +904,11 @@ func TestRunHeadless(t *testing.T) {
 				return nil
 			},
 			downloadTestFn: func(s *speedtest.Server) error {
-				s.DLSpeed = 100 * bytesToMB
+				s.DLSpeed = 100 * bytesToMbps
 				return nil
 			},
 			uploadTestFn: func(s *speedtest.Server) error {
-				s.ULSpeed = 50 * bytesToMB
+				s.ULSpeed = 50 * bytesToMbps
 				return nil
 			},
 		}, cfg)
@@ -848,7 +969,7 @@ func TestPerformSpeedTestUploadFailure(t *testing.T) {
 			return nil
 		},
 		downloadTestFn: func(s *speedtest.Server) error {
-			s.DLSpeed = 100 * bytesToMB
+			s.DLSpeed = 100 * bytesToMbps
 			return nil
 		},
 		uploadTestFn: func(_ *speedtest.Server) error {
@@ -926,11 +1047,11 @@ func TestPerformSpeedTestJitterCalculation(t *testing.T) {
 			return nil
 		},
 		downloadTestFn: func(s *speedtest.Server) error {
-			s.DLSpeed = 100 * bytesToMB
+			s.DLSpeed = 100 * bytesToMbps
 			return nil
 		},
 		uploadTestFn: func(s *speedtest.Server) error {
-			s.ULSpeed = 50 * bytesToMB
+			s.ULSpeed = 50 * bytesToMbps
 			return nil
 		},
 	}, cfg)
@@ -960,11 +1081,11 @@ func TestPerformSpeedTestUserInfoFailure(t *testing.T) {
 			return nil
 		},
 		downloadTestFn: func(s *speedtest.Server) error {
-			s.DLSpeed = 100 * bytesToMB
+			s.DLSpeed = 100 * bytesToMbps
 			return nil
 		},
 		uploadTestFn: func(s *speedtest.Server) error {
-			s.ULSpeed = 50 * bytesToMB
+			s.ULSpeed = 50 * bytesToMbps
 			return nil
 		},
 	}, nil)
@@ -993,11 +1114,11 @@ func TestPerformSpeedTestProgressChannel(t *testing.T) {
 			return nil
 		},
 		downloadTestFn: func(s *speedtest.Server) error {
-			s.DLSpeed = 100 * bytesToMB
+			s.DLSpeed = 100 * bytesToMbps
 			return nil
 		},
 		uploadTestFn: func(s *speedtest.Server) error {
-			s.ULSpeed = 50 * bytesToMB
+			s.ULSpeed = 50 * bytesToMbps
 			return nil
 		},
 	}, cfg)
@@ -1042,6 +1163,100 @@ func TestFetchServerListEmptyResult(t *testing.T) {
 	if len(m.ServerList) != 0 {
 		t.Errorf("Expected empty ServerList, got %d servers", len(m.ServerList))
 	}
+}
+
+func TestPerformSpeedTestSinglePing(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	cfg := DefaultConfig()
+	cfg.Test.PingCount = 1
+
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(10 * time.Millisecond)
+			return nil
+		},
+		downloadTestFn: func(s *speedtest.Server) error {
+			s.DLSpeed = 100 * bytesToMbps
+			return nil
+		},
+		uploadTestFn: func(s *speedtest.Server) error {
+			s.ULSpeed = 50 * bytesToMbps
+			return nil
+		},
+	}, cfg)
+
+	err := m.PerformSpeedTest(context.Background(), &speedtest.Server{}, make(chan ProgressUpdate, 100))
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if m.Results.Ping != 10.0 {
+		t.Errorf("Expected Ping 10.0, got %f", m.Results.Ping)
+	}
+	if m.Results.Jitter != 0.0 {
+		t.Errorf("Expected Jitter 0.0 with single ping (MAD requires 2+ samples), got %f", m.Results.Jitter)
+	}
+}
+
+// makeReadOnlyDir creates a read-only directory and returns its path.
+// Skips the test if the directory is writable despite 0555 (e.g., running as root).
+func makeReadOnlyDir(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	readOnlyDir := filepath.Join(dir, "readonly")
+	if err := os.MkdirAll(readOnlyDir, 0o755); err != nil {
+		t.Fatalf("Could not create directory: %v", err)
+	}
+	if err := os.Chmod(readOnlyDir, 0o555); err != nil {
+		t.Fatalf("Could not set read-only: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(readOnlyDir, 0o755) })
+
+	testPath := filepath.Join(readOnlyDir, "test_write")
+	if err := os.WriteFile(testPath, []byte("test"), 0644); err == nil {
+		_ = os.Remove(testPath)
+		t.Skip("Directory is writable despite 0555 permissions (running as root?)")
+	}
+	return readOnlyDir
+}
+
+func TestSaveHistoryUnwritableDirectory(t *testing.T) {
+	readOnlyDir := makeReadOnlyDir(t)
+
+	cfg := DefaultConfig()
+	cfg.History.Path = filepath.Join(readOnlyDir, "history.json")
+
+	m := NewModel(&mockBackend{}, cfg)
+	m.TestHistory = []*SpeedTestResult{{DownloadSpeed: 100}}
+
+	err := m.SaveHistory()
+	if err == nil {
+		t.Fatalf("Expected error writing to read-only directory, got nil")
+	}
+}
+
+func TestExportResultUnwritableDirectory(t *testing.T) {
+	readOnlyDir := makeReadOnlyDir(t)
+
+	result := &SpeedTestResult{
+		DownloadSpeed: 100,
+		Timestamp:     time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC),
+	}
+
+	t.Run("JSON", func(t *testing.T) {
+		_, err := ExportResult(result, "json", readOnlyDir)
+		if err == nil {
+			t.Errorf("Expected error writing JSON to read-only directory, got nil")
+		}
+	})
+
+	t.Run("CSV", func(t *testing.T) {
+		_, err := ExportResult(result, "csv", readOnlyDir)
+		if err == nil {
+			t.Errorf("Expected error writing CSV to read-only directory, got nil")
+		}
+	})
 }
 
 func TestLegacyHistoryPath(t *testing.T) {

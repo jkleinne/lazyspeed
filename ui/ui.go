@@ -114,11 +114,11 @@ func RenderResults(m *model.Model, width int) string {
 	latestBox := strings.Builder{}
 	latestBox.WriteString("Latest Test Results:\n")
 	latestBox.WriteString("──────────────────────\n")
-	latestBox.WriteString(fmt.Sprintf("📥 Download: %.2f MBps\n", latest.DownloadSpeed))
-	latestBox.WriteString(fmt.Sprintf("📤 Upload: %.2f MBps\n", latest.UploadSpeed))
+	latestBox.WriteString(fmt.Sprintf("📥 Download: %.2f Mbps\n", latest.DownloadSpeed))
+	latestBox.WriteString(fmt.Sprintf("📤 Upload: %.2f Mbps\n", latest.UploadSpeed))
 	latestBox.WriteString(fmt.Sprintf("🔄 Ping: %.2f ms\n", latest.Ping))
 	latestBox.WriteString(fmt.Sprintf("📊 Jitter: %.2f ms\n", latest.Jitter))
-	latestBox.WriteString(fmt.Sprintf("🌍 Server: %s (%s)\n", latest.ServerName, latest.ServerLoc))
+	latestBox.WriteString(fmt.Sprintf("🌍 Server: %s (%s)\n", latest.ServerName, latest.ServerCountry))
 	if latest.ServerSponsor != "" {
 		latestBox.WriteString(fmt.Sprintf("🏢 Sponsor: %s\n", latest.ServerSponsor))
 	}
@@ -140,7 +140,7 @@ func RenderResults(m *model.Model, width int) string {
 		return lipgloss.PlaceHorizontal(width, lipgloss.Center, latestContent)
 	}
 
-	headers := []string{"#", "Time", "Server", "Sponsor", "Dist (km)", "DL (MBps)", "UL (MBps)", "Ping (ms)", "Jitter (ms)"}
+	headers := []string{"#", "Time", "Server", "Sponsor", "Dist (km)", "DL (Mbps)", "UL (Mbps)", "Ping (ms)", "Jitter (ms)"}
 
 	// Build rows newest-first (omitting the latest which is at index len-1)
 	rows := make([][]string, 0, len(m.TestHistory)-1)
@@ -160,7 +160,7 @@ func RenderResults(m *model.Model, width int) string {
 		rows = append(rows, []string{
 			fmt.Sprintf("%d", rowNum),
 			test.Timestamp.Format("Jan 02 03:04 PM"),
-			fmt.Sprintf("%s (%s)", test.ServerName, test.ServerLoc),
+			fmt.Sprintf("%s (%s)", test.ServerName, test.ServerCountry),
 			sponsorStr,
 			distStr,
 			fmt.Sprintf("%.2f", test.DownloadSpeed),

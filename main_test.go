@@ -654,6 +654,93 @@ func TestViewError(t *testing.T) {
 	}
 }
 
+func TestUpdateKeyMsgNavigationDownBoundary(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.ServerList = speedtest.Servers{
+		&speedtest.Server{Name: "Server 1"},
+		&speedtest.Server{Name: "Server 2"},
+		&speedtest.Server{Name: "Server 3"},
+	}
+	m.SelectingServer = true
+	m.Cursor = 2 // last position
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	newS := newModel.(*speedTest)
+	if newS.model.Cursor != 2 {
+		t.Errorf("Expected cursor to stay at 2 (last position), got %d", newS.model.Cursor)
+	}
+}
+
+func TestUpdateEnterOnEmptyServerList(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.SelectingServer = true
+	m.ServerList = speedtest.Servers{}
+	m.Cursor = 0
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newS := newModel.(*speedTest)
+
+	if newS.model.Error == nil {
+		t.Fatalf("Expected error for invalid server selection, got nil")
+	}
+	if !strings.Contains(newS.model.Error.Error(), "invalid server selection") {
+		t.Errorf("Expected 'invalid server selection' error, got %q", newS.model.Error.Error())
+	}
+	if newS.model.SelectingServer {
+		t.Errorf("Expected SelectingServer to be false")
+	}
+	if newS.model.ShowHelp {
+		t.Errorf("Expected ShowHelp to be false")
+	}
+}
+
+func TestViewResultsDisplay(t *testing.T) {
+	t.Run("With results", func(t *testing.T) {
+		m := model.NewDefaultModel()
+		m.Results = &model.SpeedTestResult{
+			DownloadSpeed: 95.50,
+			UploadSpeed:   45.00,
+			Ping:          10.0,
+			ServerName:    "Test Server",
+			Timestamp:     time.Now(),
+		}
+		m.TestHistory = []*model.SpeedTestResult{m.Results}
+		s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+		view := s.View()
+		if !strings.Contains(view, "Latest Test Results:") {
+			t.Errorf("Expected 'Latest Test Results:' in view")
+		}
+		if !strings.Contains(view, "95.50") {
+			t.Errorf("Expected '95.50' in view")
+		}
+	})
+
+	t.Run("With help visible", func(t *testing.T) {
+		m := model.NewDefaultModel()
+		m.Results = &model.SpeedTestResult{
+			DownloadSpeed: 95.50,
+			UploadSpeed:   45.00,
+			Ping:          10.0,
+			ServerName:    "Test Server",
+			Timestamp:     time.Now(),
+		}
+		m.TestHistory = []*model.SpeedTestResult{m.Results}
+		m.ShowHelp = true
+		s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+		view := s.View()
+		if !strings.Contains(view, "Latest Test Results:") {
+			t.Errorf("Expected 'Latest Test Results:' in view")
+		}
+		if !strings.Contains(view, "Controls:") {
+			t.Errorf("Expected 'Controls:' in view when ShowHelp is true")
+		}
+	})
+}
+
 func TestInitMethod(t *testing.T) {
 	t.Run("Empty history", func(t *testing.T) {
 		m := model.NewDefaultModel()
