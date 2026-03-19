@@ -306,3 +306,143 @@ func TestHistoryLastFlagExceedsLength(t *testing.T) {
 		t.Errorf("Expected all 3 entries when --last exceeds length, got %d", len(arr))
 	}
 }
+
+func TestHistoryClearFlag(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	m := model.NewDefaultModel()
+	m.TestHistory = makeHistoryEntries(3)
+	if err := m.SaveHistory(); err != nil {
+		t.Fatalf("SaveHistory failed: %v", err)
+	}
+
+	origFormat := historyFormat
+	origLast := historyLast
+	origClear := historyClear
+	defer func() {
+		historyFormat = origFormat
+		historyLast = origLast
+		historyClear = origClear
+	}()
+
+	historyClear = true
+	historyFormat = ""
+	historyLast = 0
+
+	out := captureStdout(runHistory)
+
+	if !strings.Contains(out, "History cleared.") {
+		t.Errorf("Expected 'History cleared.' in output, got %q", out)
+	}
+
+	m2 := model.NewDefaultModel()
+	if err := m2.LoadHistory(); err != nil {
+		t.Fatalf("LoadHistory failed: %v", err)
+	}
+	if len(m2.TestHistory) != 0 {
+		t.Errorf("Expected empty history after clear, got %d entries", len(m2.TestHistory))
+	}
+}
+
+func TestHistoryDefaultTableFormat(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	m := model.NewDefaultModel()
+	m.TestHistory = makeHistoryEntries(2)
+	if err := m.SaveHistory(); err != nil {
+		t.Fatalf("SaveHistory failed: %v", err)
+	}
+
+	origFormat := historyFormat
+	origLast := historyLast
+	origClear := historyClear
+	defer func() {
+		historyFormat = origFormat
+		historyLast = origLast
+		historyClear = origClear
+	}()
+
+	historyFormat = ""
+	historyLast = 0
+	historyClear = false
+
+	out := captureStdout(runHistory)
+
+	if !strings.Contains(out, "DATE") {
+		t.Errorf("Expected 'DATE' header in table output")
+	}
+	if !strings.Contains(out, "SERVER") {
+		t.Errorf("Expected 'SERVER' header in table output")
+	}
+	if !strings.Contains(out, "DL (MBps)") {
+		t.Errorf("Expected 'DL (MBps)' header in table output")
+	}
+}
+
+func TestHistoryEmptyHistory(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	origFormat := historyFormat
+	origLast := historyLast
+	origClear := historyClear
+	defer func() {
+		historyFormat = origFormat
+		historyLast = origLast
+		historyClear = origClear
+	}()
+
+	historyFormat = ""
+	historyLast = 0
+	historyClear = false
+
+	out := captureStdout(runHistory)
+
+	if !strings.Contains(out, "No history found.") {
+		t.Errorf("Expected 'No history found.' in output, got %q", out)
+	}
+}
+
+func TestHistoryCommandValidation(t *testing.T) {
+	origFormat := historyFormat
+	origLast := historyLast
+	origClear := historyClear
+	defer func() {
+		historyFormat = origFormat
+		historyLast = origLast
+		historyClear = origClear
+	}()
+
+	historyFormat = "xml"
+	historyLast = 0
+	historyClear = false
+	err := historyCmd.RunE(nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "invalid --format") {
+		t.Errorf("Expected 'invalid --format' error, got %v", err)
+	}
+
+	historyFormat = ""
+	historyLast = -1
+	err = historyCmd.RunE(nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "--last must be >= 0") {
+		t.Errorf("Expected '--last must be >= 0' error, got %v", err)
+	}
+}
+
+func TestRunCommandValidation(t *testing.T) {
+	origCount := runCount
+	defer func() { runCount = origCount }()
+
+	runCount = 0
+	err := runCmd.PreRunE(nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "--count must be at least 1") {
+		t.Errorf("Expected '--count must be at least 1' error, got %v", err)
+	}
+
+	runCount = 1
+	err = runCmd.PreRunE(nil, nil)
+	if err != nil {
+		t.Errorf("Expected nil error for valid count, got %v", err)
+	}
+}
