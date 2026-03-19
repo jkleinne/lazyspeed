@@ -239,3 +239,24 @@ func TestRenderServerSelection(t *testing.T) {
 		t.Errorf("Expected no cursor on Server 1")
 	}
 }
+
+func TestRenderResultsManyEntries(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.TestHistory = make([]*model.SpeedTestResult, 5)
+	for i := range m.TestHistory {
+		m.TestHistory[i] = &model.SpeedTestResult{
+			DownloadSpeed: float64(100 + i),
+			UploadSpeed:   float64(50 + i),
+			Ping:          float64(10 + i),
+			Jitter:        1.0,
+			ServerName:    "TestServer",
+			ServerLoc:     "US",
+			Timestamp:     time.Now(),
+		}
+	}
+
+	res := RenderResults(m, 120)
+	if !strings.Contains(res, "Previous Tests") {
+		t.Errorf("Expected 'Previous Tests' label in output")
+	}
+}

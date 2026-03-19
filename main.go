@@ -21,6 +21,8 @@ type exportDoneMsg struct {
 
 const keyCtrlC = "ctrl+c"
 
+const fetchingServerListPhase = "Fetching server list..."
+
 type speedTest struct {
 	model        *model.Model
 	spinner      spinner.Model
@@ -57,7 +59,7 @@ func (s *speedTest) Init() tea.Cmd {
 	if len(s.model.TestHistory) == 0 {
 		// First launch: show loading spinner since there's nothing else to display
 		s.model.PendingServerSelection = true
-		s.model.CurrentPhase = "Fetching server list..."
+		s.model.CurrentPhase = fetchingServerListPhase
 		cmds = append(cmds, s.spinner.Tick)
 	}
 
@@ -152,7 +154,7 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if s.model.FetchingServers {
 						// Servers still loading — show the spinner and queue the transition
 						s.model.PendingServerSelection = true
-						s.model.CurrentPhase = "Fetching server list..."
+						s.model.CurrentPhase = fetchingServerListPhase
 						s.model.ShowHelp = false
 						return s, s.spinner.Tick
 					}
