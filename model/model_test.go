@@ -429,6 +429,14 @@ func TestExportResultJSON(t *testing.T) {
 	if got.ServerName != result.ServerName {
 		t.Errorf("Expected ServerName %q, got %q", result.ServerName, got.ServerName)
 	}
+
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Could not stat exported file: %v", err)
+	}
+	if perm := fi.Mode().Perm(); perm != 0644 {
+		t.Errorf("Expected file permissions 0644, got %04o", perm)
+	}
 }
 
 func TestExportResultCSV(t *testing.T) {
@@ -473,6 +481,14 @@ func TestExportResultCSV(t *testing.T) {
 	}
 	if records[1][1] != "CSV Server" {
 		t.Errorf("Expected server name in CSV data row, got %q", records[1][1])
+	}
+
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Could not stat exported CSV file: %v", err)
+	}
+	if perm := fi.Mode().Perm(); perm != 0644 {
+		t.Errorf("Expected file permissions 0644, got %04o", perm)
 	}
 }
 

@@ -409,7 +409,7 @@ func ExportResult(result *SpeedTestResult, format string, dir string) (string, e
 
 	case "csv":
 		path := filepath.Join(dir, fmt.Sprintf("lazyspeed_%s.csv", ts))
-		f, err := os.Create(path)
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
 			return "", fmt.Errorf("failed to create file: %v", err)
 		}
