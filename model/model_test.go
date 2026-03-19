@@ -58,6 +58,33 @@ func (m *mockBackend) UploadTest(server *speedtest.Server) error {
 	return nil
 }
 
+func TestSpeedTestResultJSONKeys(t *testing.T) {
+	result := SpeedTestResult{
+		ServerCountry: "Germany",
+		Timestamp:     time.Date(2026, 3, 19, 0, 0, 0, 0, time.UTC),
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("Failed to marshal SpeedTestResult: %v", err)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("Failed to unmarshal into map: %v", err)
+	}
+
+	if _, ok := raw["server_country"]; !ok {
+		t.Errorf("Expected key 'server_country' in JSON output, got keys: %v", raw)
+	}
+	if _, ok := raw["server_loc"]; ok {
+		t.Errorf("Unexpected legacy key 'server_loc' in JSON output")
+	}
+	if raw["server_country"] != "Germany" {
+		t.Errorf("Expected server_country 'Germany', got %v", raw["server_country"])
+	}
+}
+
 func TestNewModel(t *testing.T) {
 	m := NewModel(&mockBackend{}, nil)
 
@@ -253,6 +280,9 @@ func TestPerformSpeedTest(t *testing.T) {
 	}
 	if m.Results.UploadSpeed != 50.0 {
 		t.Errorf("Expected UL speed 50.0, got %f", m.Results.UploadSpeed)
+	}
+	if m.Results.ServerCountry != "Test Country" {
+		t.Errorf("Expected ServerCountry 'Test Country', got %q", m.Results.ServerCountry)
 	}
 	if m.Testing != false {
 		t.Errorf("Expected Testing to be false at end")
@@ -482,6 +512,9 @@ func TestExportResultCSV(t *testing.T) {
 	if records[1][1] != "CSV Server" {
 		t.Errorf("Expected server name in CSV data row, got %q", records[1][1])
 	}
+	if records[1][2] != "EU" {
+		t.Errorf("Expected country 'EU' in CSV data row, got %q", records[1][2])
+	}
 
 	fi, err := os.Stat(path)
 	if err != nil {
@@ -564,6 +597,9 @@ func TestRunHeadless(t *testing.T) {
 				}
 				if res.UserISP != "Test ISP" {
 					t.Errorf("Expected UserISP Test ISP, got %s", res.UserISP)
+				}
+				if res.ServerCountry != "US" {
+					t.Errorf("Expected ServerCountry 'US', got %q", res.ServerCountry)
 				}
 			},
 		},
