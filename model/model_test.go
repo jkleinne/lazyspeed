@@ -1096,6 +1096,100 @@ func TestFetchServerListEmptyResult(t *testing.T) {
 	}
 }
 
+func TestPerformSpeedTestSinglePing(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	cfg := DefaultConfig()
+	cfg.Test.PingCount = 1
+
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(10 * time.Millisecond)
+			return nil
+		},
+		downloadTestFn: func(s *speedtest.Server) error {
+			s.DLSpeed = 100 * bytesToMbps
+			return nil
+		},
+		uploadTestFn: func(s *speedtest.Server) error {
+			s.ULSpeed = 50 * bytesToMbps
+			return nil
+		},
+	}, cfg)
+
+	err := m.PerformSpeedTest(context.Background(), &speedtest.Server{}, make(chan ProgressUpdate, 100))
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if m.Results.Ping != 10.0 {
+		t.Errorf("Expected Ping 10.0, got %f", m.Results.Ping)
+	}
+	if m.Results.Jitter != 0.0 {
+		t.Errorf("Expected Jitter 0.0 with single ping (MAD requires 2+ samples), got %f", m.Results.Jitter)
+	}
+}
+
+// makeReadOnlyDir creates a read-only directory and returns its path.
+// Skips the test if the directory is writable despite 0555 (e.g., running as root).
+func makeReadOnlyDir(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	readOnlyDir := filepath.Join(dir, "readonly")
+	if err := os.MkdirAll(readOnlyDir, 0o755); err != nil {
+		t.Fatalf("Could not create directory: %v", err)
+	}
+	if err := os.Chmod(readOnlyDir, 0o555); err != nil {
+		t.Fatalf("Could not set read-only: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(readOnlyDir, 0o755) })
+
+	testPath := filepath.Join(readOnlyDir, "test_write")
+	if err := os.WriteFile(testPath, []byte("test"), 0644); err == nil {
+		_ = os.Remove(testPath)
+		t.Skip("Directory is writable despite 0555 permissions (running as root?)")
+	}
+	return readOnlyDir
+}
+
+func TestSaveHistoryUnwritableDirectory(t *testing.T) {
+	readOnlyDir := makeReadOnlyDir(t)
+
+	cfg := DefaultConfig()
+	cfg.History.Path = filepath.Join(readOnlyDir, "history.json")
+
+	m := NewModel(&mockBackend{}, cfg)
+	m.TestHistory = []*SpeedTestResult{{DownloadSpeed: 100}}
+
+	err := m.SaveHistory()
+	if err == nil {
+		t.Fatalf("Expected error writing to read-only directory, got nil")
+	}
+}
+
+func TestExportResultUnwritableDirectory(t *testing.T) {
+	readOnlyDir := makeReadOnlyDir(t)
+
+	result := &SpeedTestResult{
+		DownloadSpeed: 100,
+		Timestamp:     time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC),
+	}
+
+	t.Run("JSON", func(t *testing.T) {
+		_, err := ExportResult(result, "json", readOnlyDir)
+		if err == nil {
+			t.Errorf("Expected error writing JSON to read-only directory, got nil")
+		}
+	})
+
+	t.Run("CSV", func(t *testing.T) {
+		_, err := ExportResult(result, "csv", readOnlyDir)
+		if err == nil {
+			t.Errorf("Expected error writing CSV to read-only directory, got nil")
+		}
+	})
+}
+
 func TestLegacyHistoryPath(t *testing.T) {
 	t.Setenv("HOME", "/tmp/fakehome")
 

@@ -430,6 +430,83 @@ func TestHistoryCommandValidation(t *testing.T) {
 	}
 }
 
+func TestRunSimpleOutputFormat(t *testing.T) {
+	res := &model.SpeedTestResult{
+		DownloadSpeed: 95.12,
+		UploadSpeed:   45.23,
+		Ping:          12.40,
+	}
+	got := formatSimpleResult(res)
+	expected := "DL: 95.12 Mbps | UL: 45.23 Mbps | Ping: 12.40 ms"
+	if got != expected {
+		t.Errorf("Expected %q, got %q", expected, got)
+	}
+}
+
+func TestRunDefaultOutputFormat(t *testing.T) {
+	res := &model.SpeedTestResult{
+		DownloadSpeed: 95.12,
+		UploadSpeed:   45.23,
+		Ping:          12.40,
+		Jitter:        1.50,
+	}
+	got := formatDefaultResult(res)
+
+	for _, want := range []string{
+		"📥 Download: 95.12 Mbps",
+		"📤 Upload: 45.23 Mbps",
+		"🔄 Ping: 12.40 ms",
+		"📊 Jitter: 1.50 ms",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("Expected output to contain %q, got %q", want, got)
+		}
+	}
+}
+
+func TestHistoryTableFormatTruncation(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	m := model.NewDefaultModel()
+	m.TestHistory = []*model.SpeedTestResult{
+		{
+			DownloadSpeed: 100.0,
+			UploadSpeed:   50.0,
+			Ping:          10.0,
+			ServerName:    "A Very Long Server Name XY",
+			ServerCountry: "US",
+			Timestamp:     time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
+		},
+	}
+	if err := m.SaveHistory(); err != nil {
+		t.Fatalf("SaveHistory failed: %v", err)
+	}
+
+	origFormat := historyFormat
+	origLast := historyLast
+	origClear := historyClear
+	defer func() {
+		historyFormat = origFormat
+		historyLast = origLast
+		historyClear = origClear
+	}()
+
+	historyFormat = ""
+	historyLast = 0
+	historyClear = false
+
+	out := captureStdout(runHistory)
+
+	// Truncation threshold at cmd_history.go:104 — serverStr[:17] + "..."
+	if !strings.Contains(out, "A Very Long Serve...") {
+		t.Errorf("Expected truncated server name 'A Very Long Serve...' in output, got %q", out)
+	}
+	if strings.Contains(out, "A Very Long Server Name XY") {
+		t.Errorf("Expected full server name to be truncated, but found it in output")
+	}
+}
+
 func TestRunCommandValidation(t *testing.T) {
 	origCount := runCount
 	defer func() { runCount = origCount }()
