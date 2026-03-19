@@ -222,11 +222,11 @@ func TestPerformSpeedTest(t *testing.T) {
 			return nil
 		},
 		downloadTestFn: func(s *speedtest.Server) error {
-			s.DLSpeed = 100 * bytesToMB // 100 MBps
+			s.DLSpeed = 100 * bytesToMbps // 100 MBps
 			return nil
 		},
 		uploadTestFn: func(s *speedtest.Server) error {
-			s.ULSpeed = 50 * bytesToMB // 50 MBps
+			s.ULSpeed = 50 * bytesToMbps // 50 MBps
 			return nil
 		},
 	}, nil)
@@ -524,11 +524,11 @@ func TestRunHeadless(t *testing.T) {
 						return nil
 					},
 					downloadTestFn: func(s *speedtest.Server) error {
-						s.DLSpeed = 100 * bytesToMB
+						s.DLSpeed = 100 * bytesToMbps
 						return nil
 					},
 					uploadTestFn: func(s *speedtest.Server) error {
-						s.ULSpeed = 50 * bytesToMB
+						s.ULSpeed = 50 * bytesToMbps
 						return nil
 					},
 				}
@@ -566,7 +566,7 @@ func TestRunHeadless(t *testing.T) {
 						return nil
 					},
 					uploadTestFn: func(s *speedtest.Server) error {
-						s.ULSpeed = 50 * bytesToMB
+						s.ULSpeed = 50 * bytesToMbps
 						return nil
 					},
 				}
@@ -591,7 +591,7 @@ func TestRunHeadless(t *testing.T) {
 						return nil
 					},
 					downloadTestFn: func(s *speedtest.Server) error {
-						s.DLSpeed = 100 * bytesToMB
+						s.DLSpeed = 100 * bytesToMbps
 						return nil
 					},
 					uploadTestFn: func(_ *speedtest.Server) error {
@@ -666,7 +666,7 @@ func TestRunHeadless(t *testing.T) {
 						return nil
 					},
 					downloadTestFn: func(s *speedtest.Server) error {
-						s.DLSpeed = 100 * bytesToMB
+						s.DLSpeed = 100 * bytesToMbps
 						return nil
 					},
 					uploadTestFn: func(_ *speedtest.Server) error {
@@ -690,11 +690,11 @@ func TestRunHeadless(t *testing.T) {
 						return nil
 					},
 					downloadTestFn: func(s *speedtest.Server) error {
-						s.DLSpeed = 100 * bytesToMB
+						s.DLSpeed = 100 * bytesToMbps
 						return nil
 					},
 					uploadTestFn: func(s *speedtest.Server) error {
-						s.ULSpeed = 50 * bytesToMB
+						s.ULSpeed = 50 * bytesToMbps
 						return nil
 					},
 				}
@@ -718,11 +718,11 @@ func TestRunHeadless(t *testing.T) {
 						return errors.New("ping timeout")
 					},
 					downloadTestFn: func(s *speedtest.Server) error {
-						s.DLSpeed = 100 * bytesToMB
+						s.DLSpeed = 100 * bytesToMbps
 						return nil
 					},
 					uploadTestFn: func(s *speedtest.Server) error {
-						s.ULSpeed = 50 * bytesToMB
+						s.ULSpeed = 50 * bytesToMbps
 						return nil
 					},
 				}
@@ -783,11 +783,11 @@ func TestRunHeadless(t *testing.T) {
 				return nil
 			},
 			downloadTestFn: func(s *speedtest.Server) error {
-				s.DLSpeed = 100 * bytesToMB
+				s.DLSpeed = 100 * bytesToMbps
 				return nil
 			},
 			uploadTestFn: func(s *speedtest.Server) error {
-				s.ULSpeed = 50 * bytesToMB
+				s.ULSpeed = 50 * bytesToMbps
 				return nil
 			},
 		}, cfg)
@@ -848,7 +848,7 @@ func TestPerformSpeedTestUploadFailure(t *testing.T) {
 			return nil
 		},
 		downloadTestFn: func(s *speedtest.Server) error {
-			s.DLSpeed = 100 * bytesToMB
+			s.DLSpeed = 100 * bytesToMbps
 			return nil
 		},
 		uploadTestFn: func(_ *speedtest.Server) error {
@@ -926,11 +926,11 @@ func TestPerformSpeedTestJitterCalculation(t *testing.T) {
 			return nil
 		},
 		downloadTestFn: func(s *speedtest.Server) error {
-			s.DLSpeed = 100 * bytesToMB
+			s.DLSpeed = 100 * bytesToMbps
 			return nil
 		},
 		uploadTestFn: func(s *speedtest.Server) error {
-			s.ULSpeed = 50 * bytesToMB
+			s.ULSpeed = 50 * bytesToMbps
 			return nil
 		},
 	}, cfg)
@@ -960,11 +960,11 @@ func TestPerformSpeedTestUserInfoFailure(t *testing.T) {
 			return nil
 		},
 		downloadTestFn: func(s *speedtest.Server) error {
-			s.DLSpeed = 100 * bytesToMB
+			s.DLSpeed = 100 * bytesToMbps
 			return nil
 		},
 		uploadTestFn: func(s *speedtest.Server) error {
-			s.ULSpeed = 50 * bytesToMB
+			s.ULSpeed = 50 * bytesToMbps
 			return nil
 		},
 	}, nil)
@@ -993,11 +993,11 @@ func TestPerformSpeedTestProgressChannel(t *testing.T) {
 			return nil
 		},
 		downloadTestFn: func(s *speedtest.Server) error {
-			s.DLSpeed = 100 * bytesToMB
+			s.DLSpeed = 100 * bytesToMbps
 			return nil
 		},
 		uploadTestFn: func(s *speedtest.Server) error {
-			s.ULSpeed = 50 * bytesToMB
+			s.ULSpeed = 50 * bytesToMbps
 			return nil
 		},
 	}, cfg)

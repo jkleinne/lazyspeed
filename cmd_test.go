@@ -376,8 +376,8 @@ func TestHistoryDefaultTableFormat(t *testing.T) {
 	if !strings.Contains(out, "SERVER") {
 		t.Errorf("Expected 'SERVER' header in table output")
 	}
-	if !strings.Contains(out, "DL (MBps)") {
-		t.Errorf("Expected 'DL (MBps)' header in table output")
+	if !strings.Contains(out, "DL (Mbps)") {
+		t.Errorf("Expected 'DL (Mbps)' header in table output")
 	}
 }
 

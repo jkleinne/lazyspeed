@@ -138,10 +138,10 @@ func runHeadlessTest() {
 			})
 			csvWriter.Flush()
 		} else if runSimple {
-			fmt.Printf("DL: %.2f MBps | UL: %.2f MBps | Ping: %.2f ms\n", res.DownloadSpeed, res.UploadSpeed, res.Ping)
+			fmt.Printf("DL: %.2f Mbps | UL: %.2f Mbps | Ping: %.2f ms\n", res.DownloadSpeed, res.UploadSpeed, res.Ping)
 		} else {
-			fmt.Printf("\n📥 Download: %.2f MBps\n", res.DownloadSpeed)
-			fmt.Printf("📤 Upload: %.2f MBps\n", res.UploadSpeed)
+			fmt.Printf("\n📥 Download: %.2f Mbps\n", res.DownloadSpeed)
+			fmt.Printf("📤 Upload: %.2f Mbps\n", res.UploadSpeed)
 			fmt.Printf("🔄 Ping: %.2f ms\n", res.Ping)
 			fmt.Printf("📊 Jitter: %.2f ms\n", res.Jitter)
 		}

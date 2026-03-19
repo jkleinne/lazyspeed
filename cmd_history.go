@@ -97,7 +97,7 @@ func runHistory() {
 	default:
 		// Default: table view
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "DATE\tSERVER\tDL (MBps)\tUL (MBps)\tPING (ms)")
+		fmt.Fprintln(w, "DATE\tSERVER\tDL (Mbps)\tUL (Mbps)\tPING (ms)")
 		for _, res := range entries {
 			dateStr := res.Timestamp.Format("2006-01-02 15:04")
 			serverStr := res.ServerName
