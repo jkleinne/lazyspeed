@@ -34,7 +34,7 @@ type SpeedTestResult struct {
 	Jitter        float64   `json:"jitter"`
 	ServerName    string    `json:"server_name"`
 	ServerSponsor string    `json:"server_sponsor"`
-	ServerLoc     string    `json:"server_loc"`
+	ServerCountry string    `json:"server_country"`
 	Distance      float64   `json:"distance"`
 	Timestamp     time.Time `json:"timestamp"`
 	UserIP        string    `json:"user_ip"`
@@ -373,7 +373,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		Jitter:        jitter,
 		ServerName:    server.Name,
 		ServerSponsor: server.Sponsor,
-		ServerLoc:     server.Country,
+		ServerCountry:     server.Country,
 		Distance:      server.Distance,
 		Timestamp:     time.Now(),
 		UserIP:        userIP,
@@ -419,7 +419,7 @@ func ExportResult(result *SpeedTestResult, format string, dir string) (string, e
 		_ = w.Write([]string{
 			result.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
 			result.ServerName,
-			result.ServerLoc,
+			result.ServerCountry,
 			fmt.Sprintf("%.2f", result.DownloadSpeed),
 			fmt.Sprintf("%.2f", result.UploadSpeed),
 			fmt.Sprintf("%.2f", result.Ping),
@@ -517,7 +517,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		Jitter:        jitter,
 		ServerName:    server.Name,
 		ServerSponsor: server.Sponsor,
-		ServerLoc:     server.Country,
+		ServerCountry:     server.Country,
 		Distance:      server.Distance,
 		Timestamp:     time.Now(),
 		UserIP:        userIP,

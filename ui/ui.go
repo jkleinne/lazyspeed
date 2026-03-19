@@ -118,7 +118,7 @@ func RenderResults(m *model.Model, width int) string {
 	latestBox.WriteString(fmt.Sprintf("📤 Upload: %.2f Mbps\n", latest.UploadSpeed))
 	latestBox.WriteString(fmt.Sprintf("🔄 Ping: %.2f ms\n", latest.Ping))
 	latestBox.WriteString(fmt.Sprintf("📊 Jitter: %.2f ms\n", latest.Jitter))
-	latestBox.WriteString(fmt.Sprintf("🌍 Server: %s (%s)\n", latest.ServerName, latest.ServerLoc))
+	latestBox.WriteString(fmt.Sprintf("🌍 Server: %s (%s)\n", latest.ServerName, latest.ServerCountry))
 	if latest.ServerSponsor != "" {
 		latestBox.WriteString(fmt.Sprintf("🏢 Sponsor: %s\n", latest.ServerSponsor))
 	}
@@ -160,7 +160,7 @@ func RenderResults(m *model.Model, width int) string {
 		rows = append(rows, []string{
 			fmt.Sprintf("%d", rowNum),
 			test.Timestamp.Format("Jan 02 03:04 PM"),
-			fmt.Sprintf("%s (%s)", test.ServerName, test.ServerLoc),
+			fmt.Sprintf("%s (%s)", test.ServerName, test.ServerCountry),
 			sponsorStr,
 			distStr,
 			fmt.Sprintf("%.2f", test.DownloadSpeed),

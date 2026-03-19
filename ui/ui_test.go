@@ -102,7 +102,7 @@ func TestRenderResults(t *testing.T) {
 			Ping:          10.5,
 			Jitter:        2.1,
 			ServerName:    "Test Server",
-			ServerLoc:     "Test City",
+			ServerCountry:     "Test City",
 			Timestamp:     time.Now(),
 		},
 	}
@@ -250,7 +250,7 @@ func TestRenderResultsManyEntries(t *testing.T) {
 			Ping:          float64(10 + i),
 			Jitter:        1.0,
 			ServerName:    "TestServer",
-			ServerLoc:     "US",
+			ServerCountry:     "US",
 			Timestamp:     time.Now(),
 		}
 	}

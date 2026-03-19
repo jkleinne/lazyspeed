@@ -83,7 +83,7 @@ func runHistory() {
 			_ = w.Write([]string{
 				res.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
 				res.ServerName,
-				res.ServerLoc,
+				res.ServerCountry,
 				fmt.Sprintf("%.2f", res.DownloadSpeed),
 				fmt.Sprintf("%.2f", res.UploadSpeed),
 				fmt.Sprintf("%.2f", res.Ping),
