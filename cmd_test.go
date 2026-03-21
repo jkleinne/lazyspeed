@@ -27,7 +27,7 @@ func TestVersionCommand(t *testing.T) {
 
 // We just ensure the commands exist and are wired up properly.
 func TestCommandsConfigured(t *testing.T) {
-	var foundVersion, foundRun, foundHistory bool
+	var foundVersion, foundRun, foundHistory, foundServers bool
 	for _, cmd := range rootCmd.Commands() {
 		switch cmd.Name() {
 		case "version":
@@ -36,6 +36,8 @@ func TestCommandsConfigured(t *testing.T) {
 			foundRun = true
 		case "history":
 			foundHistory = true
+		case "servers":
+			foundServers = true
 		}
 	}
 
@@ -47,6 +49,9 @@ func TestCommandsConfigured(t *testing.T) {
 	}
 	if !foundHistory {
 		t.Error("history command not registered")
+	}
+	if !foundServers {
+		t.Error("servers command not registered")
 	}
 }
 
@@ -521,5 +526,22 @@ func TestRunCommandValidation(t *testing.T) {
 	err = runCmd.PreRunE(nil, nil)
 	if err != nil {
 		t.Errorf("Expected nil error for valid count, got %v", err)
+	}
+}
+
+func TestServersCommandValidation(t *testing.T) {
+	origFormat := serversFormat
+	defer func() { serversFormat = origFormat }()
+
+	serversFormat = "xml"
+	err := serversCmd.RunE(nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "invalid --format") {
+		t.Errorf("Expected 'invalid --format' error, got %v", err)
+	}
+
+	serversFormat = "yaml"
+	err = serversCmd.RunE(nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "invalid --format") {
+		t.Errorf("Expected 'invalid --format' error for yaml, got %v", err)
 	}
 }
