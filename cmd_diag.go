@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"text/tabwriter"
 	"time"
@@ -53,6 +54,14 @@ func init() {
 	rootCmd.AddCommand(diagCmd)
 }
 
+func stripPort(hostPort string) string {
+	host, _, err := net.SplitHostPort(hostPort)
+	if err != nil {
+		return hostPort
+	}
+	return host
+}
+
 // diagConfigFromModel maps model.Config.Diagnostics to diag.DiagConfig.
 func diagConfigFromModel(m *model.Model) *diag.DiagConfig {
 	cfg := diag.DefaultDiagConfig()
@@ -95,7 +104,7 @@ func runDiag(args []string) {
 		found := false
 		for _, s := range m.ServerList {
 			if s.ID == diagServer {
-				target = s.Host
+				target = stripPort(s.Host)
 				found = true
 				break
 			}
@@ -119,7 +128,7 @@ func runDiag(args []string) {
 			fmt.Fprintf(os.Stderr, "Error: no servers found\n")
 			os.Exit(1)
 		}
-		target = m.ServerList[0].Host
+		target = stripPort(m.ServerList[0].Host)
 		if !diagJSON && !diagCSV && !diagSimple {
 			fmt.Fprintf(os.Stderr, "Selected server: %s (%s)\n", m.ServerList[0].Name, m.ServerList[0].Country)
 		}

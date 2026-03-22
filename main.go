@@ -67,7 +67,7 @@ func runDiagCmd(m *model.Model, cfg *diag.DiagConfig) tea.Cmd {
 		var target string
 		if len(m.ServerList) > 0 {
 			srv := m.ServerList[0]
-			target = srv.Host
+			target = stripPort(srv.Host)
 			if target == "" {
 				target = srv.Name
 			}
