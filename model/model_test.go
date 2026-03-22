@@ -1015,6 +1015,124 @@ func TestRunHeadlessContextCancellation(t *testing.T) {
 	})
 }
 
+func TestRunHeadlessProgressCallback(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Test.PingCount = 2
+
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(10 * time.Millisecond)
+			return nil
+		},
+		downloadTestFn: func(s *speedtest.Server) error {
+			s.DLSpeed = 100 * bytesToMbps
+			return nil
+		},
+		uploadTestFn: func(s *speedtest.Server) error {
+			s.ULSpeed = 50 * bytesToMbps
+			return nil
+		},
+	}, cfg)
+
+	var phases []string
+	opts := RunOptions{
+		ProgressFn: func(phase string) {
+			phases = append(phases, phase)
+		},
+	}
+
+	res, err := m.RunHeadless(context.Background(), &speedtest.Server{Name: "Test"}, opts)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if res == nil {
+		t.Fatalf("Expected non-nil result")
+	}
+	if len(phases) == 0 {
+		t.Errorf("Expected progress callbacks to be called")
+	}
+
+	found := map[string]bool{"ping": false, "download": false, "upload": false}
+	for _, p := range phases {
+		lower := strings.ToLower(p)
+		if strings.Contains(lower, "ping") {
+			found["ping"] = true
+		}
+		if strings.Contains(lower, "download") {
+			found["download"] = true
+		}
+		if strings.Contains(lower, "upload") {
+			found["upload"] = true
+		}
+	}
+	for phase, seen := range found {
+		if !seen {
+			t.Errorf("Expected %s phase in progress callbacks", phase)
+		}
+	}
+}
+
+func TestRunHeadlessProgressCallbackNil(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Test.PingCount = 1
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(10 * time.Millisecond)
+			return nil
+		},
+		downloadTestFn: func(s *speedtest.Server) error {
+			s.DLSpeed = 100 * bytesToMbps
+			return nil
+		},
+		uploadTestFn: func(s *speedtest.Server) error {
+			s.ULSpeed = 50 * bytesToMbps
+			return nil
+		},
+	}, cfg)
+
+	res, err := m.RunHeadless(context.Background(), &speedtest.Server{}, RunOptions{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if res == nil {
+		t.Fatalf("Expected non-nil result")
+	}
+}
+
+func TestRunHeadlessProgressSkipPhases(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Test.PingCount = 1
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(10 * time.Millisecond)
+			return nil
+		},
+	}, cfg)
+
+	var phases []string
+	opts := RunOptions{
+		SkipDownload: true,
+		SkipUpload:   true,
+		ProgressFn: func(phase string) {
+			phases = append(phases, phase)
+		},
+	}
+
+	_, err := m.RunHeadless(context.Background(), &speedtest.Server{}, opts)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	for _, p := range phases {
+		lower := strings.ToLower(p)
+		if strings.Contains(lower, "download") {
+			t.Errorf("Expected no download phase when SkipDownload, got %q", p)
+		}
+		if strings.Contains(lower, "upload") {
+			t.Errorf("Expected no upload phase when SkipUpload, got %q", p)
+		}
+	}
+}
+
 func TestPerformSpeedTestUploadFailure(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 

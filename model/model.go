@@ -63,9 +63,11 @@ func (r *SpeedTestResult) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// RunOptions configures a headless speed test run.
 type RunOptions struct {
 	SkipDownload bool
 	SkipUpload   bool
+	ProgressFn   func(phase string)
 }
 
 // Model holds all application state for the TUI and speed test orchestration.
@@ -145,6 +147,12 @@ func sendUpdate(progress float64, phase string, updateChan chan<- ProgressUpdate
 			Progress: progress,
 			Phase:    phase,
 		}
+	}
+}
+
+func callProgressFn(fn func(string), phase string) {
+	if fn != nil {
+		fn(phase)
 	}
 }
 
@@ -479,6 +487,7 @@ func ExportResult(result *SpeedTestResult, format string, dir string) (string, e
 }
 
 func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts RunOptions) (*SpeedTestResult, error) {
+	callProgressFn(opts.ProgressFn, "Fetching network information...")
 	user, _ := m.Backend.FetchUserInfo()
 	var userIP, userISP string
 	if user != nil {
@@ -499,6 +508,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		headlessPingCount = m.Config.Test.PingCount
 	}
 
+	callProgressFn(opts.ProgressFn, fmt.Sprintf("Measuring ping (0/%d)...", headlessPingCount))
 	for i := 0; i < headlessPingCount; i++ {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -507,6 +517,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 			ping := float64(latency.Milliseconds())
 			pingResults = append(pingResults, ping)
 			sumPing += ping
+			callProgressFn(opts.ProgressFn, fmt.Sprintf("Measuring ping (%d/%d): %.1f ms", i+1, headlessPingCount, ping))
 		})
 		if err != nil {
 			continue
@@ -537,20 +548,24 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
+		callProgressFn(opts.ProgressFn, "Testing download...")
 		if err := m.Backend.DownloadTest(server); err != nil {
 			return nil, fmt.Errorf("download test failed: %w", err)
 		}
 		dlSpeed = float64(server.DLSpeed) / bytesToMbps
+		callProgressFn(opts.ProgressFn, fmt.Sprintf("Download: %.2f Mbps", dlSpeed))
 	}
 
 	if !opts.SkipUpload {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
+		callProgressFn(opts.ProgressFn, "Testing upload...")
 		if err := m.Backend.UploadTest(server); err != nil {
 			return nil, fmt.Errorf("upload test failed: %w", err)
 		}
 		ulSpeed = float64(server.ULSpeed) / bytesToMbps
+		callProgressFn(opts.ProgressFn, fmt.Sprintf("Upload: %.2f Mbps", ulSpeed))
 	}
 
 	return &SpeedTestResult{

@@ -91,6 +91,11 @@ func runHeadlessTest() {
 		SkipDownload: runNoDownload,
 		SkipUpload:   runNoUpload,
 	}
+	if !runJSON && !runCSV && !runSimple {
+		opts.ProgressFn = func(phase string) {
+			fmt.Fprintf(os.Stderr, "  %s\n", phase)
+		}
+	}
 
 	// Load history once before the loop so results accumulate correctly
 	_ = m.LoadHistory()
@@ -108,10 +113,6 @@ func runHeadlessTest() {
 	for i := 0; i < runCount; i++ {
 		if runCount > 1 && !runJSON && !runCSV {
 			fmt.Printf("\n--- Test %d of %d ---\n", i+1, runCount)
-		}
-
-		if !runJSON && !runCSV && !runSimple {
-			fmt.Println("Running speed test...")
 		}
 
 		testCtx, testCancel := context.WithTimeout(context.Background(), m.TestTimeoutDuration())
