@@ -508,6 +508,7 @@ func TestExportDirBareTilde(t *testing.T) {
 func TestLoadConfigExportDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
+	t.Setenv("XDG_CONFIG_HOME", "")
 
 	configDir := filepath.Join(tmpDir, ".config", "lazyspeed")
 	if err := os.MkdirAll(configDir, 0755); err != nil {
@@ -529,6 +530,7 @@ func TestLoadConfigExportDirectory(t *testing.T) {
 
 func TestLoadConfigMissingFile(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", "")
 
 	cfg, err := LoadConfig()
 	if err != nil {
