@@ -1,4 +1,4 @@
-.PHONY: test lint build cover clean
+.PHONY: test lint build cover man clean
 
 test:
 	go test -race ./...
@@ -13,5 +13,9 @@ lint:
 build:
 	go build -o lazyspeed .
 
+man:
+	@go run . man --dir man/
+
 clean:
 	rm -f lazyspeed coverage.out
+	rm -rf man/
