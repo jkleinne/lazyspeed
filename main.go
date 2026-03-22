@@ -47,7 +47,9 @@ type serverListMsg struct {
 
 func fetchServerListCmd(m *model.Model) tea.Cmd {
 	return func() tea.Msg {
-		err := m.FetchServerList(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), m.FetchTimeoutDuration())
+		defer cancel()
+		err := m.FetchServerList(ctx)
 		return serverListMsg{err: err}
 	}
 }
@@ -126,7 +128,7 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				s.model.CurrentPhase = "Starting speed test..."
 				s.model.Error = nil
 
-				ctx, cancel := context.WithCancel(context.Background())
+				ctx, cancel := context.WithTimeout(context.Background(), s.model.TestTimeoutDuration())
 				s.cancelTest = cancel
 
 				s.progressChan = make(chan model.ProgressUpdate)

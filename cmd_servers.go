@@ -47,7 +47,10 @@ func runServers() {
 
 	fmt.Println("Fetching server list...")
 
-	if err := m.FetchServerList(context.Background()); err != nil {
+	fetchCtx, fetchCancel := context.WithTimeout(context.Background(), m.FetchTimeoutDuration())
+	defer fetchCancel()
+
+	if err := m.FetchServerList(fetchCtx); err != nil {
 		fmt.Fprintf(os.Stderr, "Error fetching servers: %v\n", err)
 		os.Exit(1)
 	}
