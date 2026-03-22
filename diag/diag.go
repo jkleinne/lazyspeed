@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+const (
+	MethodICMP = "icmp"
+	MethodUDP  = "udp"
+)
+
 type Hop struct {
 	Number  int           `json:"number"`
 	IP      string        `json:"ip"`

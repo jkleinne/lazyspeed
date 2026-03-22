@@ -19,7 +19,7 @@ func (m *MockDiagBackend) Traceroute(ctx context.Context, target string, maxHops
 	if m.TracerouteFn != nil {
 		return m.TracerouteFn(ctx, target, maxHops)
 	}
-	return []Hop{}, "udp", nil
+	return []Hop{}, MethodUDP, nil
 }
 
 func (m *MockDiagBackend) ResolveDNS(ctx context.Context, host string) (string, time.Duration, error) {

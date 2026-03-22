@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const testExampleIP = "93.184.216.34"
+
 func TestRun(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -24,14 +26,14 @@ func TestRun(t *testing.T) {
 				TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
 					return []Hop{
 						{Number: 1, IP: "192.168.1.1", Host: "router.local", Latency: 1 * time.Millisecond},
-						{Number: 2, IP: "93.184.216.34", Host: "example.com", Latency: 20 * time.Millisecond},
-					}, "icmp", nil
+						{Number: 2, IP: testExampleIP, Host: "example.com", Latency: 20 * time.Millisecond},
+					}, MethodICMP, nil
 				},
 				ResolveDNSFn: func(_ context.Context, _ string) (string, time.Duration, error) {
-					return "93.184.216.34", 15 * time.Millisecond, nil
+					return testExampleIP, 15 * time.Millisecond, nil
 				},
 			},
-			wantMethod: "icmp",
+			wantMethod: MethodICMP,
 			wantDNSNil: false,
 		},
 		{
@@ -41,10 +43,10 @@ func TestRun(t *testing.T) {
 				TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
 					return []Hop{
 						{Number: 1, IP: "192.168.1.1", Host: "router.local", Latency: 1 * time.Millisecond},
-					}, "udp", nil
+					}, MethodUDP, nil
 				},
 			},
-			wantMethod: "udp",
+			wantMethod: MethodUDP,
 			wantDNSNil: true,
 		},
 		{
@@ -56,13 +58,13 @@ func TestRun(t *testing.T) {
 						{Number: 1, Timeout: true},
 						{Number: 2, Timeout: true},
 						{Number: 3, Timeout: true},
-					}, "udp", nil
+					}, MethodUDP, nil
 				},
 				ResolveDNSFn: func(_ context.Context, _ string) (string, time.Duration, error) {
-					return "93.184.216.34", 10 * time.Millisecond, nil
+					return testExampleIP, 10 * time.Millisecond, nil
 				},
 			},
-			wantMethod: "udp",
+			wantMethod: MethodUDP,
 			wantDNSNil: false,
 		},
 		{
@@ -73,7 +75,7 @@ func TestRun(t *testing.T) {
 					return nil, "", fmt.Errorf("network unreachable")
 				},
 				ResolveDNSFn: func(_ context.Context, _ string) (string, time.Duration, error) {
-					return "93.184.216.34", 10 * time.Millisecond, nil
+					return testExampleIP, 10 * time.Millisecond, nil
 				},
 			},
 			wantErr: true,
@@ -131,13 +133,13 @@ func TestRunContextCancellationPartialResults(t *testing.T) {
 
 	backend := &MockDiagBackend{
 		ResolveDNSFn: func(_ context.Context, _ string) (string, time.Duration, error) {
-			return "93.184.216.34", 10 * time.Millisecond, nil
+			return testExampleIP, 10 * time.Millisecond, nil
 		},
 		TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
 			cancel()
 			return []Hop{
 				{Number: 1, IP: "10.0.0.1", Host: "gw", Latency: 1 * time.Millisecond},
-			}, "udp", nil
+			}, MethodUDP, nil
 		},
 	}
 

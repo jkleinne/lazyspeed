@@ -25,7 +25,7 @@ func TestSaveAndLoadHistory(t *testing.T) {
 	results := []*DiagResult{
 		{
 			Target:    "example.com",
-			Method:    "udp",
+			Method:    MethodUDP,
 			Hops:      []Hop{{Number: 1, IP: "10.0.0.1", Host: "gw", Latency: 5 * time.Millisecond}},
 			Quality:   QualityScore{Score: 85, Grade: "B", Label: "Good for most activities"},
 			Timestamp: time.Now(),
