@@ -149,12 +149,16 @@ func (m *Model) TestTimeoutDuration() time.Duration {
 func (m *Model) ExportDir() (string, error) {
 	if m.Config != nil && m.Config.Export.Directory != "" {
 		dir := m.Config.Export.Directory
-		if strings.HasPrefix(dir, "~/") {
+		if dir == "~" || strings.HasPrefix(dir, "~/") {
 			home, err := os.UserHomeDir()
 			if err != nil {
 				return "", fmt.Errorf("failed to expand home directory: %v", err)
 			}
-			dir = filepath.Join(home, dir[2:])
+			if dir == "~" {
+				dir = home
+			} else {
+				dir = filepath.Join(home, dir[2:])
+			}
 		}
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return "", fmt.Errorf("failed to create export directory: %v", err)
@@ -577,7 +581,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		}
 		callProgressFn(opts.ProgressFn, "Testing download...")
 		if err := m.Backend.DownloadTest(server); err != nil {
-			return nil, fmt.Errorf("download test failed: %w", err)
+			return nil, fmt.Errorf("download test failed: %v", err)
 		}
 		dlSpeed = float64(server.DLSpeed) / bytesToMbps
 		callProgressFn(opts.ProgressFn, fmt.Sprintf("Download: %.2f Mbps", dlSpeed))
@@ -589,7 +593,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		}
 		callProgressFn(opts.ProgressFn, "Testing upload...")
 		if err := m.Backend.UploadTest(server); err != nil {
-			return nil, fmt.Errorf("upload test failed: %w", err)
+			return nil, fmt.Errorf("upload test failed: %v", err)
 		}
 		ulSpeed = float64(server.ULSpeed) / bytesToMbps
 		callProgressFn(opts.ProgressFn, fmt.Sprintf("Upload: %.2f Mbps", ulSpeed))

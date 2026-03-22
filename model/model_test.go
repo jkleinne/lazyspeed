@@ -489,6 +489,22 @@ func TestExportDirTildeExpansion(t *testing.T) {
 	_ = os.Remove(dir)
 }
 
+func TestExportDirBareTilde(t *testing.T) {
+	fakeHome := t.TempDir()
+	t.Setenv("HOME", fakeHome)
+	cfg := DefaultConfig()
+	cfg.Export.Directory = "~"
+	m := NewModel(nil, cfg)
+
+	dir, err := m.ExportDir()
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if dir != fakeHome {
+		t.Errorf("Expected %q, got %q", fakeHome, dir)
+	}
+}
+
 func TestLoadConfigExportDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
