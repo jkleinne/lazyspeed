@@ -13,6 +13,10 @@ const (
 	defaultPingCount    = 10
 	defaultFetchTimeout = 30  // seconds
 	defaultTestTimeout  = 120 // seconds
+
+	defaultDiagMaxHops    = 30
+	defaultDiagTimeout    = 60
+	defaultDiagMaxEntries = 20
 )
 
 // HistoryConfig holds history-related configuration.
@@ -33,11 +37,20 @@ type ExportConfig struct {
 	Directory string `yaml:"directory"`
 }
 
+// DiagnosticsConfig holds network diagnostics configuration.
+type DiagnosticsConfig struct {
+	MaxHops    int    `yaml:"max_hops"`
+	Timeout    int    `yaml:"timeout"`
+	MaxEntries int    `yaml:"max_entries"`
+	Path       string `yaml:"path"`
+}
+
 // Config holds all configurable options for lazyspeed.
 type Config struct {
-	History HistoryConfig `yaml:"history"`
-	Test    TestConfig    `yaml:"test"`
-	Export  ExportConfig  `yaml:"export"`
+	History     HistoryConfig     `yaml:"history"`
+	Test        TestConfig        `yaml:"test"`
+	Export      ExportConfig      `yaml:"export"`
+	Diagnostics DiagnosticsConfig `yaml:"diagnostics"`
 }
 
 // DefaultConfig returns a Config with all defaults filled in.
@@ -51,6 +64,12 @@ func DefaultConfig() *Config {
 			PingCount:    defaultPingCount,
 			FetchTimeout: defaultFetchTimeout,
 			TestTimeout:  defaultTestTimeout,
+		},
+		Diagnostics: DiagnosticsConfig{
+			MaxHops:    defaultDiagMaxHops,
+			Timeout:    defaultDiagTimeout,
+			MaxEntries: defaultDiagMaxEntries,
+			Path:       defaultDiagnosticsPath(),
 		},
 	}
 }
@@ -99,6 +118,18 @@ func LoadConfig() (*Config, error) {
 	if partial.Export.Directory != "" {
 		cfg.Export.Directory = partial.Export.Directory
 	}
+	if partial.Diagnostics.MaxHops > 0 {
+		cfg.Diagnostics.MaxHops = partial.Diagnostics.MaxHops
+	}
+	if partial.Diagnostics.Timeout > 0 {
+		cfg.Diagnostics.Timeout = partial.Diagnostics.Timeout
+	}
+	if partial.Diagnostics.MaxEntries > 0 {
+		cfg.Diagnostics.MaxEntries = partial.Diagnostics.MaxEntries
+	}
+	if partial.Diagnostics.Path != "" {
+		cfg.Diagnostics.Path = partial.Diagnostics.Path
+	}
 
 	return cfg, nil
 }
@@ -111,6 +142,16 @@ func defaultHistoryPath() string {
 		return ".lazyspeed_history.json" // Fallback to cwd if $HOME is unavailable
 	}
 	return filepath.Join(homeDir, ".local", "share", "lazyspeed", "history.json")
+}
+
+// defaultDiagnosticsPath returns the XDG-compliant default diagnostics file path:
+// ~/.local/share/lazyspeed/diagnostics.json
+func defaultDiagnosticsPath() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return ".lazyspeed_diagnostics.json"
+	}
+	return filepath.Join(homeDir, ".local", "share", "lazyspeed", "diagnostics.json")
 }
 
 // defaultConfigPath returns the XDG-compliant config file path.
