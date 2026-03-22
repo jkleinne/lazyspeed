@@ -810,6 +810,53 @@ func TestInitMethod(t *testing.T) {
 	})
 }
 
+func TestNewTestKeyResetsCursorAndOffset(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.Results = &model.SpeedTestResult{DownloadSpeed: 100.0}
+	m.ServerList = make(speedtest.Servers, 10)
+	for i := range m.ServerList {
+		m.ServerList[i] = &speedtest.Server{Name: "S"}
+	}
+	m.Cursor = 5
+	m.ServerListOffset = 3
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	newS := newModel.(*speedTest)
+
+	if !newS.model.SelectingServer {
+		t.Errorf("Expected SelectingServer to be true")
+	}
+	if newS.model.Cursor != 0 {
+		t.Errorf("Expected Cursor reset to 0, got %d", newS.model.Cursor)
+	}
+	if newS.model.ServerListOffset != 0 {
+		t.Errorf("Expected ServerListOffset reset to 0, got %d", newS.model.ServerListOffset)
+	}
+}
+
+func TestServerListMsgResetsCursorAndOffset(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.FetchingServers = true
+	m.PendingServerSelection = true
+	m.Cursor = 5
+	m.ServerListOffset = 3
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	newModel, _ := s.Update(serverListMsg{err: nil})
+	newS := newModel.(*speedTest)
+
+	if !newS.model.SelectingServer {
+		t.Errorf("Expected SelectingServer to be true")
+	}
+	if newS.model.Cursor != 0 {
+		t.Errorf("Expected Cursor reset to 0, got %d", newS.model.Cursor)
+	}
+	if newS.model.ServerListOffset != 0 {
+		t.Errorf("Expected ServerListOffset reset to 0, got %d", newS.model.ServerListOffset)
+	}
+}
+
 func TestAdjustServerListOffset(t *testing.T) {
 	tests := []struct {
 		name           string

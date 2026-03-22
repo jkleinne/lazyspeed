@@ -444,6 +444,56 @@ func TestRenderResultsNoPaginationSmallHistory(t *testing.T) {
 	}
 }
 
+func TestRenderResultsWithHistoryOffset(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.Height = 30
+	m.TestHistory = make([]*model.SpeedTestResult, 20)
+	for i := range m.TestHistory {
+		m.TestHistory[i] = &model.SpeedTestResult{
+			DownloadSpeed: float64(100 + i),
+			UploadSpeed:   float64(50 + i),
+			Ping:          float64(10 + i),
+			Jitter:        1.0,
+			ServerName:    fmt.Sprintf("Server%d", i),
+			ServerCountry: "US",
+			Timestamp:     time.Now(),
+		}
+	}
+	m.HistoryOffset = 3
+
+	res := RenderResults(m, 120)
+	if !strings.Contains(res, "Showing 4-") {
+		t.Errorf("Expected pagination to start at 4 with offset 3, got: %s", res)
+	}
+}
+
+func TestRenderResultsHistoryOffsetClamped(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.Height = 30
+	m.TestHistory = make([]*model.SpeedTestResult, 20)
+	for i := range m.TestHistory {
+		m.TestHistory[i] = &model.SpeedTestResult{
+			DownloadSpeed: float64(100 + i),
+			UploadSpeed:   float64(50 + i),
+			Ping:          float64(10 + i),
+			Jitter:        1.0,
+			ServerName:    "TestServer",
+			ServerCountry: "US",
+			Timestamp:     time.Now(),
+		}
+	}
+	m.HistoryOffset = 999
+
+	res := RenderResults(m, 120)
+	if !strings.Contains(res, "Showing") {
+		t.Errorf("Expected pagination indicator even with clamped offset")
+	}
+	// Should show the last page, ending at totalRows (19)
+	if !strings.Contains(res, "of 19") {
+		t.Errorf("Expected 'of 19' in pagination, got: %s", res)
+	}
+}
+
 func TestServerListVisibleLines(t *testing.T) {
 	tests := []struct {
 		name     string
