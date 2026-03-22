@@ -49,3 +49,6 @@ debug/
 
 # Log files
 *.log
+
+# Generated man pages
+man/

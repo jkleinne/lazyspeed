@@ -28,10 +28,16 @@ type TestConfig struct {
 	TestTimeout  int `yaml:"test_timeout"`
 }
 
+// ExportConfig holds export-related configuration.
+type ExportConfig struct {
+	Directory string `yaml:"directory"`
+}
+
 // Config holds all configurable options for lazyspeed.
 type Config struct {
 	History HistoryConfig `yaml:"history"`
 	Test    TestConfig    `yaml:"test"`
+	Export  ExportConfig  `yaml:"export"`
 }
 
 // DefaultConfig returns a Config with all defaults filled in.
@@ -89,6 +95,9 @@ func LoadConfig() (*Config, error) {
 	}
 	if partial.Test.TestTimeout > 0 {
 		cfg.Test.TestTimeout = partial.Test.TestTimeout
+	}
+	if partial.Export.Directory != "" {
+		cfg.Export.Directory = partial.Export.Directory
 	}
 
 	return cfg, nil

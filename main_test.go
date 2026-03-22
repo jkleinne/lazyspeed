@@ -507,7 +507,8 @@ func TestExportCmd(t *testing.T) {
 		Timestamp:     time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC),
 	}
 
-	cmd := exportCmd(result, "json")
+	m := model.NewModel(nil, model.DefaultConfig())
+	cmd := exportCmd(result, "json", m)
 	msg := cmd()
 
 	dm, ok := msg.(exportDoneMsg)
@@ -519,6 +520,34 @@ func TestExportCmd(t *testing.T) {
 	}
 	if dm.path == "" {
 		t.Errorf("Expected non-empty path")
+	}
+}
+
+func TestExportCmdUsesConfigDirectory(t *testing.T) {
+	exportDir := t.TempDir()
+	cfg := model.DefaultConfig()
+	cfg.Export.Directory = exportDir
+	m := model.NewModel(nil, cfg)
+
+	result := &model.SpeedTestResult{
+		DownloadSpeed: 100.0,
+		UploadSpeed:   50.0,
+		Ping:          10.0,
+		Timestamp:     time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC),
+	}
+
+	cmd := exportCmd(result, "json", m)
+	msg := cmd()
+
+	dm, ok := msg.(exportDoneMsg)
+	if !ok {
+		t.Fatalf("Expected exportDoneMsg, got %T", msg)
+	}
+	if dm.err != nil {
+		t.Fatalf("Expected nil error, got %v", dm.err)
+	}
+	if !strings.HasPrefix(dm.path, exportDir) {
+		t.Errorf("Expected path to start with %q, got %q", exportDir, dm.path)
 	}
 }
 
@@ -779,6 +808,53 @@ func TestInitMethod(t *testing.T) {
 			t.Errorf("Expected non-nil cmd")
 		}
 	})
+}
+
+func TestNewTestKeyResetsCursorAndOffset(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.Results = &model.SpeedTestResult{DownloadSpeed: 100.0}
+	m.ServerList = make(speedtest.Servers, 10)
+	for i := range m.ServerList {
+		m.ServerList[i] = &speedtest.Server{Name: "S"}
+	}
+	m.Cursor = 5
+	m.ServerListOffset = 3
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	newS := newModel.(*speedTest)
+
+	if !newS.model.SelectingServer {
+		t.Errorf("Expected SelectingServer to be true")
+	}
+	if newS.model.Cursor != 0 {
+		t.Errorf("Expected Cursor reset to 0, got %d", newS.model.Cursor)
+	}
+	if newS.model.ServerListOffset != 0 {
+		t.Errorf("Expected ServerListOffset reset to 0, got %d", newS.model.ServerListOffset)
+	}
+}
+
+func TestServerListMsgResetsCursorAndOffset(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.FetchingServers = true
+	m.PendingServerSelection = true
+	m.Cursor = 5
+	m.ServerListOffset = 3
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	newModel, _ := s.Update(serverListMsg{err: nil})
+	newS := newModel.(*speedTest)
+
+	if !newS.model.SelectingServer {
+		t.Errorf("Expected SelectingServer to be true")
+	}
+	if newS.model.Cursor != 0 {
+		t.Errorf("Expected Cursor reset to 0, got %d", newS.model.Cursor)
+	}
+	if newS.model.ServerListOffset != 0 {
+		t.Errorf("Expected ServerListOffset reset to 0, got %d", newS.model.ServerListOffset)
+	}
 }
 
 func TestAdjustServerListOffset(t *testing.T) {

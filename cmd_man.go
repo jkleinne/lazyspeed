@@ -1,0 +1,39 @@
+package main
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/cobra/doc"
+)
+
+var manDir string
+
+var manCmd = &cobra.Command{
+	Use:    "man",
+	Short:  "Generate man pages for lazyspeed",
+	Hidden: true,
+	RunE: func(_ *cobra.Command, _ []string) error {
+		if manDir == "" {
+			return fmt.Errorf("--dir is required")
+		}
+		if err := os.MkdirAll(manDir, 0755); err != nil {
+			return fmt.Errorf("failed to create output directory: %v", err)
+		}
+		header := &doc.GenManHeader{
+			Title:   "LAZYSPEED",
+			Section: "1",
+		}
+		if err := doc.GenManTree(rootCmd, header, manDir); err != nil {
+			return fmt.Errorf("failed to generate man pages: %v", err)
+		}
+		fmt.Printf("Man pages written to %s\n", manDir)
+		return nil
+	},
+}
+
+func init() {
+	manCmd.Flags().StringVar(&manDir, "dir", "", "Output directory for man pages (required)")
+	rootCmd.AddCommand(manCmd)
+}
