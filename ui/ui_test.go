@@ -443,3 +443,53 @@ func TestRenderResultsNoPaginationSmallHistory(t *testing.T) {
 		t.Errorf("Did not expect pagination indicator when all rows fit")
 	}
 }
+
+func TestServerListVisibleLines(t *testing.T) {
+	tests := []struct {
+		name     string
+		height   int
+		total    int
+		expected int
+	}{
+		{"Large terminal, few servers", 40, 5, 5},
+		{"Small terminal, many servers", 15, 30, 7},
+		{"Tiny terminal enforces minimum", 5, 30, 3},
+		{"Zero height enforces minimum", 0, 30, 3},
+		{"Total less than visible", 40, 2, 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ServerListVisibleLines(tt.height, tt.total)
+			if got != tt.expected {
+				t.Errorf("ServerListVisibleLines(%d, %d) = %d, want %d",
+					tt.height, tt.total, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestHistoryVisibleRows(t *testing.T) {
+	tests := []struct {
+		name     string
+		height   int
+		total    int
+		expected int
+	}{
+		{"Large terminal, few rows", 60, 5, 5},
+		{"Small terminal, many rows", 30, 20, 8},
+		{"Tiny terminal enforces minimum", 10, 20, 3},
+		{"Zero height enforces minimum", 0, 20, 3},
+		{"Total less than visible", 60, 2, 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := HistoryVisibleRows(tt.height, tt.total)
+			if got != tt.expected {
+				t.Errorf("HistoryVisibleRows(%d, %d) = %d, want %d",
+					tt.height, tt.total, got, tt.expected)
+			}
+		})
+	}
+}
