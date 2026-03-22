@@ -133,7 +133,7 @@ func captureStdout(fn func()) string {
 
 	fn()
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = origStdout
 	var buf bytes.Buffer
 	_, _ = io.Copy(&buf, r)

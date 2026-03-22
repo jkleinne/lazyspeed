@@ -463,7 +463,7 @@ func ExportResult(result *SpeedTestResult, format string, dir string) (string, e
 		if err != nil {
 			return "", fmt.Errorf("failed to create file: %v", err)
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		w := csv.NewWriter(f)
 		_ = w.Write([]string{"timestamp", "server", "country", "download_mbps", "upload_mbps", "ping_ms", "jitter_ms", "ip", "isp"})
 		_ = w.Write([]string{

@@ -619,7 +619,7 @@ func TestExportResultCSV(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Could not open exported file: %v", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	r := csv.NewReader(f)
 	records, err := r.ReadAll()

@@ -10,6 +10,13 @@ linters:
     - goconst
     - misspell
     - revive
+  settings:
+    revive:
+      rules:
+        - name: package-comments
+          disabled: true
+        - name: exported
+          disabled: true
 
 formatters:
   enable:

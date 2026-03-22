@@ -114,24 +114,24 @@ func RenderResults(m *model.Model, width int) string {
 	latestBox := strings.Builder{}
 	latestBox.WriteString("Latest Test Results:\n")
 	latestBox.WriteString("──────────────────────\n")
-	latestBox.WriteString(fmt.Sprintf("📥 Download: %.2f Mbps\n", latest.DownloadSpeed))
-	latestBox.WriteString(fmt.Sprintf("📤 Upload: %.2f Mbps\n", latest.UploadSpeed))
-	latestBox.WriteString(fmt.Sprintf("🔄 Ping: %.2f ms\n", latest.Ping))
-	latestBox.WriteString(fmt.Sprintf("📊 Jitter: %.2f ms\n", latest.Jitter))
-	latestBox.WriteString(fmt.Sprintf("🌍 Server: %s (%s)\n", latest.ServerName, latest.ServerCountry))
+	fmt.Fprintf(&latestBox, "📥 Download: %.2f Mbps\n", latest.DownloadSpeed)
+	fmt.Fprintf(&latestBox, "📤 Upload: %.2f Mbps\n", latest.UploadSpeed)
+	fmt.Fprintf(&latestBox, "🔄 Ping: %.2f ms\n", latest.Ping)
+	fmt.Fprintf(&latestBox, "📊 Jitter: %.2f ms\n", latest.Jitter)
+	fmt.Fprintf(&latestBox, "🌍 Server: %s (%s)\n", latest.ServerName, latest.ServerCountry)
 	if latest.ServerSponsor != "" {
-		latestBox.WriteString(fmt.Sprintf("🏢 Sponsor: %s\n", latest.ServerSponsor))
+		fmt.Fprintf(&latestBox, "🏢 Sponsor: %s\n", latest.ServerSponsor)
 	}
 	if latest.Distance > 0 {
-		latestBox.WriteString(fmt.Sprintf("📍 Distance: %.1f km\n", latest.Distance))
+		fmt.Fprintf(&latestBox, "📍 Distance: %.1f km\n", latest.Distance)
 	}
-	latestBox.WriteString(fmt.Sprintf("🕒 Timestamp: %s\n", latest.Timestamp.Format("03:04:05 PM")))
+	fmt.Fprintf(&latestBox, "🕒 Timestamp: %s\n", latest.Timestamp.Format("03:04:05 PM"))
 	if latest.UserIP != "" {
 		ispInfo := latest.UserIP
 		if latest.UserISP != "" {
 			ispInfo = fmt.Sprintf("%s (%s)", latest.UserIP, latest.UserISP)
 		}
-		latestBox.WriteString(fmt.Sprintf("👤 IP: %s\n", ispInfo))
+		fmt.Fprintf(&latestBox, "👤 IP: %s\n", ispInfo)
 	}
 
 	latestContent := infoStyle.Render(latestBox.String())
@@ -323,7 +323,7 @@ func RenderServerSelection(m *model.Model, width int) string {
 	}
 
 	if offset > 0 {
-		b.WriteString(fmt.Sprintf("  ↑ %d more\n", offset))
+		fmt.Fprintf(&b, "  ↑ %d more\n", offset)
 	}
 
 	end := offset + visible
@@ -334,19 +334,19 @@ func RenderServerSelection(m *model.Model, width int) string {
 	for i := offset; i < end; i++ {
 		server := m.ServerList[i]
 		if m.Cursor == i {
-			b.WriteString(fmt.Sprintf("> %s: %s (%s) - %.2f ms\n",
+			fmt.Fprintf(&b, "> %s: %s (%s) - %.2f ms\n",
 				server.Sponsor, server.Name, server.Country,
-				server.Latency.Seconds()*1000))
+				server.Latency.Seconds()*1000)
 		} else {
-			b.WriteString(fmt.Sprintf("  %s: %s (%s) - %.2f ms\n",
+			fmt.Fprintf(&b, "  %s: %s (%s) - %.2f ms\n",
 				server.Sponsor, server.Name, server.Country,
-				server.Latency.Seconds()*1000))
+				server.Latency.Seconds()*1000)
 		}
 	}
 
 	remaining := total - end
 	if remaining > 0 {
-		b.WriteString(fmt.Sprintf("  ↓ %d more\n", remaining))
+		fmt.Fprintf(&b, "  ↓ %d more\n", remaining)
 	}
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, infoStyle.Render(b.String()))
