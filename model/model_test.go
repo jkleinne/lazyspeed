@@ -399,6 +399,12 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.History.Path == "" {
 		t.Errorf("Expected non-empty default history path")
 	}
+	if cfg.Test.FetchTimeout != 30 {
+		t.Errorf("Expected default fetch timeout 30, got %d", cfg.Test.FetchTimeout)
+	}
+	if cfg.Test.TestTimeout != 120 {
+		t.Errorf("Expected default test timeout 120, got %d", cfg.Test.TestTimeout)
+	}
 }
 
 func TestLoadConfigMissingFile(t *testing.T) {
@@ -432,6 +438,30 @@ func TestLoadConfigPartial(t *testing.T) {
 	// Unspecified fields should retain defaults
 	if cfg.History.MaxEntries != 50 {
 		t.Errorf("Expected default max_entries 50, got %d", cfg.History.MaxEntries)
+	}
+}
+
+func TestLoadConfigTimeouts(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	configDir := filepath.Join(tmpDir, "lazyspeed")
+	_ = os.MkdirAll(configDir, 0700)
+	_ = os.WriteFile(filepath.Join(configDir, "config.yaml"),
+		[]byte("test:\n  fetch_timeout: 15\n  test_timeout: 60\n"), 0600)
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if cfg.Test.FetchTimeout != 15 {
+		t.Errorf("Expected fetch_timeout 15, got %d", cfg.Test.FetchTimeout)
+	}
+	if cfg.Test.TestTimeout != 60 {
+		t.Errorf("Expected test_timeout 60, got %d", cfg.Test.TestTimeout)
+	}
+	if cfg.Test.PingCount != 10 {
+		t.Errorf("Expected default ping_count 10, got %d", cfg.Test.PingCount)
 	}
 }
 
@@ -490,6 +520,31 @@ func TestConfigDrivenPingCount(t *testing.T) {
 	if pingCallCount != 3 {
 		t.Errorf("Expected 3 ping calls (from config), got %d", pingCallCount)
 	}
+}
+
+func TestTimeoutDurations(t *testing.T) {
+	t.Run("Default config", func(t *testing.T) {
+		m := NewModel(&mockBackend{}, nil)
+		if m.FetchTimeoutDuration() != 30*time.Second {
+			t.Errorf("Expected 30s fetch timeout, got %v", m.FetchTimeoutDuration())
+		}
+		if m.TestTimeoutDuration() != 120*time.Second {
+			t.Errorf("Expected 120s test timeout, got %v", m.TestTimeoutDuration())
+		}
+	})
+
+	t.Run("Custom config", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.Test.FetchTimeout = 10
+		cfg.Test.TestTimeout = 60
+		m := NewModel(&mockBackend{}, cfg)
+		if m.FetchTimeoutDuration() != 10*time.Second {
+			t.Errorf("Expected 10s fetch timeout, got %v", m.FetchTimeoutDuration())
+		}
+		if m.TestTimeoutDuration() != 60*time.Second {
+			t.Errorf("Expected 60s test timeout, got %v", m.TestTimeoutDuration())
+		}
+	})
 }
 
 func TestExportResultJSON(t *testing.T) {

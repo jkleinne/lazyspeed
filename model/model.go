@@ -121,6 +121,24 @@ func NewDefaultModel() *Model {
 	return NewModel(&realBackend{}, cfg)
 }
 
+// FetchTimeoutDuration returns the configured fetch timeout as a time.Duration.
+func (m *Model) FetchTimeoutDuration() time.Duration {
+	secs := defaultFetchTimeout
+	if m.Config != nil && m.Config.Test.FetchTimeout > 0 {
+		secs = m.Config.Test.FetchTimeout
+	}
+	return time.Duration(secs) * time.Second
+}
+
+// TestTimeoutDuration returns the configured test timeout as a time.Duration.
+func (m *Model) TestTimeoutDuration() time.Duration {
+	secs := defaultTestTimeout
+	if m.Config != nil && m.Config.Test.TestTimeout > 0 {
+		secs = m.Config.Test.TestTimeout
+	}
+	return time.Duration(secs) * time.Second
+}
+
 func sendUpdate(progress float64, phase string, updateChan chan<- ProgressUpdate) {
 	if updateChan != nil {
 		updateChan <- ProgressUpdate{
