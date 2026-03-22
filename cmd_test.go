@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jkleinne/lazyspeed/model"
+	"github.com/spf13/cobra"
 )
 
 func TestVersionCommand(t *testing.T) {
@@ -27,7 +28,7 @@ func TestVersionCommand(t *testing.T) {
 
 // We just ensure the commands exist and are wired up properly.
 func TestCommandsConfigured(t *testing.T) {
-	var foundVersion, foundRun, foundHistory, foundServers bool
+	var foundVersion, foundRun, foundHistory, foundServers, foundCompletion bool
 	for _, cmd := range rootCmd.Commands() {
 		switch cmd.Name() {
 		case "version":
@@ -38,6 +39,8 @@ func TestCommandsConfigured(t *testing.T) {
 			foundHistory = true
 		case "servers":
 			foundServers = true
+		case "completion":
+			foundCompletion = true
 		}
 	}
 
@@ -53,6 +56,102 @@ func TestCommandsConfigured(t *testing.T) {
 	if !foundServers {
 		t.Error("servers command not registered")
 	}
+	if !foundCompletion {
+		t.Error("completion command not registered")
+	}
+}
+
+func TestCompletionSubcommands(t *testing.T) {
+	expected := map[string]bool{"bash": false, "zsh": false, "fish": false, "powershell": false}
+	for _, cmd := range completionCmd.Commands() {
+		if _, ok := expected[cmd.Name()]; ok {
+			expected[cmd.Name()] = true
+		}
+	}
+	for name, found := range expected {
+		if !found {
+			t.Errorf("completion subcommand %q not registered", name)
+		}
+	}
+}
+
+func TestCompletionGeneration(t *testing.T) {
+	tests := []struct {
+		name string
+		cmd  *cobra.Command
+	}{
+		{"bash", completionBashCmd},
+		{"zsh", completionZshCmd},
+		{"fish", completionFishCmd},
+		{"powershell", completionPowershellCmd},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Redirect stdout to capture output
+			r, w, _ := os.Pipe()
+			origStdout := os.Stdout
+			os.Stdout = w
+
+			err := tt.cmd.RunE(nil, nil)
+
+			_ = w.Close()
+			os.Stdout = origStdout
+
+			if err != nil {
+				t.Fatalf("Expected no error, got %v", err)
+			}
+
+			var buf bytes.Buffer
+			_, _ = io.Copy(&buf, r)
+			if buf.Len() == 0 {
+				t.Errorf("Expected non-empty completion output for %s", tt.name)
+			}
+		})
+	}
+}
+
+func TestManCommand(t *testing.T) {
+	if !manCmd.Hidden {
+		t.Error("man command should be hidden")
+	}
+
+	f := manCmd.Flags().Lookup("dir")
+	if f == nil {
+		t.Fatal("man command missing --dir flag")
+	}
+
+	t.Run("missing dir flag", func(t *testing.T) {
+		origDir := manDir
+		defer func() { manDir = origDir }()
+		manDir = ""
+		err := manCmd.RunE(nil, nil)
+		if err == nil || !strings.Contains(err.Error(), "--dir is required") {
+			t.Errorf("Expected '--dir is required' error, got %v", err)
+		}
+	})
+
+	t.Run("generates man pages", func(t *testing.T) {
+		origDir := manDir
+		defer func() { manDir = origDir }()
+		manDir = t.TempDir()
+		err := manCmd.RunE(nil, nil)
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		entries, err := os.ReadDir(manDir)
+		if err != nil {
+			t.Fatalf("Could not read output dir: %v", err)
+		}
+		if len(entries) == 0 {
+			t.Error("Expected man page files to be generated")
+		}
+		for _, e := range entries {
+			if !strings.HasSuffix(e.Name(), ".1") {
+				t.Errorf("Expected .1 man page file, got %q", e.Name())
+			}
+		}
+	})
 }
 
 func TestMarshalJSONResultsEmpty(t *testing.T) {
