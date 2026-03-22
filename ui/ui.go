@@ -248,6 +248,7 @@ func RenderHelp(width int, hasResult bool) string {
 	help.WriteString("\n")
 	help.WriteString("Controls:\n")
 	help.WriteString("  n: New Test\n")
+	help.WriteString("  d: Diagnostics\n")
 	if hasResult {
 		help.WriteString("  e: Export Result\n")
 		help.WriteString("  ↑/↓, j/k: Scroll History\n")
