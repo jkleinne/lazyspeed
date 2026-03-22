@@ -47,7 +47,10 @@ func runServers() {
 
 	fmt.Println("Fetching server list...")
 
-	if err := m.FetchServerList(context.Background()); err != nil {
+	fetchCtx, fetchCancel := context.WithTimeout(context.Background(), m.FetchTimeoutDuration())
+	defer fetchCancel()
+
+	if err := m.FetchServerList(fetchCtx); err != nil {
 		fmt.Fprintf(os.Stderr, "Error fetching servers: %v\n", err)
 		os.Exit(1)
 	}
@@ -94,7 +97,7 @@ func runServers() {
 
 	default:
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "ID\tNAME\tSPONSOR\tCOUNTRY\tLATENCY (ms)\tDISTANCE (km)")
+		_, _ = fmt.Fprintln(w, "ID\tNAME\tSPONSOR\tCOUNTRY\tLATENCY (ms)\tDISTANCE (km)")
 		for _, s := range m.ServerList {
 			name := s.Name
 			if len(name) > 30 {
@@ -104,11 +107,11 @@ func runServers() {
 			if len(sponsor) > 20 {
 				sponsor = sponsor[:17] + "..."
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%.2f\t%.1f\n",
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%.2f\t%.1f\n",
 				s.ID, name, sponsor, s.Country,
 				s.Latency.Seconds()*1000, s.Distance)
 		}
-		w.Flush()
+		_ = w.Flush()
 	}
 }
 

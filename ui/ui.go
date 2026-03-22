@@ -114,24 +114,24 @@ func RenderResults(m *model.Model, width int) string {
 	latestBox := strings.Builder{}
 	latestBox.WriteString("Latest Test Results:\n")
 	latestBox.WriteString("──────────────────────\n")
-	latestBox.WriteString(fmt.Sprintf("📥 Download: %.2f Mbps\n", latest.DownloadSpeed))
-	latestBox.WriteString(fmt.Sprintf("📤 Upload: %.2f Mbps\n", latest.UploadSpeed))
-	latestBox.WriteString(fmt.Sprintf("🔄 Ping: %.2f ms\n", latest.Ping))
-	latestBox.WriteString(fmt.Sprintf("📊 Jitter: %.2f ms\n", latest.Jitter))
-	latestBox.WriteString(fmt.Sprintf("🌍 Server: %s (%s)\n", latest.ServerName, latest.ServerCountry))
+	fmt.Fprintf(&latestBox, "📥 Download: %.2f Mbps\n", latest.DownloadSpeed)
+	fmt.Fprintf(&latestBox, "📤 Upload: %.2f Mbps\n", latest.UploadSpeed)
+	fmt.Fprintf(&latestBox, "🔄 Ping: %.2f ms\n", latest.Ping)
+	fmt.Fprintf(&latestBox, "📊 Jitter: %.2f ms\n", latest.Jitter)
+	fmt.Fprintf(&latestBox, "🌍 Server: %s (%s)\n", latest.ServerName, latest.ServerCountry)
 	if latest.ServerSponsor != "" {
-		latestBox.WriteString(fmt.Sprintf("🏢 Sponsor: %s\n", latest.ServerSponsor))
+		fmt.Fprintf(&latestBox, "🏢 Sponsor: %s\n", latest.ServerSponsor)
 	}
 	if latest.Distance > 0 {
-		latestBox.WriteString(fmt.Sprintf("📍 Distance: %.1f km\n", latest.Distance))
+		fmt.Fprintf(&latestBox, "📍 Distance: %.1f km\n", latest.Distance)
 	}
-	latestBox.WriteString(fmt.Sprintf("🕒 Timestamp: %s\n", latest.Timestamp.Format("03:04:05 PM")))
+	fmt.Fprintf(&latestBox, "🕒 Timestamp: %s\n", latest.Timestamp.Format("03:04:05 PM"))
 	if latest.UserIP != "" {
 		ispInfo := latest.UserIP
 		if latest.UserISP != "" {
 			ispInfo = fmt.Sprintf("%s (%s)", latest.UserIP, latest.UserISP)
 		}
-		latestBox.WriteString(fmt.Sprintf("👤 IP: %s\n", ispInfo))
+		fmt.Fprintf(&latestBox, "👤 IP: %s\n", ispInfo)
 	}
 
 	latestContent := infoStyle.Render(latestBox.String())
@@ -143,7 +143,7 @@ func RenderResults(m *model.Model, width int) string {
 	headers := []string{"#", "Time", "Server", "Sponsor", "Dist (km)", "DL (Mbps)", "UL (Mbps)", "Ping (ms)", "Jitter (ms)"}
 
 	// Build rows newest-first (omitting the latest which is at index len-1)
-	rows := make([][]string, 0, len(m.TestHistory)-1)
+	allRows := make([][]string, 0, len(m.TestHistory)-1)
 	for i := len(m.TestHistory) - 2; i >= 0; i-- {
 		test := m.TestHistory[i]
 		rowNum := i + 1
@@ -157,7 +157,7 @@ func RenderResults(m *model.Model, width int) string {
 			distStr = fmt.Sprintf("%.1f", test.Distance)
 		}
 
-		rows = append(rows, []string{
+		allRows = append(allRows, []string{
 			fmt.Sprintf("%d", rowNum),
 			test.Timestamp.Format("Jan 02 03:04 PM"),
 			fmt.Sprintf("%s (%s)", test.ServerName, test.ServerCountry),
@@ -170,9 +170,30 @@ func RenderResults(m *model.Model, width int) string {
 		})
 	}
 
+	totalRows := len(allRows)
+	maxVisible := HistoryVisibleRows(m.Height, totalRows)
+
+	offset := m.HistoryOffset
+	if offset < 0 {
+		offset = 0
+	}
+	if totalRows > maxVisible && offset > totalRows-maxVisible {
+		offset = totalRows - maxVisible
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	end := offset + maxVisible
+	if end > totalRows {
+		end = totalRows
+	}
+
+	visibleRows := allRows[offset:end]
+
 	t := table.New().
 		Headers(headers...).
-		Rows(rows...).
+		Rows(visibleRows...).
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))).
 		StyleFunc(func(row, _ int) lipgloss.Style {
@@ -193,6 +214,12 @@ func RenderResults(m *model.Model, width int) string {
 		Render("📊 Previous Tests")
 
 	historyContent := lipgloss.JoinVertical(lipgloss.Left, label, "", tableStr)
+
+	if totalRows > maxVisible {
+		paginationStr := helpStyle.Render(
+			fmt.Sprintf("  Showing %d-%d of %d (↑/↓ to scroll)", offset+1, end, totalRows))
+		historyContent = lipgloss.JoinVertical(lipgloss.Left, historyContent, paginationStr)
+	}
 
 	content := lipgloss.JoinVertical(lipgloss.Center, latestContent, "\n", historyContent)
 
@@ -223,6 +250,7 @@ func RenderHelp(width int, hasResult bool) string {
 	help.WriteString("  n: New Test\n")
 	if hasResult {
 		help.WriteString("  e: Export Result\n")
+		help.WriteString("  ↑/↓, j/k: Scroll History\n")
 	}
 	help.WriteString("  h: Toggle Help\n")
 	help.WriteString("  q: Quit\n")
@@ -250,16 +278,75 @@ func RenderExportMessage(msg string, width int) string {
 		infoStyle.Render(msg))
 }
 
+// HistoryVisibleRows returns how many history rows fit in the viewport.
+func HistoryVisibleRows(height, total int) int {
+	visible := height - 22
+	if visible < 3 {
+		visible = 3
+	}
+	if visible > total {
+		visible = total
+	}
+	return visible
+}
+
+// ServerListVisibleLines returns how many server entries fit in the viewport.
+func ServerListVisibleLines(height, total int) int {
+	visible := height - 8
+	if visible < 3 {
+		visible = 3
+	}
+	if visible > total {
+		visible = total
+	}
+	return visible
+}
+
+// RenderServerSelection renders the server list with viewport-based windowing.
 func RenderServerSelection(m *model.Model, width int) string {
 	var b strings.Builder
 	b.WriteString("Select a server:\n\n")
 
-	for i, server := range m.ServerList {
+	total := len(m.ServerList)
+	if total == 0 {
+		b.WriteString("  No servers available.\n")
+		return lipgloss.PlaceHorizontal(width, lipgloss.Center, infoStyle.Render(b.String()))
+	}
+
+	visible := ServerListVisibleLines(m.Height, total)
+	offset := m.ServerListOffset
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > total-visible {
+		offset = total - visible
+	}
+
+	if offset > 0 {
+		fmt.Fprintf(&b, "  ↑ %d more\n", offset)
+	}
+
+	end := offset + visible
+	if end > total {
+		end = total
+	}
+
+	for i := offset; i < end; i++ {
+		server := m.ServerList[i]
 		if m.Cursor == i {
-			b.WriteString(fmt.Sprintf("> %s: %s (%s) - %.2f ms\n", server.Sponsor, server.Name, server.Country, server.Latency.Seconds()*1000))
+			fmt.Fprintf(&b, "> %s: %s (%s) - %.2f ms\n",
+				server.Sponsor, server.Name, server.Country,
+				server.Latency.Seconds()*1000)
 		} else {
-			b.WriteString(fmt.Sprintf("  %s: %s (%s) - %.2f ms\n", server.Sponsor, server.Name, server.Country, server.Latency.Seconds()*1000))
+			fmt.Fprintf(&b, "  %s: %s (%s) - %.2f ms\n",
+				server.Sponsor, server.Name, server.Country,
+				server.Latency.Seconds()*1000)
 		}
+	}
+
+	remaining := total - end
+	if remaining > 0 {
+		fmt.Fprintf(&b, "  ↓ %d more\n", remaining)
 	}
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, infoStyle.Render(b.String()))

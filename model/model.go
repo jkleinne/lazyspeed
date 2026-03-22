@@ -63,9 +63,11 @@ func (r *SpeedTestResult) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// RunOptions configures a headless speed test run.
 type RunOptions struct {
 	SkipDownload bool
 	SkipUpload   bool
+	ProgressFn   func(phase string)
 }
 
 // Model holds all application state for the TUI and speed test orchestration.
@@ -87,6 +89,8 @@ type Model struct {
 	SelectingServer        bool
 	PendingServerSelection bool
 	Cursor                 int
+	ServerListOffset       int
+	HistoryOffset          int
 	User                   *speedtest.User
 	// Exporting is true when the TUI is showing the inline export format prompt.
 	Exporting bool
@@ -121,12 +125,36 @@ func NewDefaultModel() *Model {
 	return NewModel(&realBackend{}, cfg)
 }
 
+// FetchTimeoutDuration returns the configured fetch timeout as a time.Duration.
+func (m *Model) FetchTimeoutDuration() time.Duration {
+	secs := defaultFetchTimeout
+	if m.Config != nil && m.Config.Test.FetchTimeout > 0 {
+		secs = m.Config.Test.FetchTimeout
+	}
+	return time.Duration(secs) * time.Second
+}
+
+// TestTimeoutDuration returns the configured test timeout as a time.Duration.
+func (m *Model) TestTimeoutDuration() time.Duration {
+	secs := defaultTestTimeout
+	if m.Config != nil && m.Config.Test.TestTimeout > 0 {
+		secs = m.Config.Test.TestTimeout
+	}
+	return time.Duration(secs) * time.Second
+}
+
 func sendUpdate(progress float64, phase string, updateChan chan<- ProgressUpdate) {
 	if updateChan != nil {
 		updateChan <- ProgressUpdate{
 			Progress: progress,
 			Phase:    phase,
 		}
+	}
+}
+
+func callProgressFn(fn func(string), phase string) {
+	if fn != nil {
+		fn(phase)
 	}
 }
 
@@ -435,7 +463,7 @@ func ExportResult(result *SpeedTestResult, format string, dir string) (string, e
 		if err != nil {
 			return "", fmt.Errorf("failed to create file: %v", err)
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		w := csv.NewWriter(f)
 		_ = w.Write([]string{"timestamp", "server", "country", "download_mbps", "upload_mbps", "ping_ms", "jitter_ms", "ip", "isp"})
 		_ = w.Write([]string{
@@ -461,6 +489,7 @@ func ExportResult(result *SpeedTestResult, format string, dir string) (string, e
 }
 
 func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts RunOptions) (*SpeedTestResult, error) {
+	callProgressFn(opts.ProgressFn, "Fetching network information...")
 	user, _ := m.Backend.FetchUserInfo()
 	var userIP, userISP string
 	if user != nil {
@@ -481,6 +510,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		headlessPingCount = m.Config.Test.PingCount
 	}
 
+	callProgressFn(opts.ProgressFn, fmt.Sprintf("Measuring ping (0/%d)...", headlessPingCount))
 	for i := 0; i < headlessPingCount; i++ {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -489,6 +519,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 			ping := float64(latency.Milliseconds())
 			pingResults = append(pingResults, ping)
 			sumPing += ping
+			callProgressFn(opts.ProgressFn, fmt.Sprintf("Measuring ping (%d/%d): %.1f ms", i+1, headlessPingCount, ping))
 		})
 		if err != nil {
 			continue
@@ -519,20 +550,24 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
+		callProgressFn(opts.ProgressFn, "Testing download...")
 		if err := m.Backend.DownloadTest(server); err != nil {
 			return nil, fmt.Errorf("download test failed: %w", err)
 		}
 		dlSpeed = float64(server.DLSpeed) / bytesToMbps
+		callProgressFn(opts.ProgressFn, fmt.Sprintf("Download: %.2f Mbps", dlSpeed))
 	}
 
 	if !opts.SkipUpload {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
+		callProgressFn(opts.ProgressFn, "Testing upload...")
 		if err := m.Backend.UploadTest(server); err != nil {
 			return nil, fmt.Errorf("upload test failed: %w", err)
 		}
 		ulSpeed = float64(server.ULSpeed) / bytesToMbps
+		callProgressFn(opts.ProgressFn, fmt.Sprintf("Upload: %.2f Mbps", ulSpeed))
 	}
 
 	return &SpeedTestResult{

@@ -399,6 +399,12 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.History.Path == "" {
 		t.Errorf("Expected non-empty default history path")
 	}
+	if cfg.Test.FetchTimeout != 30 {
+		t.Errorf("Expected default fetch timeout 30, got %d", cfg.Test.FetchTimeout)
+	}
+	if cfg.Test.TestTimeout != 120 {
+		t.Errorf("Expected default test timeout 120, got %d", cfg.Test.TestTimeout)
+	}
 }
 
 func TestLoadConfigMissingFile(t *testing.T) {
@@ -432,6 +438,30 @@ func TestLoadConfigPartial(t *testing.T) {
 	// Unspecified fields should retain defaults
 	if cfg.History.MaxEntries != 50 {
 		t.Errorf("Expected default max_entries 50, got %d", cfg.History.MaxEntries)
+	}
+}
+
+func TestLoadConfigTimeouts(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	configDir := filepath.Join(tmpDir, "lazyspeed")
+	_ = os.MkdirAll(configDir, 0700)
+	_ = os.WriteFile(filepath.Join(configDir, "config.yaml"),
+		[]byte("test:\n  fetch_timeout: 15\n  test_timeout: 60\n"), 0600)
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if cfg.Test.FetchTimeout != 15 {
+		t.Errorf("Expected fetch_timeout 15, got %d", cfg.Test.FetchTimeout)
+	}
+	if cfg.Test.TestTimeout != 60 {
+		t.Errorf("Expected test_timeout 60, got %d", cfg.Test.TestTimeout)
+	}
+	if cfg.Test.PingCount != 10 {
+		t.Errorf("Expected default ping_count 10, got %d", cfg.Test.PingCount)
 	}
 }
 
@@ -490,6 +520,31 @@ func TestConfigDrivenPingCount(t *testing.T) {
 	if pingCallCount != 3 {
 		t.Errorf("Expected 3 ping calls (from config), got %d", pingCallCount)
 	}
+}
+
+func TestTimeoutDurations(t *testing.T) {
+	t.Run("Default config", func(t *testing.T) {
+		m := NewModel(&mockBackend{}, nil)
+		if m.FetchTimeoutDuration() != 30*time.Second {
+			t.Errorf("Expected 30s fetch timeout, got %v", m.FetchTimeoutDuration())
+		}
+		if m.TestTimeoutDuration() != 120*time.Second {
+			t.Errorf("Expected 120s test timeout, got %v", m.TestTimeoutDuration())
+		}
+	})
+
+	t.Run("Custom config", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.Test.FetchTimeout = 10
+		cfg.Test.TestTimeout = 60
+		m := NewModel(&mockBackend{}, cfg)
+		if m.FetchTimeoutDuration() != 10*time.Second {
+			t.Errorf("Expected 10s fetch timeout, got %v", m.FetchTimeoutDuration())
+		}
+		if m.TestTimeoutDuration() != 60*time.Second {
+			t.Errorf("Expected 60s test timeout, got %v", m.TestTimeoutDuration())
+		}
+	})
 }
 
 func TestExportResultJSON(t *testing.T) {
@@ -564,7 +619,7 @@ func TestExportResultCSV(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Could not open exported file: %v", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	r := csv.NewReader(f)
 	records, err := r.ReadAll()
@@ -958,6 +1013,124 @@ func TestRunHeadlessContextCancellation(t *testing.T) {
 			t.Errorf("Expected context.Canceled, got %v", err)
 		}
 	})
+}
+
+func TestRunHeadlessProgressCallback(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Test.PingCount = 2
+
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(10 * time.Millisecond)
+			return nil
+		},
+		downloadTestFn: func(s *speedtest.Server) error {
+			s.DLSpeed = 100 * bytesToMbps
+			return nil
+		},
+		uploadTestFn: func(s *speedtest.Server) error {
+			s.ULSpeed = 50 * bytesToMbps
+			return nil
+		},
+	}, cfg)
+
+	var phases []string
+	opts := RunOptions{
+		ProgressFn: func(phase string) {
+			phases = append(phases, phase)
+		},
+	}
+
+	res, err := m.RunHeadless(context.Background(), &speedtest.Server{Name: "Test"}, opts)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if res == nil {
+		t.Fatalf("Expected non-nil result")
+	}
+	if len(phases) == 0 {
+		t.Errorf("Expected progress callbacks to be called")
+	}
+
+	found := map[string]bool{"ping": false, "download": false, "upload": false}
+	for _, p := range phases {
+		lower := strings.ToLower(p)
+		if strings.Contains(lower, "ping") {
+			found["ping"] = true
+		}
+		if strings.Contains(lower, "download") {
+			found["download"] = true
+		}
+		if strings.Contains(lower, "upload") {
+			found["upload"] = true
+		}
+	}
+	for phase, seen := range found {
+		if !seen {
+			t.Errorf("Expected %s phase in progress callbacks", phase)
+		}
+	}
+}
+
+func TestRunHeadlessProgressCallbackNil(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Test.PingCount = 1
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(10 * time.Millisecond)
+			return nil
+		},
+		downloadTestFn: func(s *speedtest.Server) error {
+			s.DLSpeed = 100 * bytesToMbps
+			return nil
+		},
+		uploadTestFn: func(s *speedtest.Server) error {
+			s.ULSpeed = 50 * bytesToMbps
+			return nil
+		},
+	}, cfg)
+
+	res, err := m.RunHeadless(context.Background(), &speedtest.Server{}, RunOptions{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if res == nil {
+		t.Fatalf("Expected non-nil result")
+	}
+}
+
+func TestRunHeadlessProgressSkipPhases(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Test.PingCount = 1
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(10 * time.Millisecond)
+			return nil
+		},
+	}, cfg)
+
+	var phases []string
+	opts := RunOptions{
+		SkipDownload: true,
+		SkipUpload:   true,
+		ProgressFn: func(phase string) {
+			phases = append(phases, phase)
+		},
+	}
+
+	_, err := m.RunHeadless(context.Background(), &speedtest.Server{}, opts)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	for _, p := range phases {
+		lower := strings.ToLower(p)
+		if strings.Contains(lower, "download") {
+			t.Errorf("Expected no download phase when SkipDownload, got %q", p)
+		}
+		if strings.Contains(lower, "upload") {
+			t.Errorf("Expected no upload phase when SkipUpload, got %q", p)
+		}
+	}
 }
 
 func TestPerformSpeedTestUploadFailure(t *testing.T) {

@@ -1,15 +1,26 @@
+version: "2"
+
 linters:
   enable:
     - govet
     - errcheck
     - staticcheck
     - unused
-    - gosimple
     - ineffassign
     - goconst
-    - gofmt
     - misspell
     - revive
+  settings:
+    revive:
+      rules:
+        - name: package-comments
+          disabled: true
+        - name: exported
+          disabled: true
+
+formatters:
+  enable:
+    - gofmt
 
 run:
   timeout: 5m

@@ -49,13 +49,15 @@ func init() {
 
 func runHeadlessTest() {
 	m := model.NewDefaultModel()
-	ctx := context.Background()
+
+	fetchCtx, fetchCancel := context.WithTimeout(context.Background(), m.FetchTimeoutDuration())
+	defer fetchCancel()
 
 	if !runJSON && !runCSV && !runSimple {
 		fmt.Println("Fetching server list...")
 	}
 
-	if err := m.FetchServerList(ctx); err != nil {
+	if err := m.FetchServerList(fetchCtx); err != nil {
 		fmt.Fprintf(os.Stderr, "Error fetching servers: %v\n", err)
 		os.Exit(1)
 	}
@@ -89,6 +91,11 @@ func runHeadlessTest() {
 		SkipDownload: runNoDownload,
 		SkipUpload:   runNoUpload,
 	}
+	if !runJSON && !runCSV && !runSimple {
+		opts.ProgressFn = func(phase string) {
+			fmt.Fprintf(os.Stderr, "  %s\n", phase)
+		}
+	}
 
 	// Load history once before the loop so results accumulate correctly
 	_ = m.LoadHistory()
@@ -108,11 +115,9 @@ func runHeadlessTest() {
 			fmt.Printf("\n--- Test %d of %d ---\n", i+1, runCount)
 		}
 
-		if !runJSON && !runCSV && !runSimple {
-			fmt.Println("Running speed test...")
-		}
-
-		res, err := m.RunHeadless(ctx, server, opts)
+		testCtx, testCancel := context.WithTimeout(context.Background(), m.TestTimeoutDuration())
+		res, err := m.RunHeadless(testCtx, server, opts)
+		testCancel()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error running test: %v\n", err)
 			os.Exit(1)

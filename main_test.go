@@ -780,3 +780,161 @@ func TestInitMethod(t *testing.T) {
 		}
 	})
 }
+
+func TestAdjustServerListOffset(t *testing.T) {
+	tests := []struct {
+		name           string
+		cursor         int
+		offset         int
+		height         int
+		serverCount    int
+		expectedOffset int
+	}{
+		{
+			name:           "Cursor visible, no adjustment",
+			cursor:         3,
+			offset:         0,
+			height:         20,
+			serverCount:    30,
+			expectedOffset: 0,
+		},
+		{
+			name:           "Cursor past bottom scrolls down",
+			cursor:         15,
+			offset:         0,
+			height:         20,
+			serverCount:    30,
+			expectedOffset: 4,
+		},
+		{
+			name:           "Cursor above top scrolls up",
+			cursor:         2,
+			offset:         5,
+			height:         20,
+			serverCount:    30,
+			expectedOffset: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := model.NewDefaultModel()
+			m.Height = tt.height
+			m.Cursor = tt.cursor
+			m.ServerListOffset = tt.offset
+			m.ServerList = make(speedtest.Servers, tt.serverCount)
+			for i := range m.ServerList {
+				m.ServerList[i] = &speedtest.Server{Name: "S"}
+			}
+
+			s := speedTest{model: m, spinner: ui.DefaultSpinner}
+			s.adjustServerListOffset()
+
+			if s.model.ServerListOffset != tt.expectedOffset {
+				t.Errorf("Expected offset %d, got %d", tt.expectedOffset, s.model.ServerListOffset)
+			}
+		})
+	}
+}
+
+func TestServerSelectionViewportNavigation(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.Height = 15
+	m.SelectingServer = true
+	m.ServerList = make(speedtest.Servers, 30)
+	for i := range m.ServerList {
+		m.ServerList[i] = &speedtest.Server{Name: "S"}
+	}
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	// Move cursor down past visible area
+	for i := 0; i < 10; i++ {
+		newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+		s = *newModel.(*speedTest)
+	}
+
+	if s.model.Cursor != 10 {
+		t.Errorf("Expected cursor at 10, got %d", s.model.Cursor)
+	}
+	if s.model.ServerListOffset == 0 {
+		t.Errorf("Expected ServerListOffset to have scrolled from 0")
+	}
+
+	// Move cursor back to top
+	for i := 0; i < 10; i++ {
+		newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+		s = *newModel.(*speedTest)
+	}
+
+	if s.model.Cursor != 0 {
+		t.Errorf("Expected cursor at 0, got %d", s.model.Cursor)
+	}
+	if s.model.ServerListOffset != 0 {
+		t.Errorf("Expected ServerListOffset back at 0, got %d", s.model.ServerListOffset)
+	}
+}
+
+func TestHistoryScrollKeys(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.Height = 30
+	m.TestHistory = make([]*model.SpeedTestResult, 20)
+	for i := range m.TestHistory {
+		m.TestHistory[i] = &model.SpeedTestResult{
+			DownloadSpeed: float64(100 + i),
+			Timestamp:     time.Now(),
+		}
+	}
+	m.Results = m.TestHistory[len(m.TestHistory)-1]
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	// Scroll down
+	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	s = *newModel.(*speedTest)
+	if s.model.HistoryOffset != 1 {
+		t.Errorf("Expected HistoryOffset 1 after j, got %d", s.model.HistoryOffset)
+	}
+
+	// Scroll back up
+	newModel, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	s = *newModel.(*speedTest)
+	if s.model.HistoryOffset != 0 {
+		t.Errorf("Expected HistoryOffset 0 after k, got %d", s.model.HistoryOffset)
+	}
+
+	// Don't scroll past 0
+	newModel, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	s = *newModel.(*speedTest)
+	if s.model.HistoryOffset != 0 {
+		t.Errorf("Expected HistoryOffset to stay at 0, got %d", s.model.HistoryOffset)
+	}
+
+	// Scroll down many times — should stop at max
+	for i := 0; i < 50; i++ {
+		newModel, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+		s = *newModel.(*speedTest)
+	}
+
+	totalRows := len(m.TestHistory) - 1
+	maxVisible := ui.HistoryVisibleRows(m.Height, totalRows)
+	expectedMax := totalRows - maxVisible
+	if s.model.HistoryOffset != expectedMax {
+		t.Errorf("Expected HistoryOffset capped at %d, got %d", expectedMax, s.model.HistoryOffset)
+	}
+}
+
+func TestHistoryOffsetResetOnTestComplete(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.HistoryOffset = 5
+	m.Testing = true
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	newModel, _ := s.Update(testComplete{err: nil})
+	newS := newModel.(*speedTest)
+
+	if newS.model.HistoryOffset != 0 {
+		t.Errorf("Expected HistoryOffset reset to 0 after testComplete, got %d", newS.model.HistoryOffset)
+	}
+	if newS.model.Testing {
+		t.Errorf("Expected Testing to be false after testComplete")
+	}
+}

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -167,7 +168,7 @@ func TestRenderWarning(t *testing.T) {
 }
 
 func TestRenderHelp(t *testing.T) {
-	// Without a result: no export hint
+	// Without a result: no export or scroll hint
 	res := RenderHelp(100, false)
 	if !strings.Contains(res, "Controls:") || !strings.Contains(res, "n: New Test") {
 		t.Errorf("Expected help controls to be present")
@@ -175,11 +176,17 @@ func TestRenderHelp(t *testing.T) {
 	if strings.Contains(res, "e: Export") {
 		t.Errorf("Did not expect export hint when hasResult is false")
 	}
+	if strings.Contains(res, "Scroll History") {
+		t.Errorf("Did not expect scroll hint when hasResult is false")
+	}
 
-	// With a result: export hint shown
+	// With a result: export and scroll hints shown
 	res = RenderHelp(100, true)
 	if !strings.Contains(res, "e: Export Result") {
 		t.Errorf("Expected export hint when hasResult is true")
+	}
+	if !strings.Contains(res, "Scroll History") {
+		t.Errorf("Expected scroll history hint when hasResult is true")
 	}
 }
 
@@ -217,11 +224,12 @@ func TestRenderExportMessage(t *testing.T) {
 
 func TestRenderServerSelection(t *testing.T) {
 	m := model.NewDefaultModel()
+	m.Height = 40
 
 	// Case 1: Empty list
 	res := RenderServerSelection(m, 100)
-	if !strings.Contains(res, "Select a server:") {
-		t.Errorf("Expected selection header")
+	if !strings.Contains(res, "No servers available") {
+		t.Errorf("Expected 'No servers available' for empty list")
 	}
 
 	// Case 2: Populated list
@@ -237,6 +245,84 @@ func TestRenderServerSelection(t *testing.T) {
 	}
 	if !strings.Contains(res, "  Sponsor 1") {
 		t.Errorf("Expected no cursor on Server 1")
+	}
+}
+
+func TestRenderServerSelectionViewport(t *testing.T) {
+	tests := []struct {
+		name          string
+		serverCount   int
+		cursor        int
+		offset        int
+		height        int
+		wantUpArrow   bool
+		wantDownArrow bool
+	}{
+		{
+			name:        "All servers fit",
+			serverCount: 3,
+			cursor:      0,
+			offset:      0,
+			height:      30,
+		},
+		{
+			name:          "Scrolled down shows both arrows",
+			serverCount:   20,
+			cursor:        5,
+			offset:        3,
+			height:        20,
+			wantUpArrow:   true,
+			wantDownArrow: true,
+		},
+		{
+			name:        "At bottom shows only up arrow",
+			serverCount: 20,
+			cursor:      19,
+			offset:      8,
+			height:      20,
+			wantUpArrow: true,
+		},
+		{
+			name:        "Empty server list",
+			serverCount: 0,
+			cursor:      0,
+			offset:      0,
+			height:      20,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := model.NewDefaultModel()
+			m.Height = tt.height
+			m.Cursor = tt.cursor
+			m.ServerListOffset = tt.offset
+			servers := make(speedtest.Servers, tt.serverCount)
+			for i := range servers {
+				servers[i] = &speedtest.Server{
+					Name:    fmt.Sprintf("Server %d", i),
+					Sponsor: fmt.Sprintf("Sponsor %d", i),
+					Country: "US",
+					Latency: time.Duration(10+i) * time.Millisecond,
+				}
+			}
+			m.ServerList = servers
+
+			res := RenderServerSelection(m, 100)
+
+			if tt.wantUpArrow && !strings.Contains(res, "↑") {
+				t.Errorf("Expected up arrow scroll indicator")
+			}
+			if !tt.wantUpArrow && strings.Contains(res, "↑") {
+				t.Errorf("Did not expect up arrow scroll indicator")
+			}
+			if tt.wantDownArrow && !strings.Contains(res, "↓") {
+				t.Errorf("Expected down arrow scroll indicator")
+			}
+			if !tt.wantDownArrow && strings.Contains(res, "↓") {
+				t.Errorf("Did not expect down arrow scroll indicator")
+			}
+		})
 	}
 }
 
@@ -291,6 +377,7 @@ func TestRenderResultsMissingSponsorDistance(t *testing.T) {
 
 func TestRenderResultsManyEntries(t *testing.T) {
 	m := model.NewDefaultModel()
+	m.Height = 60
 	m.TestHistory = make([]*model.SpeedTestResult, 5)
 	for i := range m.TestHistory {
 		m.TestHistory[i] = &model.SpeedTestResult{
@@ -307,5 +394,102 @@ func TestRenderResultsManyEntries(t *testing.T) {
 	res := RenderResults(m, 120)
 	if !strings.Contains(res, "Previous Tests") {
 		t.Errorf("Expected 'Previous Tests' label in output")
+	}
+}
+
+func TestRenderResultsPagination(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.Height = 30
+	m.TestHistory = make([]*model.SpeedTestResult, 20)
+	for i := range m.TestHistory {
+		m.TestHistory[i] = &model.SpeedTestResult{
+			DownloadSpeed: float64(100 + i),
+			UploadSpeed:   float64(50 + i),
+			Ping:          float64(10 + i),
+			Jitter:        1.0,
+			ServerName:    "TestServer",
+			ServerCountry: "US",
+			Timestamp:     time.Now(),
+		}
+	}
+
+	res := RenderResults(m, 120)
+	if !strings.Contains(res, "Showing") {
+		t.Errorf("Expected pagination indicator for large history")
+	}
+	if !strings.Contains(res, "Previous Tests") {
+		t.Errorf("Expected Previous Tests label")
+	}
+}
+
+func TestRenderResultsNoPaginationSmallHistory(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.Height = 60
+	m.TestHistory = make([]*model.SpeedTestResult, 3)
+	for i := range m.TestHistory {
+		m.TestHistory[i] = &model.SpeedTestResult{
+			DownloadSpeed: float64(100 + i),
+			UploadSpeed:   float64(50 + i),
+			Ping:          float64(10 + i),
+			Jitter:        1.0,
+			ServerName:    "TestServer",
+			ServerCountry: "US",
+			Timestamp:     time.Now(),
+		}
+	}
+
+	res := RenderResults(m, 120)
+	if strings.Contains(res, "Showing") {
+		t.Errorf("Did not expect pagination indicator when all rows fit")
+	}
+}
+
+func TestServerListVisibleLines(t *testing.T) {
+	tests := []struct {
+		name     string
+		height   int
+		total    int
+		expected int
+	}{
+		{"Large terminal, few servers", 40, 5, 5},
+		{"Small terminal, many servers", 15, 30, 7},
+		{"Tiny terminal enforces minimum", 5, 30, 3},
+		{"Zero height enforces minimum", 0, 30, 3},
+		{"Total less than visible", 40, 2, 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ServerListVisibleLines(tt.height, tt.total)
+			if got != tt.expected {
+				t.Errorf("ServerListVisibleLines(%d, %d) = %d, want %d",
+					tt.height, tt.total, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestHistoryVisibleRows(t *testing.T) {
+	tests := []struct {
+		name     string
+		height   int
+		total    int
+		expected int
+	}{
+		{"Large terminal, few rows", 60, 5, 5},
+		{"Small terminal, many rows", 30, 20, 8},
+		{"Tiny terminal enforces minimum", 10, 20, 3},
+		{"Zero height enforces minimum", 0, 20, 3},
+		{"Total less than visible", 60, 2, 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := HistoryVisibleRows(tt.height, tt.total)
+			if got != tt.expected {
+				t.Errorf("HistoryVisibleRows(%d, %d) = %d, want %d",
+					tt.height, tt.total, got, tt.expected)
+			}
+		})
 	}
 }

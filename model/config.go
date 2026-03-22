@@ -9,8 +9,10 @@ import (
 )
 
 const (
-	defaultMaxEntries = 50
-	defaultPingCount  = 10
+	defaultMaxEntries   = 50
+	defaultPingCount    = 10
+	defaultFetchTimeout = 30  // seconds
+	defaultTestTimeout  = 120 // seconds
 )
 
 // HistoryConfig holds history-related configuration.
@@ -21,7 +23,9 @@ type HistoryConfig struct {
 
 // TestConfig holds test-related configuration.
 type TestConfig struct {
-	PingCount int `yaml:"ping_count"`
+	PingCount    int `yaml:"ping_count"`
+	FetchTimeout int `yaml:"fetch_timeout"`
+	TestTimeout  int `yaml:"test_timeout"`
 }
 
 // Config holds all configurable options for lazyspeed.
@@ -38,7 +42,9 @@ func DefaultConfig() *Config {
 			Path:       defaultHistoryPath(),
 		},
 		Test: TestConfig{
-			PingCount: defaultPingCount,
+			PingCount:    defaultPingCount,
+			FetchTimeout: defaultFetchTimeout,
+			TestTimeout:  defaultTestTimeout,
 		},
 	}
 }
@@ -77,6 +83,12 @@ func LoadConfig() (*Config, error) {
 	}
 	if partial.Test.PingCount > 0 {
 		cfg.Test.PingCount = partial.Test.PingCount
+	}
+	if partial.Test.FetchTimeout > 0 {
+		cfg.Test.FetchTimeout = partial.Test.FetchTimeout
+	}
+	if partial.Test.TestTimeout > 0 {
+		cfg.Test.TestTimeout = partial.Test.TestTimeout
 	}
 
 	return cfg, nil

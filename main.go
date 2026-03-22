@@ -47,7 +47,9 @@ type serverListMsg struct {
 
 func fetchServerListCmd(m *model.Model) tea.Cmd {
 	return func() tea.Msg {
-		err := m.FetchServerList(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), m.FetchTimeoutDuration())
+		defer cancel()
+		err := m.FetchServerList(ctx)
 		return serverListMsg{err: err}
 	}
 }
@@ -70,6 +72,18 @@ func (s *speedTest) cancelTestIfRunning() {
 	if s.cancelTest != nil {
 		s.cancelTest()
 		s.cancelTest = nil
+	}
+}
+
+func (s *speedTest) adjustServerListOffset() {
+	total := len(s.model.ServerList)
+	visible := ui.ServerListVisibleLines(s.model.Height, total)
+
+	if s.model.Cursor >= s.model.ServerListOffset+visible {
+		s.model.ServerListOffset = s.model.Cursor - visible + 1
+	}
+	if s.model.Cursor < s.model.ServerListOffset {
+		s.model.ServerListOffset = s.model.Cursor
 	}
 }
 
@@ -108,10 +122,12 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "up", "k":
 				if s.model.Cursor > 0 {
 					s.model.Cursor--
+					s.adjustServerListOffset()
 				}
 			case "down", "j":
 				if s.model.Cursor < len(s.model.ServerList)-1 {
 					s.model.Cursor++
+					s.adjustServerListOffset()
 				}
 			case "enter":
 				if s.model.Cursor < 0 || s.model.Cursor >= len(s.model.ServerList) {
@@ -126,7 +142,7 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				s.model.CurrentPhase = "Starting speed test..."
 				s.model.Error = nil
 
-				ctx, cancel := context.WithCancel(context.Background())
+				ctx, cancel := context.WithTimeout(context.Background(), s.model.TestTimeoutDuration())
 				s.cancelTest = cancel
 
 				s.progressChan = make(chan model.ProgressUpdate)
@@ -149,6 +165,16 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				s.cancelTestIfRunning()
 				s.quitting = true
 				return s, tea.Quit
+			case "up", "k":
+				if s.model.HistoryOffset > 0 {
+					s.model.HistoryOffset--
+				}
+			case "down", "j":
+				totalRows := len(s.model.TestHistory) - 1
+				maxVisible := ui.HistoryVisibleRows(s.model.Height, totalRows)
+				if totalRows > maxVisible && s.model.HistoryOffset < totalRows-maxVisible {
+					s.model.HistoryOffset++
+				}
 			case "n":
 				if !s.model.Testing && !s.model.SelectingServer {
 					if s.model.FetchingServers {
@@ -159,6 +185,8 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return s, s.spinner.Tick
 					}
 					s.model.SelectingServer = true
+					s.model.Cursor = 0
+					s.model.ServerListOffset = 0
 					s.model.ShowHelp = false
 				}
 			case "e":
@@ -188,6 +216,8 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.model.PendingServerSelection = false
 		} else if s.model.PendingServerSelection || len(s.model.TestHistory) == 0 {
 			s.model.SelectingServer = true
+			s.model.Cursor = 0
+			s.model.ServerListOffset = 0
 			s.model.PendingServerSelection = false
 		}
 		return s, nil
@@ -207,6 +237,7 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case testComplete:
 		s.cancelTest = nil
 		s.model.Testing = false
+		s.model.HistoryOffset = 0
 		if msg.err != nil {
 			s.model.Error = msg.err
 			s.model.Results = nil
