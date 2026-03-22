@@ -168,7 +168,7 @@ func TestRenderWarning(t *testing.T) {
 }
 
 func TestRenderHelp(t *testing.T) {
-	// Without a result: no export hint
+	// Without a result: no export or scroll hint
 	res := RenderHelp(100, false)
 	if !strings.Contains(res, "Controls:") || !strings.Contains(res, "n: New Test") {
 		t.Errorf("Expected help controls to be present")
@@ -176,11 +176,17 @@ func TestRenderHelp(t *testing.T) {
 	if strings.Contains(res, "e: Export") {
 		t.Errorf("Did not expect export hint when hasResult is false")
 	}
+	if strings.Contains(res, "Scroll History") {
+		t.Errorf("Did not expect scroll hint when hasResult is false")
+	}
 
-	// With a result: export hint shown
+	// With a result: export and scroll hints shown
 	res = RenderHelp(100, true)
 	if !strings.Contains(res, "e: Export Result") {
 		t.Errorf("Expected export hint when hasResult is true")
+	}
+	if !strings.Contains(res, "Scroll History") {
+		t.Errorf("Expected scroll history hint when hasResult is true")
 	}
 }
 
@@ -371,6 +377,7 @@ func TestRenderResultsMissingSponsorDistance(t *testing.T) {
 
 func TestRenderResultsManyEntries(t *testing.T) {
 	m := model.NewDefaultModel()
+	m.Height = 60
 	m.TestHistory = make([]*model.SpeedTestResult, 5)
 	for i := range m.TestHistory {
 		m.TestHistory[i] = &model.SpeedTestResult{
@@ -387,5 +394,52 @@ func TestRenderResultsManyEntries(t *testing.T) {
 	res := RenderResults(m, 120)
 	if !strings.Contains(res, "Previous Tests") {
 		t.Errorf("Expected 'Previous Tests' label in output")
+	}
+}
+
+func TestRenderResultsPagination(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.Height = 30
+	m.TestHistory = make([]*model.SpeedTestResult, 20)
+	for i := range m.TestHistory {
+		m.TestHistory[i] = &model.SpeedTestResult{
+			DownloadSpeed: float64(100 + i),
+			UploadSpeed:   float64(50 + i),
+			Ping:          float64(10 + i),
+			Jitter:        1.0,
+			ServerName:    "TestServer",
+			ServerCountry: "US",
+			Timestamp:     time.Now(),
+		}
+	}
+
+	res := RenderResults(m, 120)
+	if !strings.Contains(res, "Showing") {
+		t.Errorf("Expected pagination indicator for large history")
+	}
+	if !strings.Contains(res, "Previous Tests") {
+		t.Errorf("Expected Previous Tests label")
+	}
+}
+
+func TestRenderResultsNoPaginationSmallHistory(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.Height = 60
+	m.TestHistory = make([]*model.SpeedTestResult, 3)
+	for i := range m.TestHistory {
+		m.TestHistory[i] = &model.SpeedTestResult{
+			DownloadSpeed: float64(100 + i),
+			UploadSpeed:   float64(50 + i),
+			Ping:          float64(10 + i),
+			Jitter:        1.0,
+			ServerName:    "TestServer",
+			ServerCountry: "US",
+			Timestamp:     time.Now(),
+		}
+	}
+
+	res := RenderResults(m, 120)
+	if strings.Contains(res, "Showing") {
+		t.Errorf("Did not expect pagination indicator when all rows fit")
 	}
 }

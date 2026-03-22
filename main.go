@@ -165,6 +165,16 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				s.cancelTestIfRunning()
 				s.quitting = true
 				return s, tea.Quit
+			case "up", "k":
+				if s.model.HistoryOffset > 0 {
+					s.model.HistoryOffset--
+				}
+			case "down", "j":
+				totalRows := len(s.model.TestHistory) - 1
+				maxVisible := ui.HistoryVisibleRows(s.model.Height, totalRows)
+				if totalRows > maxVisible && s.model.HistoryOffset < totalRows-maxVisible {
+					s.model.HistoryOffset++
+				}
 			case "n":
 				if !s.model.Testing && !s.model.SelectingServer {
 					if s.model.FetchingServers {
@@ -227,6 +237,7 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case testComplete:
 		s.cancelTest = nil
 		s.model.Testing = false
+		s.model.HistoryOffset = 0
 		if msg.err != nil {
 			s.model.Error = msg.err
 			s.model.Results = nil

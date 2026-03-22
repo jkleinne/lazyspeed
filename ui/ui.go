@@ -143,7 +143,7 @@ func RenderResults(m *model.Model, width int) string {
 	headers := []string{"#", "Time", "Server", "Sponsor", "Dist (km)", "DL (Mbps)", "UL (Mbps)", "Ping (ms)", "Jitter (ms)"}
 
 	// Build rows newest-first (omitting the latest which is at index len-1)
-	rows := make([][]string, 0, len(m.TestHistory)-1)
+	allRows := make([][]string, 0, len(m.TestHistory)-1)
 	for i := len(m.TestHistory) - 2; i >= 0; i-- {
 		test := m.TestHistory[i]
 		rowNum := i + 1
@@ -157,7 +157,7 @@ func RenderResults(m *model.Model, width int) string {
 			distStr = fmt.Sprintf("%.1f", test.Distance)
 		}
 
-		rows = append(rows, []string{
+		allRows = append(allRows, []string{
 			fmt.Sprintf("%d", rowNum),
 			test.Timestamp.Format("Jan 02 03:04 PM"),
 			fmt.Sprintf("%s (%s)", test.ServerName, test.ServerCountry),
@@ -170,9 +170,30 @@ func RenderResults(m *model.Model, width int) string {
 		})
 	}
 
+	totalRows := len(allRows)
+	maxVisible := HistoryVisibleRows(m.Height, totalRows)
+
+	offset := m.HistoryOffset
+	if offset < 0 {
+		offset = 0
+	}
+	if totalRows > maxVisible && offset > totalRows-maxVisible {
+		offset = totalRows - maxVisible
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	end := offset + maxVisible
+	if end > totalRows {
+		end = totalRows
+	}
+
+	visibleRows := allRows[offset:end]
+
 	t := table.New().
 		Headers(headers...).
-		Rows(rows...).
+		Rows(visibleRows...).
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))).
 		StyleFunc(func(row, _ int) lipgloss.Style {
@@ -193,6 +214,12 @@ func RenderResults(m *model.Model, width int) string {
 		Render("📊 Previous Tests")
 
 	historyContent := lipgloss.JoinVertical(lipgloss.Left, label, "", tableStr)
+
+	if totalRows > maxVisible {
+		paginationStr := helpStyle.Render(
+			fmt.Sprintf("  Showing %d-%d of %d (↑/↓ to scroll)", offset+1, end, totalRows))
+		historyContent = lipgloss.JoinVertical(lipgloss.Left, historyContent, paginationStr)
+	}
 
 	content := lipgloss.JoinVertical(lipgloss.Center, latestContent, "\n", historyContent)
 
@@ -223,6 +250,7 @@ func RenderHelp(width int, hasResult bool) string {
 	help.WriteString("  n: New Test\n")
 	if hasResult {
 		help.WriteString("  e: Export Result\n")
+		help.WriteString("  ↑/↓, j/k: Scroll History\n")
 	}
 	help.WriteString("  h: Toggle Help\n")
 	help.WriteString("  q: Quit\n")
@@ -248,6 +276,18 @@ func RenderExportMessage(msg string, width int) string {
 	}
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center,
 		infoStyle.Render(msg))
+}
+
+// HistoryVisibleRows returns how many history rows fit in the viewport.
+func HistoryVisibleRows(height, total int) int {
+	visible := height - 22
+	if visible < 3 {
+		visible = 3
+	}
+	if visible > total {
+		visible = total
+	}
+	return visible
 }
 
 // ServerListVisibleLines returns how many server entries fit in the viewport.

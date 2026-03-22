@@ -88,9 +88,10 @@ type Model struct {
 	Config                 *Config
 	SelectingServer        bool
 	PendingServerSelection bool
-	Cursor             int
-	ServerListOffset   int
-	User               *speedtest.User
+	Cursor                 int
+	ServerListOffset       int
+	HistoryOffset          int
+	User                   *speedtest.User
 	// Exporting is true when the TUI is showing the inline export format prompt.
 	Exporting bool
 	// ExportMessage is set after an export attempt (success path or error) and
