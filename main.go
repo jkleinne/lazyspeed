@@ -75,6 +75,18 @@ func (s *speedTest) cancelTestIfRunning() {
 	}
 }
 
+func (s *speedTest) adjustServerListOffset() {
+	total := len(s.model.ServerList)
+	visible := ui.ServerListVisibleLines(s.model.Height, total)
+
+	if s.model.Cursor >= s.model.ServerListOffset+visible {
+		s.model.ServerListOffset = s.model.Cursor - visible + 1
+	}
+	if s.model.Cursor < s.model.ServerListOffset {
+		s.model.ServerListOffset = s.model.Cursor
+	}
+}
+
 func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
@@ -110,10 +122,12 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "up", "k":
 				if s.model.Cursor > 0 {
 					s.model.Cursor--
+					s.adjustServerListOffset()
 				}
 			case "down", "j":
 				if s.model.Cursor < len(s.model.ServerList)-1 {
 					s.model.Cursor++
+					s.adjustServerListOffset()
 				}
 			case "enter":
 				if s.model.Cursor < 0 || s.model.Cursor >= len(s.model.ServerList) {
@@ -161,6 +175,8 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return s, s.spinner.Tick
 					}
 					s.model.SelectingServer = true
+					s.model.Cursor = 0
+					s.model.ServerListOffset = 0
 					s.model.ShowHelp = false
 				}
 			case "e":
@@ -190,6 +206,8 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.model.PendingServerSelection = false
 		} else if s.model.PendingServerSelection || len(s.model.TestHistory) == 0 {
 			s.model.SelectingServer = true
+			s.model.Cursor = 0
+			s.model.ServerListOffset = 0
 			s.model.PendingServerSelection = false
 		}
 		return s, nil

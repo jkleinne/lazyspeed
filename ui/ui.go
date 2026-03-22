@@ -250,16 +250,63 @@ func RenderExportMessage(msg string, width int) string {
 		infoStyle.Render(msg))
 }
 
+// ServerListVisibleLines returns how many server entries fit in the viewport.
+func ServerListVisibleLines(height, total int) int {
+	visible := height - 8
+	if visible < 3 {
+		visible = 3
+	}
+	if visible > total {
+		visible = total
+	}
+	return visible
+}
+
+// RenderServerSelection renders the server list with viewport-based windowing.
 func RenderServerSelection(m *model.Model, width int) string {
 	var b strings.Builder
 	b.WriteString("Select a server:\n\n")
 
-	for i, server := range m.ServerList {
+	total := len(m.ServerList)
+	if total == 0 {
+		b.WriteString("  No servers available.\n")
+		return lipgloss.PlaceHorizontal(width, lipgloss.Center, infoStyle.Render(b.String()))
+	}
+
+	visible := ServerListVisibleLines(m.Height, total)
+	offset := m.ServerListOffset
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > total-visible {
+		offset = total - visible
+	}
+
+	if offset > 0 {
+		b.WriteString(fmt.Sprintf("  ↑ %d more\n", offset))
+	}
+
+	end := offset + visible
+	if end > total {
+		end = total
+	}
+
+	for i := offset; i < end; i++ {
+		server := m.ServerList[i]
 		if m.Cursor == i {
-			b.WriteString(fmt.Sprintf("> %s: %s (%s) - %.2f ms\n", server.Sponsor, server.Name, server.Country, server.Latency.Seconds()*1000))
+			b.WriteString(fmt.Sprintf("> %s: %s (%s) - %.2f ms\n",
+				server.Sponsor, server.Name, server.Country,
+				server.Latency.Seconds()*1000))
 		} else {
-			b.WriteString(fmt.Sprintf("  %s: %s (%s) - %.2f ms\n", server.Sponsor, server.Name, server.Country, server.Latency.Seconds()*1000))
+			b.WriteString(fmt.Sprintf("  %s: %s (%s) - %.2f ms\n",
+				server.Sponsor, server.Name, server.Country,
+				server.Latency.Seconds()*1000))
 		}
+	}
+
+	remaining := total - end
+	if remaining > 0 {
+		b.WriteString(fmt.Sprintf("  ↓ %d more\n", remaining))
 	}
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, infoStyle.Render(b.String()))
