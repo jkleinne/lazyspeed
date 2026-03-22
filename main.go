@@ -97,10 +97,10 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "j":
 				s.model.Exporting = false
-				return s, exportCmd(s.model.Results, "json")
+				return s, exportCmd(s.model.Results, "json", s.model)
 			case "c":
 				s.model.Exporting = false
-				return s, exportCmd(s.model.Results, "csv")
+				return s, exportCmd(s.model.Results, "csv", s.model)
 			case "esc", "q", keyCtrlC:
 				s.model.Exporting = false
 			}
@@ -320,13 +320,13 @@ func waitForProgress(progressChan chan model.ProgressUpdate, errChan chan error)
 }
 
 // exportCmd runs the file export in a goroutine and returns the result as a tea.Cmd.
-func exportCmd(result *model.SpeedTestResult, format string) tea.Cmd {
+func exportCmd(result *model.SpeedTestResult, format string, m *model.Model) tea.Cmd {
 	return func() tea.Msg {
-		cwd, err := os.Getwd()
+		dir, err := m.ExportDir()
 		if err != nil {
-			return exportDoneMsg{err: fmt.Errorf("could not determine working directory: %v", err)}
+			return exportDoneMsg{err: err}
 		}
-		path, err := model.ExportResult(result, format, cwd)
+		path, err := model.ExportResult(result, format, dir)
 		return exportDoneMsg{path: path, err: err}
 	}
 }

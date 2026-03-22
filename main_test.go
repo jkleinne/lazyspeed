@@ -507,7 +507,8 @@ func TestExportCmd(t *testing.T) {
 		Timestamp:     time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC),
 	}
 
-	cmd := exportCmd(result, "json")
+	m := model.NewModel(nil, model.DefaultConfig())
+	cmd := exportCmd(result, "json", m)
 	msg := cmd()
 
 	dm, ok := msg.(exportDoneMsg)
@@ -519,6 +520,34 @@ func TestExportCmd(t *testing.T) {
 	}
 	if dm.path == "" {
 		t.Errorf("Expected non-empty path")
+	}
+}
+
+func TestExportCmdUsesConfigDirectory(t *testing.T) {
+	exportDir := t.TempDir()
+	cfg := model.DefaultConfig()
+	cfg.Export.Directory = exportDir
+	m := model.NewModel(nil, cfg)
+
+	result := &model.SpeedTestResult{
+		DownloadSpeed: 100.0,
+		UploadSpeed:   50.0,
+		Ping:          10.0,
+		Timestamp:     time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC),
+	}
+
+	cmd := exportCmd(result, "json", m)
+	msg := cmd()
+
+	dm, ok := msg.(exportDoneMsg)
+	if !ok {
+		t.Fatalf("Expected exportDoneMsg, got %T", msg)
+	}
+	if dm.err != nil {
+		t.Fatalf("Expected nil error, got %v", dm.err)
+	}
+	if !strings.HasPrefix(dm.path, exportDir) {
+		t.Errorf("Expected path to start with %q, got %q", exportDir, dm.path)
 	}
 }
 

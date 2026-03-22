@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/showwin/speedtest-go/speedtest"
@@ -141,6 +142,30 @@ func (m *Model) TestTimeoutDuration() time.Duration {
 		secs = m.Config.Test.TestTimeout
 	}
 	return time.Duration(secs) * time.Second
+}
+
+// ExportDir returns the configured export directory, falling back to the
+// current working directory if none is configured.
+func (m *Model) ExportDir() (string, error) {
+	if m.Config != nil && m.Config.Export.Directory != "" {
+		dir := m.Config.Export.Directory
+		if strings.HasPrefix(dir, "~/") {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return "", fmt.Errorf("failed to expand home directory: %v", err)
+			}
+			dir = filepath.Join(home, dir[2:])
+		}
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return "", fmt.Errorf("failed to create export directory: %v", err)
+		}
+		return dir, nil
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("could not determine working directory: %v", err)
+	}
+	return cwd, nil
 }
 
 func sendUpdate(progress float64, phase string, updateChan chan<- ProgressUpdate) {
