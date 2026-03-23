@@ -123,6 +123,19 @@ func routeStatus(hops []diag.Hop) string {
 	}
 }
 
+// routeStatusStyled returns a color-coded route health string.
+func routeStatusStyled(hops []diag.Hop) string {
+	status := routeStatus(hops)
+	switch status {
+	case "healthy":
+		return latencyGreenStyle.Render(status)
+	case "1 timeout":
+		return latencyAmberStyle.Render(status)
+	default:
+		return latencyRedStyle.Render(status)
+	}
+}
+
 // RenderDiagCompact renders a compact single-screen diagnostics summary.
 func RenderDiagCompact(result *diag.DiagResult, width int) string {
 	var b strings.Builder
@@ -154,12 +167,11 @@ func RenderDiagCompact(result *diag.DiagResult, width int) string {
 		}
 		dnsStr = fmt.Sprintf("%dms (%s)", result.DNS.Latency.Milliseconds(), cacheLabel)
 	}
-	summary := fmt.Sprintf("DNS: %s | Hops: %d | Route: %s",
+	summaryPrefix := fmt.Sprintf("DNS: %s | Hops: %d | Route: ",
 		dnsStr,
 		len(result.Hops),
-		routeStatus(result.Hops),
 	)
-	b.WriteString(helpStyle.Render(summary))
+	b.WriteString(helpStyle.Render(summaryPrefix) + routeStatusStyled(result.Hops))
 	b.WriteString("\n")
 
 	// Anomaly warnings

@@ -68,6 +68,53 @@ func TestRenderDiagCompactNilDNS(t *testing.T) {
 	}
 }
 
+func TestRouteStatusStyled(t *testing.T) {
+	tests := []struct {
+		name     string
+		hops     []diag.Hop
+		contains string
+	}{
+		{
+			"healthy with no hops",
+			nil,
+			"healthy",
+		},
+		{
+			"healthy with no timeouts",
+			[]diag.Hop{
+				{Number: 1, IP: "10.0.0.1", Latency: 5 * time.Millisecond},
+			},
+			"healthy",
+		},
+		{
+			"1 timeout",
+			[]diag.Hop{
+				{Number: 1, IP: "10.0.0.1", Latency: 5 * time.Millisecond},
+				{Number: 2, Timeout: true},
+			},
+			"1 timeout",
+		},
+		{
+			"multiple timeouts",
+			[]diag.Hop{
+				{Number: 1, Timeout: true},
+				{Number: 2, Timeout: true},
+				{Number: 3, IP: "10.0.0.1", Latency: 5 * time.Millisecond},
+			},
+			"2 timeouts",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := routeStatusStyled(tt.hops)
+			if !strings.Contains(out, tt.contains) {
+				t.Errorf("expected output to contain %q, got %q", tt.contains, out)
+			}
+		})
+	}
+}
+
 func TestScoreStyle(t *testing.T) {
 	tests := []struct {
 		name  string
