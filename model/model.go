@@ -350,6 +350,48 @@ func (m *Model) FetchServerList(ctx context.Context) error {
 	return nil
 }
 
+// transferPhase defines the progress parameters for a download or upload phase.
+type transferPhase struct {
+	start   float64
+	span    float64
+	maxProg float64
+	label   string
+	rateFn  func() float64
+}
+
+// monitorTransferProgress runs a ticker goroutine that reports progress during
+// a download or upload phase. Close the returned channel to stop monitoring,
+// then receive from doneAck to wait for cleanup.
+func monitorTransferProgress(
+	ctx context.Context,
+	phase transferPhase,
+	updateChan chan<- ProgressUpdate,
+) (done chan struct{}, doneAck chan struct{}) {
+	done = make(chan struct{})
+	doneAck = make(chan struct{})
+	go func() {
+		defer close(doneAck)
+		start := time.Now()
+		ticker := time.NewTicker(progressInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				elapsed := time.Since(start)
+				progress := phase.start + (float64(elapsed.Milliseconds())/estimatedTestDurationMs)*phase.span
+				progress = min(progress, phase.maxProg)
+				mbps := phase.rateFn() / bytesToMbps
+				sendUpdate(progress, fmt.Sprintf("Testing %s: %.2f Mbps...", phase.label, mbps), updateChan)
+			}
+		}
+	}()
+	return done, doneAck
+}
+
 func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, updateChan chan<- ProgressUpdate) error {
 	var err error
 	m.Testing = true
@@ -390,34 +432,16 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	m.PingResults = pr.Pings
 
 	sendUpdate(progressDownloadStart, "Starting download test...", updateChan)
-	done := make(chan struct{})
-	doneAck := make(chan struct{})
-	go func() {
-		defer close(doneAck)
-		start := time.Now()
-		ticker := time.NewTicker(progressInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-done:
-				return
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				elapsed := time.Since(start)
-				progress := min(progressDownloadStart+(float64(elapsed.Milliseconds())/estimatedTestDurationMs)*progressDownloadSpan, progressDownloadMax)
-
-				// Fetch the Exponential Weighted Moving Average (EWMA) download rate in bytes/sec
-				rate := server.Context.GetEWMADownloadRate()
-				mbps := float64(rate) / bytesToMbps
-
-				sendUpdate(progress, fmt.Sprintf("Testing download: %.2f Mbps...", mbps), updateChan)
-			}
-		}
-	}()
+	dlDone, dlAck := monitorTransferProgress(ctx, transferPhase{
+		start:   progressDownloadStart,
+		span:    progressDownloadSpan,
+		maxProg: progressDownloadMax,
+		label:   "download",
+		rateFn:  func() float64 { return float64(server.Context.GetEWMADownloadRate()) },
+	}, updateChan)
 	err = m.Backend.DownloadTest(server)
-	close(done)
-	<-doneAck
+	close(dlDone)
+	<-dlAck
 	if ctx.Err() != nil {
 		m.Testing = false
 		return ctx.Err()
@@ -430,33 +454,16 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	sendUpdate(progressDownloadDone, fmt.Sprintf("Download complete: %.2f Mbps", dlSpeed), updateChan)
 
 	sendUpdate(progressUploadStart, "Starting upload test...", updateChan)
-	done = make(chan struct{})
-	doneAck = make(chan struct{})
-	go func() {
-		defer close(doneAck)
-		start := time.Now()
-		ticker := time.NewTicker(progressInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-done:
-				return
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				elapsed := time.Since(start)
-				progress := min(progressUploadStart+(float64(elapsed.Milliseconds())/estimatedTestDurationMs)*progressUploadSpan, progressUploadMax)
-
-				rate := server.Context.GetEWMAUploadRate()
-				mbps := float64(rate) / bytesToMbps
-
-				sendUpdate(progress, fmt.Sprintf("Testing upload: %.2f Mbps...", mbps), updateChan)
-			}
-		}
-	}()
+	ulDone, ulAck := monitorTransferProgress(ctx, transferPhase{
+		start:   progressUploadStart,
+		span:    progressUploadSpan,
+		maxProg: progressUploadMax,
+		label:   "upload",
+		rateFn:  func() float64 { return float64(server.Context.GetEWMAUploadRate()) },
+	}, updateChan)
 	err = m.Backend.UploadTest(server)
-	close(done)
-	<-doneAck
+	close(ulDone)
+	<-ulAck
 	if ctx.Err() != nil {
 		m.Testing = false
 		return ctx.Err()
