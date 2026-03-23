@@ -89,22 +89,22 @@ var (
 
 	// Styles extracted from inline definitions in render functions
 	progressStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(colorPrimary)).
-		PaddingLeft(2).
-		PaddingRight(2)
+			Foreground(lipgloss.Color(colorPrimary)).
+			PaddingLeft(2).
+			PaddingRight(2)
 
 	boxStyle = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(colorPrimary)).
-		PaddingLeft(1).
-		PaddingRight(1)
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(colorPrimary)).
+			PaddingLeft(1).
+			PaddingRight(1)
 
 	tableBorderStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(colorPrimary))
+				Foreground(lipgloss.Color(colorPrimary))
 
 	sectionLabelStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(colorPrimary)).
-		Bold(true)
+				Foreground(lipgloss.Color(colorPrimary)).
+				Bold(true)
 )
 
 // scoreStyle returns a bold style color-coded by grade.
