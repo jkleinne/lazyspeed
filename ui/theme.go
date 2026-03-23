@@ -141,10 +141,7 @@ func spinnerBoxWidth(termWidth int) int {
 
 // newProgress creates a progress bar sized to the given spinner box width.
 func newProgress(boxWidth int) progress.Model {
-	barWidth := boxWidth - 20
-	if barWidth < 10 {
-		barWidth = 10
-	}
+	barWidth := max(10, boxWidth-20)
 	return progress.New(
 		progress.WithDefaultGradient(),
 		progress.WithWidth(barWidth),

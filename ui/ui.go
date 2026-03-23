@@ -10,6 +10,13 @@ import (
 	"github.com/jkleinne/lazyspeed/model"
 )
 
+const (
+	historyOverhead      = 22 // title + latest-results box + table header + controls + padding
+	historyMinVisible    = 3
+	serverListOverhead   = 8 // title + header + hint + padding
+	serverListMinVisible = 3
+)
+
 var DefaultSpinner = spinner.New(
 	spinner.WithSpinner(spinner.Spinner{
 		Frames: []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"},
@@ -117,15 +124,9 @@ func RenderResults(m *model.Model, width int) string {
 	totalRows := len(allRows)
 	maxVisible := HistoryVisibleRows(m.Height, totalRows)
 
-	offset := m.HistoryOffset
-	if offset < 0 {
-		offset = 0
-	}
-	if totalRows > maxVisible && offset > totalRows-maxVisible {
-		offset = totalRows - maxVisible
-	}
-	if offset < 0 {
-		offset = 0
+	offset := max(0, m.HistoryOffset)
+	if totalRows > maxVisible {
+		offset = min(offset, totalRows-maxVisible)
 	}
 
 	end := offset + maxVisible
@@ -222,26 +223,12 @@ func RenderExportMessage(msg string, width int) string {
 
 // HistoryVisibleRows returns how many history rows fit in the viewport.
 func HistoryVisibleRows(height, total int) int {
-	visible := height - 22
-	if visible < 3 {
-		visible = 3
-	}
-	if visible > total {
-		visible = total
-	}
-	return visible
+	return min(total, max(historyMinVisible, height-historyOverhead))
 }
 
 // ServerListVisibleLines returns how many server entries fit in the viewport.
 func ServerListVisibleLines(height, total int) int {
-	visible := height - 8
-	if visible < 3 {
-		visible = 3
-	}
-	if visible > total {
-		visible = total
-	}
-	return visible
+	return min(total, max(serverListMinVisible, height-serverListOverhead))
 }
 
 // RenderServerSelection renders the server list with viewport-based windowing.

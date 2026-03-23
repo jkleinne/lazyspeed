@@ -365,10 +365,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 				return
 			case <-ticker.C:
 				elapsed := time.Since(start)
-				progress := 0.5 + (float64(elapsed.Milliseconds())/estimatedTestDurationMs)*0.25
-				if progress > 0.7 {
-					progress = 0.7
-				}
+				progress := min(0.5+(float64(elapsed.Milliseconds())/estimatedTestDurationMs)*0.25, 0.7)
 
 				// Fetch the Exponential Weighted Moving Average (EWMA) download rate in bytes/sec
 				rate := server.Context.GetEWMADownloadRate()
@@ -408,10 +405,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 				return
 			case <-ticker.C:
 				elapsed := time.Since(start)
-				progress := 0.8 + (float64(elapsed.Milliseconds())/estimatedTestDurationMs)*0.15
-				if progress > 0.95 {
-					progress = 0.95
-				}
+				progress := min(0.8+(float64(elapsed.Milliseconds())/estimatedTestDurationMs)*0.15, 0.95)
 
 				rate := server.Context.GetEWMAUploadRate()
 				mbps := float64(rate) / bytesToMbps

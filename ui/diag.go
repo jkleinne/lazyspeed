@@ -10,6 +10,11 @@ import (
 	"github.com/jkleinne/lazyspeed/diag"
 )
 
+const (
+	diagExpandedOverhead = 10 // title + score + meta + column headers + separator + hints + padding
+	diagMinVisible       = 3
+)
+
 // renderLatency formats a duration value with colour coding.
 func renderLatency(d time.Duration) string {
 	s := fmt.Sprintf("%dms", d.Milliseconds())
@@ -179,19 +184,10 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 
 	// Viewport windowing — same pattern as HistoryVisibleRows
 	totalRows := len(result.Hops)
-	maxVisible := height - 10
-	if maxVisible < 3 {
-		maxVisible = 3
-	}
-	if maxVisible > totalRows {
-		maxVisible = totalRows
-	}
+	maxVisible := min(totalRows, max(diagMinVisible, height-diagExpandedOverhead))
 
-	if offset < 0 {
-		offset = 0
-	}
-	if totalRows > maxVisible && offset > totalRows-maxVisible {
-		offset = totalRows - maxVisible
+	if totalRows > maxVisible {
+		offset = max(0, min(offset, totalRows-maxVisible))
 	}
 	if offset < 0 {
 		offset = 0

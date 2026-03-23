@@ -298,9 +298,5 @@ func reverseResolve(ip string) string {
 		return ip
 	}
 	// Remove trailing dot from DNS name
-	name := names[0]
-	if len(name) > 0 && name[len(name)-1] == '.' {
-		name = name[:len(name)-1]
-	}
-	return name
+	return strings.TrimSuffix(names[0], ".")
 }
