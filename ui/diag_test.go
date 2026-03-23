@@ -67,3 +67,31 @@ func TestRenderDiagCompactNilDNS(t *testing.T) {
 		t.Error("expected N/A for DNS when nil")
 	}
 }
+
+func TestScoreStyle(t *testing.T) {
+	tests := []struct {
+		name  string
+		grade string
+	}{
+		{"grade A is green", "A"},
+		{"grade B is amber", "B"},
+		{"grade C is amber", "C"},
+		{"grade D is red", "D"},
+		{"grade F is red", "F"},
+		{"unknown grade is purple", "Z"},
+		{"empty grade is purple", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			style := scoreStyle(tt.grade)
+			rendered := style.Render("test")
+			if rendered == "" {
+				t.Error("expected non-empty styled output")
+			}
+			if rendered == "test" {
+				t.Error("expected styled output to differ from plain text")
+			}
+		})
+	}
+}

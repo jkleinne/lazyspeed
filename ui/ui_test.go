@@ -9,12 +9,14 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jkleinne/lazyspeed/model"
+	"github.com/muesli/termenv"
 	"github.com/showwin/speedtest-go/speedtest"
 )
 
 func TestMain(m *testing.M) {
 	// Ensure deterministic rendering for tests regardless of terminal
 	lipgloss.SetHasDarkBackground(true)
+	lipgloss.SetColorProfile(termenv.TrueColor)
 	m.Run()
 }
 

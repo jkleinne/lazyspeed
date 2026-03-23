@@ -18,10 +18,6 @@ var (
 			PaddingLeft(2).
 			PaddingRight(2)
 
-	diagScoreStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#7D56F4"))
-
 	latencyGreenStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#22c55e"))
 
@@ -55,6 +51,20 @@ func latencyStyle(d time.Duration) lipgloss.Style {
 func renderLatency(d time.Duration) string {
 	s := fmt.Sprintf("%dms", d.Milliseconds())
 	return latencyStyle(d).Render(s)
+}
+
+// scoreStyle returns a bold lipgloss style color-coded by grade.
+func scoreStyle(grade string) lipgloss.Style {
+	switch grade {
+	case "A":
+		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#22c55e"))
+	case "B", "C":
+		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#f59e0b"))
+	case "D", "F":
+		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#ef4444"))
+	default:
+		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4"))
+	}
 }
 
 // findAnomalies returns hops whose latency is more than 2x the median and
@@ -127,7 +137,7 @@ func RenderDiagCompact(result *diag.DiagResult, width int) string {
 	b.WriteString("\n\n")
 
 	// Score line
-	scoreStr := diagScoreStyle.Render(fmt.Sprintf("%d/100 (%s)", result.Quality.Score, result.Quality.Grade))
+	scoreStr := scoreStyle(result.Quality.Grade).Render(fmt.Sprintf("%d/100 (%s)", result.Quality.Score, result.Quality.Grade))
 	b.WriteString(scoreStr)
 	b.WriteString("\n")
 
@@ -176,7 +186,7 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 
 	// Compact header: title + score inline
 	titleText := diagTitleStyle.Render("~ Network Diagnostics ~")
-	scoreText := diagScoreStyle.Render(
+	scoreText := scoreStyle(result.Quality.Grade).Render(
 		fmt.Sprintf("%d/100 (%s) — %s", result.Quality.Score, result.Quality.Grade, result.Quality.Label),
 	)
 	header := lipgloss.JoinHorizontal(lipgloss.Top, titleText, "  ", scoreText)
