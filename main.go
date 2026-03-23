@@ -21,11 +21,13 @@ type exportDoneMsg struct {
 	err  error
 }
 
-const keyCtrlC = "ctrl+c"
-
-const keyUp = "up"
-
-const keyDown = "down"
+const (
+	keyCtrlC = "ctrl+c"
+	keyUp    = "up"
+	keyDown  = "down"
+	keyJ     = "j"
+	keyK     = "k"
+)
 
 const fetchingServerListPhase = "Fetching server list..."
 
@@ -160,12 +162,12 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "q", keyCtrlC:
 				s.quitting = true
 				return s, tea.Quit
-			case keyUp, "k":
+			case keyUp, keyK:
 				if s.model.Cursor > 0 {
 					s.model.Cursor--
 					s.adjustServerListOffset()
 				}
-			case keyDown, "j":
+			case keyDown, keyJ:
 				if s.model.Cursor < len(s.model.ServerList)-1 {
 					s.model.Cursor++
 					s.adjustServerListOffset()
@@ -208,11 +210,11 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "esc":
 				s.showDiagExpanded = false
 				s.showDiagCompact = true
-			case keyUp, "k":
+			case keyUp, keyK:
 				if s.diagOffset > 0 {
 					s.diagOffset--
 				}
-			case keyDown, "j":
+			case keyDown, keyJ:
 				if s.diagResult != nil && s.diagOffset < len(s.diagResult.Hops)-1 {
 					s.diagOffset++
 				}
@@ -261,11 +263,11 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				s.cancelTestIfRunning()
 				s.quitting = true
 				return s, tea.Quit
-			case keyUp, "k":
+			case keyUp, keyK:
 				if s.model.HistoryOffset > 0 {
 					s.model.HistoryOffset--
 				}
-			case keyDown, "j":
+			case keyDown, keyJ:
 				totalRows := len(s.model.TestHistory) - 1
 				maxVisible := ui.HistoryVisibleRows(s.model.Height, totalRows)
 				if totalRows > maxVisible && s.model.HistoryOffset < totalRows-maxVisible {
