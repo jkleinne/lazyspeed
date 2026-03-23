@@ -1642,3 +1642,59 @@ func TestResultCSVRow(t *testing.T) {
 		}
 	}
 }
+
+func TestMeasurePing(t *testing.T) {
+	latencies := []time.Duration{
+		10 * time.Millisecond,
+		12 * time.Millisecond,
+		8 * time.Millisecond,
+	}
+	callIdx := 0
+	backend := &mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			if callIdx < len(latencies) {
+				fn(latencies[callIdx])
+				callIdx++
+			}
+			return nil
+		},
+	}
+
+	ctx := context.Background()
+	server := &speedtest.Server{}
+	result, err := measurePing(ctx, backend, server, 3)
+	if err != nil {
+		t.Fatalf("measurePing failed: %v", err)
+	}
+	if len(result.Pings) != 3 {
+		t.Fatalf("got %d pings, want 3", len(result.Pings))
+	}
+	// avg = (10+12+8)/3 = 10
+	if result.AvgPing != 10 {
+		t.Errorf("AvgPing = %f, want 10", result.AvgPing)
+	}
+	// jitter = mean of |12-10|, |8-12| = (2+4)/2 = 3
+	if result.Jitter != 3 {
+		t.Errorf("Jitter = %f, want 3", result.Jitter)
+	}
+}
+
+func TestMeasurePingNoPings(t *testing.T) {
+	backend := &mockBackend{
+		pingTestFn: func(_ *speedtest.Server, _ func(time.Duration)) error {
+			return errors.New("network error")
+		},
+	}
+	ctx := context.Background()
+	server := &speedtest.Server{}
+	result, err := measurePing(ctx, backend, server, 3)
+	if err != nil {
+		t.Fatalf("measurePing should not error: %v", err)
+	}
+	if len(result.Pings) != 0 {
+		t.Errorf("got %d pings, want 0", len(result.Pings))
+	}
+	if result.AvgPing != 0 {
+		t.Errorf("AvgPing = %f, want 0", result.AvgPing)
+	}
+}

@@ -204,6 +204,54 @@ func (m *Model) ExportDir() (string, error) {
 	return cwd, nil
 }
 
+// pingResult holds the aggregated outcome of a ping measurement.
+type pingResult struct {
+	Pings   []float64
+	AvgPing float64
+	Jitter  float64
+}
+
+// measurePing runs count ping iterations against server and computes avg/jitter.
+// Callers should check len(result.Pings) == 0 to detect total ping failure.
+func measurePing(ctx context.Context, backend Backend, server *speedtest.Server, count int) (*pingResult, error) {
+	var pings []float64
+	var sumPing float64
+
+	for i := 0; i < count; i++ {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		err := backend.PingTest(server, func(latency time.Duration) {
+			ping := float64(latency.Milliseconds())
+			pings = append(pings, ping)
+			sumPing += ping
+		})
+		if err != nil {
+			continue
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(pingDelay):
+		}
+	}
+
+	result := &pingResult{Pings: pings}
+
+	if len(pings) > 0 {
+		result.AvgPing = sumPing / float64(len(pings))
+	}
+	if len(pings) > 1 {
+		var sum float64
+		for i := 1; i < len(pings); i++ {
+			sum += math.Abs(pings[i] - pings[i-1])
+		}
+		result.Jitter = sum / float64(len(pings)-1)
+	}
+
+	return result, nil
+}
+
 func sendUpdate(progress float64, phase string, updateChan chan<- ProgressUpdate) {
 	if updateChan != nil {
 		updateChan <- ProgressUpdate{
@@ -334,52 +382,12 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	}
 
 	sendUpdate(progressPingStart, "Measuring ping and jitter...", updateChan)
-	var sumPing float64
-	for i := 0; i < pingCount; i++ {
-		if ctx.Err() != nil {
-			m.Testing = false
-			return ctx.Err()
-		}
-		err := m.Backend.PingTest(server, func(latency time.Duration) {
-			ping := float64(latency.Milliseconds())
-			m.PingResults = append(m.PingResults, ping)
-			sumPing += ping
-			if len(m.PingResults) > 1 {
-				// Calculate current jitter for display
-				lastIdx := len(m.PingResults) - 1
-				currentJitter := math.Abs(m.PingResults[lastIdx] - m.PingResults[lastIdx-1])
-				sendUpdate(progressPingStart+float64(i+1)*progressPingIncrement,
-					fmt.Sprintf("Ping: %.1f ms, Jitter: %.1f ms (%d/%d)",
-						ping, currentJitter, i+1, pingCount), updateChan)
-			} else {
-				sendUpdate(progressPingStart+float64(i+1)*progressPingIncrement,
-					fmt.Sprintf("Ping: %.1f ms (%d/%d)", ping, i+1, pingCount), updateChan)
-			}
-		})
-		if err != nil {
-			continue
-		}
-		select {
-		case <-ctx.Done():
-			m.Testing = false
-			return ctx.Err()
-		case <-time.After(pingDelay): // Small delay between pings
-		}
-	}
-
-	var jitter float64
-	if len(m.PingResults) > 1 {
-		var sum float64
-		for i := 1; i < len(m.PingResults); i++ {
-			sum += math.Abs(m.PingResults[i] - m.PingResults[i-1])
-		}
-		jitter = sum / float64(len(m.PingResults)-1)
-	}
-
-	if ctx.Err() != nil {
+	pr, err := measurePing(ctx, m.Backend, server, pingCount)
+	if err != nil {
 		m.Testing = false
-		return ctx.Err()
+		return err
 	}
+	m.PingResults = pr.Pings
 
 	sendUpdate(progressDownloadStart, "Starting download test...", updateChan)
 	done := make(chan struct{})
@@ -466,16 +474,11 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		userISP = m.User.Isp
 	}
 
-	var avgPing float64
-	if len(m.PingResults) > 0 {
-		avgPing = sumPing / float64(len(m.PingResults))
-	}
-
 	result := &SpeedTestResult{
 		DownloadSpeed: dlSpeed,
 		UploadSpeed:   ulSpeed,
-		Ping:          avgPing,
-		Jitter:        jitter,
+		Ping:          pr.AvgPing,
+		Jitter:        pr.Jitter,
 		ServerName:    server.Name,
 		ServerSponsor: server.Sponsor,
 		ServerCountry: server.Country,
@@ -546,47 +549,15 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		return nil, ctx.Err()
 	}
 
-	var sumPing float64
-	var jitter float64
-	pingResults := make([]float64, 0)
-
 	headlessPingCount := pingIterations
 	if m.Config != nil && m.Config.Test.PingCount > 0 {
 		headlessPingCount = m.Config.Test.PingCount
 	}
 
 	callProgressFn(opts.ProgressFn, fmt.Sprintf("Measuring ping (0/%d)...", headlessPingCount))
-	for i := 0; i < headlessPingCount; i++ {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		err := m.Backend.PingTest(server, func(latency time.Duration) {
-			ping := float64(latency.Milliseconds())
-			pingResults = append(pingResults, ping)
-			sumPing += ping
-			callProgressFn(opts.ProgressFn, fmt.Sprintf("Measuring ping (%d/%d): %.1f ms", i+1, headlessPingCount, ping))
-		})
-		if err != nil {
-			continue
-		}
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(pingDelay):
-		}
-	}
-
-	if len(pingResults) > 1 {
-		var sum float64
-		for i := 1; i < len(pingResults); i++ {
-			sum += math.Abs(pingResults[i] - pingResults[i-1])
-		}
-		jitter = sum / float64(len(pingResults)-1)
-	}
-
-	var avgPing float64
-	if len(pingResults) > 0 {
-		avgPing = sumPing / float64(len(pingResults))
+	pr, err := measurePing(ctx, m.Backend, server, headlessPingCount)
+	if err != nil {
+		return nil, err
 	}
 
 	var dlSpeed, ulSpeed float64
@@ -618,8 +589,8 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 	return &SpeedTestResult{
 		DownloadSpeed: dlSpeed,
 		UploadSpeed:   ulSpeed,
-		Ping:          avgPing,
-		Jitter:        jitter,
+		Ping:          pr.AvgPing,
+		Jitter:        pr.Jitter,
 		ServerName:    server.Name,
 		ServerSponsor: server.Sponsor,
 		ServerCountry: server.Country,
