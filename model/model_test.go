@@ -1643,6 +1643,26 @@ func TestResultCSVRow(t *testing.T) {
 	}
 }
 
+func TestResultCSVRowZeroValues(t *testing.T) {
+	res := &SpeedTestResult{}
+	row := res.CSVRow()
+	if len(row) != 9 {
+		t.Fatalf("CSVRow() returned %d fields, want 9", len(row))
+	}
+	// Numeric fields should format as "0.00"
+	for _, idx := range []int{3, 4, 5, 6} {
+		if row[idx] != "0.00" {
+			t.Errorf("row[%d] = %q, want %q", idx, row[idx], "0.00")
+		}
+	}
+	// String fields should be empty
+	for _, idx := range []int{1, 2, 7, 8} {
+		if row[idx] != "" {
+			t.Errorf("row[%d] = %q, want empty", idx, row[idx])
+		}
+	}
+}
+
 func TestMeasurePing(t *testing.T) {
 	latencies := []time.Duration{
 		10 * time.Millisecond,
@@ -1676,6 +1696,50 @@ func TestMeasurePing(t *testing.T) {
 	// jitter = mean of |12-10|, |8-12| = (2+4)/2 = 3
 	if result.Jitter != 3 {
 		t.Errorf("Jitter = %f, want 3", result.Jitter)
+	}
+}
+
+func TestMeasurePingSinglePingZeroJitter(t *testing.T) {
+	backend := &mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(15 * time.Millisecond)
+			return nil
+		},
+	}
+	ctx := context.Background()
+	server := &speedtest.Server{}
+	result, err := measurePing(ctx, backend, server, 1)
+	if err != nil {
+		t.Fatalf("measurePing failed: %v", err)
+	}
+	if len(result.Pings) != 1 {
+		t.Fatalf("got %d pings, want 1", len(result.Pings))
+	}
+	if result.AvgPing != 15 {
+		t.Errorf("AvgPing = %f, want 15", result.AvgPing)
+	}
+	if result.Jitter != 0 {
+		t.Errorf("Jitter = %f, want 0 (single ping)", result.Jitter)
+	}
+}
+
+func TestMeasurePingContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
+
+	backend := &mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(10 * time.Millisecond)
+			return nil
+		},
+	}
+	server := &speedtest.Server{}
+	result, err := measurePing(ctx, backend, server, 5)
+	if err == nil {
+		t.Fatal("expected context error, got nil")
+	}
+	if result != nil {
+		t.Errorf("expected nil result on cancellation, got %+v", result)
 	}
 }
 
