@@ -13,6 +13,8 @@ import (
 const (
 	diagExpandedOverhead = 10 // title + score + meta + column headers + separator + hints + padding
 	diagMinVisible       = 3
+	anomalyMultiplier    = 2  // latency must exceed this factor of the median
+	anomalyAbsoluteMinMs = 50 // latency must also exceed this absolute floor (ms)
 )
 
 // renderLatency formats a duration value with colour coding.
@@ -52,7 +54,7 @@ func findAnomalies(hops []diag.Hop) []diag.Hop {
 			continue
 		}
 		ms := float64(h.Latency.Milliseconds())
-		if ms > 2*median && ms > 50 {
+		if ms > anomalyMultiplier*median && ms > anomalyAbsoluteMinMs {
 			anomalies = append(anomalies, h)
 		}
 	}
@@ -186,12 +188,8 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 	totalRows := len(result.Hops)
 	maxVisible := min(totalRows, max(diagMinVisible, height-diagExpandedOverhead))
 
-	offset = max(0, offset)
-	if totalRows > maxVisible {
-		offset = min(offset, totalRows-maxVisible)
-	}
-
-	end := min(offset+maxVisible, totalRows)
+	var end int
+	offset, end = clampViewport(totalRows, maxVisible, offset)
 
 	// Up indicator
 	if offset > 0 {

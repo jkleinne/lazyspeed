@@ -17,6 +17,17 @@ const (
 	serverListMinVisible = 3
 )
 
+// clampViewport clamps offset into [0, total-maxVisible] and returns
+// the adjusted offset and the exclusive end index for slicing.
+func clampViewport(total, maxVisible, offset int) (clampedOffset, end int) {
+	clampedOffset = max(0, offset)
+	if total > maxVisible {
+		clampedOffset = min(clampedOffset, total-maxVisible)
+	}
+	end = min(clampedOffset+maxVisible, total)
+	return clampedOffset, end
+}
+
 var DefaultSpinner = spinner.New(
 	spinner.WithSpinner(spinner.Spinner{
 		Frames: []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"},
@@ -124,12 +135,7 @@ func RenderResults(m *model.Model, width int) string {
 	totalRows := len(allRows)
 	maxVisible := HistoryVisibleRows(m.Height, totalRows)
 
-	offset := max(0, m.HistoryOffset)
-	if totalRows > maxVisible {
-		offset = min(offset, totalRows-maxVisible)
-	}
-
-	end := min(offset+maxVisible, totalRows)
+	offset, end := clampViewport(totalRows, maxVisible, m.HistoryOffset)
 
 	visibleRows := allRows[offset:end]
 
@@ -240,16 +246,11 @@ func RenderServerSelection(m *model.Model, width int) string {
 	}
 
 	visible := ServerListVisibleLines(m.Height, total)
-	offset := max(0, m.ServerListOffset)
-	if total > visible {
-		offset = min(offset, total-visible)
-	}
+	offset, end := clampViewport(total, visible, m.ServerListOffset)
 
 	if offset > 0 {
 		fmt.Fprintf(&b, "  ↑ %d more\n", offset)
 	}
-
-	end := min(offset+visible, total)
 
 	for i := offset; i < end; i++ {
 		server := m.ServerList[i]

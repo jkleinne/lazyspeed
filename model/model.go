@@ -1,6 +1,7 @@
 package model
 
 import (
+	"cmp"
 	"context"
 	"encoding/csv"
 	"encoding/json"
@@ -8,7 +9,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -200,9 +201,9 @@ func (m *Model) ExportDir() (string, error) {
 
 // pingResult holds the aggregated outcome of a ping measurement.
 type pingResult struct {
-	Pings   []float64
-	AvgPing float64
-	Jitter  float64
+	pings   []float64
+	avgPing float64
+	jitter  float64
 }
 
 // pingObserver is called after each successful ping measurement.
@@ -211,7 +212,7 @@ type pingObserver func(iteration, total int, ping, jitter float64)
 
 // measurePing runs count ping iterations against server and computes avg/jitter.
 // observe is called after each successful ping; pass nil to skip progress reporting.
-// Callers should check len(result.Pings) == 0 to detect total ping failure.
+// Callers should check len(result.pings) == 0 to detect total ping failure.
 func measurePing(ctx context.Context, backend Backend, server *speedtest.Server, count int, observe pingObserver) (*pingResult, error) {
 	var pings []float64
 	var sumPing float64
@@ -242,17 +243,17 @@ func measurePing(ctx context.Context, backend Backend, server *speedtest.Server,
 		}
 	}
 
-	result := &pingResult{Pings: pings}
+	result := &pingResult{pings: pings}
 
 	if len(pings) > 0 {
-		result.AvgPing = sumPing / float64(len(pings))
+		result.avgPing = sumPing / float64(len(pings))
 	}
 	if len(pings) > 1 {
 		var sum float64
 		for i := 1; i < len(pings); i++ {
 			sum += math.Abs(pings[i] - pings[i-1])
 		}
-		result.Jitter = sum / float64(len(pings)-1)
+		result.jitter = sum / float64(len(pings)-1)
 	}
 
 	return result, nil
@@ -349,8 +350,8 @@ func (m *Model) FetchServerList(ctx context.Context) error {
 		}
 		return fmt.Errorf("failed to fetch servers: %v", err)
 	}
-	sort.Slice(serverList, func(i, j int) bool {
-		return serverList[i].Latency < serverList[j].Latency
+	slices.SortFunc(serverList, func(a, b *speedtest.Server) int {
+		return cmp.Compare(a.Latency, b.Latency)
 	})
 	m.ServerList = serverList
 	return nil
@@ -444,7 +445,10 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		m.Testing = false
 		return err
 	}
-	m.PingResults = pr.Pings
+	m.PingResults = pr.pings
+	if len(pr.pings) == 0 {
+		m.Warning = "all ping measurements failed; ping and jitter are reported as 0"
+	}
 
 	sendUpdate(progressDownloadStart, "Starting download test...", updateChan)
 	dlDone, dlAck := monitorTransferProgress(ctx, transferPhase{
@@ -499,8 +503,8 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	result := &SpeedTestResult{
 		DownloadSpeed: dlSpeed,
 		UploadSpeed:   ulSpeed,
-		Ping:          pr.AvgPing,
-		Jitter:        pr.Jitter,
+		Ping:          pr.avgPing,
+		Jitter:        pr.jitter,
 		ServerName:    server.Name,
 		ServerSponsor: server.Sponsor,
 		ServerCountry: server.Country,
@@ -613,8 +617,8 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 	return &SpeedTestResult{
 		DownloadSpeed: dlSpeed,
 		UploadSpeed:   ulSpeed,
-		Ping:          pr.AvgPing,
-		Jitter:        pr.Jitter,
+		Ping:          pr.avgPing,
+		Jitter:        pr.jitter,
 		ServerName:    server.Name,
 		ServerSponsor: server.Sponsor,
 		ServerCountry: server.Country,

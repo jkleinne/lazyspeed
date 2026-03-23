@@ -1686,16 +1686,16 @@ func TestMeasurePing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("measurePing failed: %v", err)
 	}
-	if len(result.Pings) != 3 {
-		t.Fatalf("got %d pings, want 3", len(result.Pings))
+	if len(result.pings) != 3 {
+		t.Fatalf("got %d pings, want 3", len(result.pings))
 	}
 	// avg = (10+12+8)/3 = 10
-	if result.AvgPing != 10 {
-		t.Errorf("AvgPing = %f, want 10", result.AvgPing)
+	if result.avgPing != 10 {
+		t.Errorf("AvgPing = %f, want 10", result.avgPing)
 	}
 	// jitter = mean of |12-10|, |8-12| = (2+4)/2 = 3
-	if result.Jitter != 3 {
-		t.Errorf("Jitter = %f, want 3", result.Jitter)
+	if result.jitter != 3 {
+		t.Errorf("Jitter = %f, want 3", result.jitter)
 	}
 }
 
@@ -1712,14 +1712,14 @@ func TestMeasurePingSinglePingZeroJitter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("measurePing failed: %v", err)
 	}
-	if len(result.Pings) != 1 {
-		t.Fatalf("got %d pings, want 1", len(result.Pings))
+	if len(result.pings) != 1 {
+		t.Fatalf("got %d pings, want 1", len(result.pings))
 	}
-	if result.AvgPing != 15 {
-		t.Errorf("AvgPing = %f, want 15", result.AvgPing)
+	if result.avgPing != 15 {
+		t.Errorf("AvgPing = %f, want 15", result.avgPing)
 	}
-	if result.Jitter != 0 {
-		t.Errorf("Jitter = %f, want 0 (single ping)", result.Jitter)
+	if result.jitter != 0 {
+		t.Errorf("Jitter = %f, want 0 (single ping)", result.jitter)
 	}
 }
 
@@ -1755,11 +1755,14 @@ func TestMeasurePingNoPings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("measurePing should not error: %v", err)
 	}
-	if len(result.Pings) != 0 {
-		t.Errorf("got %d pings, want 0", len(result.Pings))
+	if len(result.pings) != 0 {
+		t.Errorf("got %d pings, want 0", len(result.pings))
 	}
-	if result.AvgPing != 0 {
-		t.Errorf("AvgPing = %f, want 0", result.AvgPing)
+	if result.avgPing != 0 {
+		t.Errorf("avgPing = %f, want 0", result.avgPing)
+	}
+	if result.jitter != 0 {
+		t.Errorf("jitter = %f, want 0", result.jitter)
 	}
 }
 
