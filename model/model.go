@@ -36,7 +36,7 @@ const (
 	progressUploadStart   = 0.8
 	progressUploadSpan    = 0.15
 	progressUploadMax     = 0.95
-	progressUploadDone    = 0.9 // intentionally < progressUploadMax: progress steps down when phase finishes
+	progressUploadDone    = 0.96
 	progressComplete      = 1.0
 )
 
@@ -205,9 +205,14 @@ type pingResult struct {
 	Jitter  float64
 }
 
+// pingObserver is called after each successful ping measurement.
+// iteration is 1-based; jitter is 0 when fewer than 2 pings have been recorded.
+type pingObserver func(iteration, total int, ping, jitter float64)
+
 // measurePing runs count ping iterations against server and computes avg/jitter.
+// observe is called after each successful ping; pass nil to skip progress reporting.
 // Callers should check len(result.Pings) == 0 to detect total ping failure.
-func measurePing(ctx context.Context, backend Backend, server *speedtest.Server, count int) (*pingResult, error) {
+func measurePing(ctx context.Context, backend Backend, server *speedtest.Server, count int, observe pingObserver) (*pingResult, error) {
 	var pings []float64
 	var sumPing float64
 
@@ -219,6 +224,13 @@ func measurePing(ctx context.Context, backend Backend, server *speedtest.Server,
 			ping := float64(latency.Milliseconds())
 			pings = append(pings, ping)
 			sumPing += ping
+			var currentJitter float64
+			if len(pings) > 1 {
+				currentJitter = math.Abs(pings[len(pings)-1] - pings[len(pings)-2])
+			}
+			if observe != nil {
+				observe(i+1, count, ping, currentJitter)
+			}
 		})
 		if err != nil {
 			continue
@@ -350,7 +362,7 @@ type transferPhase struct {
 	span    float64
 	maxProg float64
 	label   string
-	rateFn  func() float64
+	rateFn  func() float64 // must return rate in bytes/sec
 }
 
 // monitorTransferProgress runs a ticker goroutine that reports progress during
@@ -418,7 +430,15 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	}
 
 	sendUpdate(progressPingStart, "Measuring ping and jitter...", updateChan)
-	pr, err := measurePing(ctx, m.Backend, server, pingCount)
+	pr, err := measurePing(ctx, m.Backend, server, pingCount, func(i, total int, ping, jitter float64) {
+		if jitter > 0 {
+			sendUpdate(progressPingStart+float64(i)*progressPingIncrement,
+				fmt.Sprintf("Ping: %.1f ms, Jitter: %.1f ms (%d/%d)", ping, jitter, i, total), updateChan)
+		} else {
+			sendUpdate(progressPingStart+float64(i)*progressPingIncrement,
+				fmt.Sprintf("Ping: %.1f ms (%d/%d)", ping, i, total), updateChan)
+		}
+	})
 	if err != nil {
 		m.Testing = false
 		return err
@@ -431,7 +451,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		span:    progressDownloadSpan,
 		maxProg: progressDownloadMax,
 		label:   "download",
-		rateFn:  func() float64 { return float64(server.Context.GetEWMADownloadRate()) },
+		rateFn:  func() float64 { return server.Context.GetEWMADownloadRate() },
 	}, updateChan)
 	err = m.Backend.DownloadTest(server)
 	close(dlDone)
@@ -453,7 +473,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		span:    progressUploadSpan,
 		maxProg: progressUploadMax,
 		label:   "upload",
-		rateFn:  func() float64 { return float64(server.Context.GetEWMAUploadRate()) },
+		rateFn:  func() float64 { return server.Context.GetEWMAUploadRate() },
 	}, updateChan)
 	err = m.Backend.UploadTest(server)
 	close(ulDone)
@@ -556,7 +576,9 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 	}
 
 	callProgressFn(opts.ProgressFn, fmt.Sprintf("Measuring ping (0/%d)...", headlessPingCount))
-	pr, err := measurePing(ctx, m.Backend, server, headlessPingCount)
+	pr, err := measurePing(ctx, m.Backend, server, headlessPingCount, func(i, total int, ping, _ float64) {
+		callProgressFn(opts.ProgressFn, fmt.Sprintf("Measuring ping (%d/%d): %.1f ms", i, total, ping))
+	})
 	if err != nil {
 		return nil, err
 	}

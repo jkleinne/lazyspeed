@@ -243,12 +243,9 @@ func RenderServerSelection(m *model.Model, width int) string {
 	}
 
 	visible := ServerListVisibleLines(m.Height, total)
-	offset := m.ServerListOffset
-	if offset < 0 {
-		offset = 0
-	}
-	if offset > total-visible {
-		offset = total - visible
+	offset := max(0, m.ServerListOffset)
+	if total > visible {
+		offset = min(offset, total-visible)
 	}
 
 	if offset > 0 {

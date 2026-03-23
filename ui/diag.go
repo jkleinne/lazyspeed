@@ -186,11 +186,9 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 	totalRows := len(result.Hops)
 	maxVisible := min(totalRows, max(diagMinVisible, height-diagExpandedOverhead))
 
+	offset = max(0, offset)
 	if totalRows > maxVisible {
-		offset = max(0, min(offset, totalRows-maxVisible))
-	}
-	if offset < 0 {
-		offset = 0
+		offset = min(offset, totalRows-maxVisible)
 	}
 
 	end := offset + maxVisible
