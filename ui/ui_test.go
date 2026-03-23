@@ -545,3 +545,50 @@ func TestHistoryVisibleRows(t *testing.T) {
 		})
 	}
 }
+
+func TestSpinnerBoxWidth(t *testing.T) {
+	tests := []struct {
+		name      string
+		termWidth int
+		expected  int
+	}{
+		{"Narrow terminal clamps to min", 30, 40},
+		{"Medium terminal", 60, 50},
+		{"Standard terminal", 90, 80},
+		{"Wide terminal clamps to max", 200, 80},
+		{"Exact boundary low", 50, 40},
+		{"Exact boundary high", 90, 80},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := spinnerBoxWidth(tt.termWidth)
+			if got != tt.expected {
+				t.Errorf("spinnerBoxWidth(%d) = %d, want %d",
+					tt.termWidth, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestNewProgress(t *testing.T) {
+	tests := []struct {
+		name     string
+		boxWidth int
+	}{
+		{"Standard box width", 70},
+		{"Minimum box width", 40},
+		{"Very small box triggers floor", 15},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := newProgress(tt.boxWidth)
+			// ViewAs should not panic for any box width
+			out := p.ViewAs(0.5)
+			if out == "" {
+				t.Error("expected non-empty progress bar output")
+			}
+		})
+	}
+}
