@@ -1565,3 +1565,43 @@ func TestLegacyHistoryPath(t *testing.T) {
 		t.Errorf("Expected /tmp/fakehome/.lazyspeed_history.json, got %s", path)
 	}
 }
+
+func TestDiagnosticsConfigDefaults(t *testing.T) {
+	cfg := DefaultConfig()
+	if cfg.Diagnostics.MaxHops != 30 {
+		t.Errorf("MaxHops = %d, want 30", cfg.Diagnostics.MaxHops)
+	}
+	if cfg.Diagnostics.Timeout != 60 {
+		t.Errorf("Timeout = %d, want 60", cfg.Diagnostics.Timeout)
+	}
+	if cfg.Diagnostics.MaxEntries != 20 {
+		t.Errorf("MaxEntries = %d, want 20", cfg.Diagnostics.MaxEntries)
+	}
+}
+
+func TestDiagnosticsConfigOverlay(t *testing.T) {
+	dir := t.TempDir()
+	content := []byte("diagnostics:\n  max_hops: 15\n  timeout: 45\n")
+	if err := os.MkdirAll(filepath.Join(dir, "lazyspeed"), 0755); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+	configDst := filepath.Join(dir, "lazyspeed", "config.yaml")
+	if err := os.WriteFile(configDst, content, 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if cfg.Diagnostics.MaxHops != 15 {
+		t.Errorf("MaxHops = %d, want 15", cfg.Diagnostics.MaxHops)
+	}
+	if cfg.Diagnostics.Timeout != 45 {
+		t.Errorf("Timeout = %d, want 45", cfg.Diagnostics.Timeout)
+	}
+	if cfg.Diagnostics.MaxEntries != 20 {
+		t.Errorf("MaxEntries = %d, want 20 (default)", cfg.Diagnostics.MaxEntries)
+	}
+}

@@ -6,9 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jkleinne/lazyspeed/diag"
 	"github.com/jkleinne/lazyspeed/model"
 	"github.com/jkleinne/lazyspeed/ui"
 )
@@ -21,7 +23,11 @@ type exportDoneMsg struct {
 
 const keyCtrlC = "ctrl+c"
 
+const keyDown = "down"
+
 const fetchingServerListPhase = "Fetching server list..."
+
+const runningDiagnosticsPhase = "Running diagnostics..."
 
 type speedTest struct {
 	model        *model.Model
@@ -30,6 +36,12 @@ type speedTest struct {
 	progressChan chan model.ProgressUpdate
 	errChan      chan error
 	cancelTest   context.CancelFunc
+
+	diagResult       *diag.DiagResult
+	diagRunning      bool
+	showDiagCompact  bool
+	showDiagExpanded bool
+	diagOffset       int
 }
 
 type progressMsg struct {
@@ -43,6 +55,33 @@ type testComplete struct {
 
 type serverListMsg struct {
 	err error
+}
+
+type diagCompleteMsg struct {
+	result *diag.DiagResult
+	err    error
+}
+
+func runDiagCmd(m *model.Model, cfg *diag.DiagConfig) tea.Cmd {
+	return func() tea.Msg {
+		var target string
+		if len(m.ServerList) > 0 {
+			srv := m.ServerList[0]
+			target = stripPort(srv.Host)
+			if target == "" {
+				target = srv.Name
+			}
+		} else {
+			target = "8.8.8.8"
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Timeout)*time.Second)
+		defer cancel()
+
+		backend := &diag.RealDiagBackend{}
+		result, err := diag.Run(ctx, backend, target, cfg)
+		return diagCompleteMsg{result: result, err: err}
+	}
 }
 
 func fetchServerListCmd(m *model.Model) tea.Cmd {
@@ -124,7 +163,7 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					s.model.Cursor--
 					s.adjustServerListOffset()
 				}
-			case "down", "j":
+			case keyDown, "j":
 				if s.model.Cursor < len(s.model.ServerList)-1 {
 					s.model.Cursor++
 					s.adjustServerListOffset()
@@ -159,6 +198,61 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					waitForProgress(s.progressChan, s.errChan),
 				)
 			}
+		} else if s.showDiagExpanded {
+			switch msg.String() {
+			case "q", keyCtrlC:
+				s.quitting = true
+				return s, tea.Quit
+			case "esc":
+				s.showDiagExpanded = false
+				s.showDiagCompact = true
+			case "up", "k":
+				if s.diagOffset > 0 {
+					s.diagOffset--
+				}
+			case keyDown, "j":
+				if s.diagResult != nil && s.diagOffset < len(s.diagResult.Hops)-1 {
+					s.diagOffset++
+				}
+			case "d":
+				s.showDiagExpanded = false
+				s.showDiagCompact = false
+				s.diagResult = nil
+				s.diagRunning = true
+				s.model.CurrentPhase = runningDiagnosticsPhase
+				cfg := diagConfigFromModel(s.model)
+				return s, tea.Batch(s.spinner.Tick, runDiagCmd(s.model, cfg))
+			}
+			return s, nil
+		} else if s.showDiagCompact {
+			switch msg.String() {
+			case "q", keyCtrlC:
+				s.quitting = true
+				return s, tea.Quit
+			case "enter":
+				s.showDiagCompact = false
+				s.showDiagExpanded = true
+				s.diagOffset = 0
+			case "d":
+				s.showDiagCompact = false
+				s.diagResult = nil
+				s.diagRunning = true
+				s.model.CurrentPhase = runningDiagnosticsPhase
+				cfg := diagConfigFromModel(s.model)
+				return s, tea.Batch(s.spinner.Tick, runDiagCmd(s.model, cfg))
+			case "n":
+				s.showDiagCompact = false
+				s.diagResult = nil
+				if s.model.FetchingServers {
+					s.model.PendingServerSelection = true
+					s.model.CurrentPhase = fetchingServerListPhase
+					return s, s.spinner.Tick
+				}
+				s.model.SelectingServer = true
+				s.model.Cursor = 0
+				s.model.ServerListOffset = 0
+			}
+			return s, nil
 		} else {
 			switch msg.String() {
 			case "q", keyCtrlC:
@@ -169,7 +263,7 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if s.model.HistoryOffset > 0 {
 					s.model.HistoryOffset--
 				}
-			case "down", "j":
+			case keyDown, "j":
 				totalRows := len(s.model.TestHistory) - 1
 				maxVisible := ui.HistoryVisibleRows(s.model.Height, totalRows)
 				if totalRows > maxVisible && s.model.HistoryOffset < totalRows-maxVisible {
@@ -188,6 +282,17 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					s.model.Cursor = 0
 					s.model.ServerListOffset = 0
 					s.model.ShowHelp = false
+				}
+			case "d":
+				if !s.model.Testing && !s.model.SelectingServer && !s.diagRunning {
+					s.diagRunning = true
+					s.showDiagCompact = false
+					s.showDiagExpanded = false
+					s.diagResult = nil
+					s.model.CurrentPhase = runningDiagnosticsPhase
+					s.model.ShowHelp = false
+					cfg := diagConfigFromModel(s.model)
+					return s, tea.Batch(s.spinner.Tick, runDiagCmd(s.model, cfg))
 				}
 			case "e":
 				if !s.model.Testing && s.model.Results != nil {
@@ -251,6 +356,22 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.model.ExportMessage = fmt.Sprintf("Saved to %s", msg.path)
 		}
 		return s, nil
+
+	case diagCompleteMsg:
+		s.diagRunning = false
+		s.model.CurrentPhase = ""
+		if msg.err != nil {
+			s.model.Error = msg.err
+		} else {
+			s.diagResult = msg.result
+			s.showDiagCompact = true
+			m := s.model
+			cfg := diagConfigFromModel(m)
+			history, _ := diag.LoadHistory(cfg.Path)
+			history = append(history, msg.result)
+			_ = diag.SaveHistory(cfg.Path, history, cfg.MaxEntries)
+		}
+		return s, nil
 	}
 
 	return s, cmd
@@ -271,6 +392,15 @@ func (s *speedTest) View() string {
 	} else if s.model.Testing {
 		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, s.model.Progress))
 		b.WriteString("\n\n")
+	} else if s.diagRunning {
+		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, 0))
+		b.WriteString("\n\n")
+	} else if s.showDiagCompact && s.diagResult != nil {
+		b.WriteString(ui.RenderDiagCompact(s.diagResult, s.model.Width))
+		b.WriteString("\n")
+	} else if s.showDiagExpanded && s.diagResult != nil {
+		b.WriteString(ui.RenderDiagExpanded(s.diagResult, s.model.Width, s.model.Height, s.diagOffset))
+		b.WriteString("\n")
 	} else {
 		if s.model.Results != nil || len(s.model.TestHistory) > 0 {
 			b.WriteString(ui.RenderResults(s.model, s.model.Width))
