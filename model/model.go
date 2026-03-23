@@ -137,16 +137,10 @@ func NewModel(backend Backend, cfg *Config) *Model {
 		cfg = DefaultConfig()
 	}
 	return &Model{
-		Results:         nil,
-		TestHistory:     make([]*SpeedTestResult, 0),
-		Testing:         false,
-		Progress:        0,
-		CurrentPhase:    "",
-		ShowHelp:        true,
-		SelectingServer: false,
-		Cursor:          0,
-		Backend:         backend,
-		Config:          cfg,
+		TestHistory: make([]*SpeedTestResult, 0),
+		ShowHelp:    true,
+		Backend:     backend,
+		Config:      cfg,
 	}
 }
 
