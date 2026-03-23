@@ -84,7 +84,7 @@ func (r *SpeedTestResult) UnmarshalJSON(data []byte) error {
 // CSVRow returns the result as a string slice suitable for csv.Writer.Write.
 func (r *SpeedTestResult) CSVRow() []string {
 	return []string{
-		r.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
+		r.Timestamp.Format(time.RFC3339),
 		r.ServerName,
 		r.ServerCountry,
 		fmt.Sprintf("%.2f", r.DownloadSpeed),
@@ -431,11 +431,12 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 
 	sendUpdate(progressPingStart, "Measuring ping and jitter...", updateChan)
 	pr, err := measurePing(ctx, m.Backend, server, pingCount, func(i, total int, ping, jitter float64) {
+		pingProgress := min(progressPingStart+float64(i)*progressPingIncrement, progressDownloadStart)
 		if jitter > 0 {
-			sendUpdate(progressPingStart+float64(i)*progressPingIncrement,
+			sendUpdate(pingProgress,
 				fmt.Sprintf("Ping: %.1f ms, Jitter: %.1f ms (%d/%d)", ping, jitter, i, total), updateChan)
 		} else {
-			sendUpdate(progressPingStart+float64(i)*progressPingIncrement,
+			sendUpdate(pingProgress,
 				fmt.Sprintf("Ping: %.1f ms (%d/%d)", ping, i, total), updateChan)
 		}
 	})

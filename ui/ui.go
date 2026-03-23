@@ -129,10 +129,7 @@ func RenderResults(m *model.Model, width int) string {
 		offset = min(offset, totalRows-maxVisible)
 	}
 
-	end := offset + maxVisible
-	if end > totalRows {
-		end = totalRows
-	}
+	end := min(offset+maxVisible, totalRows)
 
 	visibleRows := allRows[offset:end]
 
@@ -252,10 +249,7 @@ func RenderServerSelection(m *model.Model, width int) string {
 		fmt.Fprintf(&b, "  ↑ %d more\n", offset)
 	}
 
-	end := offset + visible
-	if end > total {
-		end = total
-	}
+	end := min(offset+visible, total)
 
 	for i := offset; i < end; i++ {
 		server := m.ServerList[i]

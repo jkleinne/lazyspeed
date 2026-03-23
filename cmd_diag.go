@@ -262,7 +262,7 @@ func diagCSVRow(r *diag.DiagResult) []string {
 	finalLatencyMs := diagFinalHopLatencyMs(r.Hops)
 
 	return []string{
-		r.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
+		r.Timestamp.Format(time.RFC3339),
 		r.Target,
 		r.Method,
 		fmt.Sprintf("%d", r.Quality.Score),

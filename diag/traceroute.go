@@ -209,7 +209,7 @@ func udpTraceroute(ctx context.Context, destIP string, maxHops int) ([]Hop, erro
 	return hops, nil
 }
 
-// udpTraceHop sends a UDP packet to port 33434+ttl with a specific TTL
+// udpTraceHop sends a UDP packet to tracerouteBasePort+ttl with a specific TTL
 // and listens for an ICMP TTL Exceeded response.
 func udpTraceHop(ctx context.Context, icmpConn *icmp.PacketConn, destIP string, ttl int) Hop {
 	hop := Hop{Number: ttl}

@@ -2,7 +2,7 @@ package ui
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -36,7 +36,7 @@ func findAnomalies(hops []diag.Hop) []diag.Hop {
 
 	sorted := make([]float64, len(latencies))
 	copy(sorted, latencies)
-	sort.Float64s(sorted)
+	slices.Sort(sorted)
 
 	var median float64
 	n := len(sorted)
@@ -191,10 +191,7 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 		offset = min(offset, totalRows-maxVisible)
 	}
 
-	end := offset + maxVisible
-	if end > totalRows {
-		end = totalRows
-	}
+	end := min(offset+maxVisible, totalRows)
 
 	// Up indicator
 	if offset > 0 {
