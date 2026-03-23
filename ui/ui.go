@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
@@ -24,22 +23,13 @@ func RenderTitle(width int) string {
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, title)
 }
 
-var DefaultProgress = progress.New(
-	progress.WithDefaultGradient(),
-	progress.WithWidth(50),
-	progress.WithoutPercentage(),
-)
-
 func RenderSpinner(s spinner.Model, width int, phase string, progressAmount float64) string {
 	spinnerView := spinnerStyle.Render(s.View())
 	phaseText := fmt.Sprintf("⏳ %s", phase)
 
-	progressBar := DefaultProgress.ViewAs(progressAmount)
-	progressStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#7D56F4")).
-		PaddingLeft(2).
-		PaddingRight(2)
-
+	bw := spinnerBoxWidth(width)
+	prog := newProgress(bw)
+	progressBar := prog.ViewAs(progressAmount)
 	progressView := progressStyle.Render(progressBar)
 
 	content := lipgloss.JoinVertical(lipgloss.Center,
@@ -51,18 +41,11 @@ func RenderSpinner(s spinner.Model, width int, phase string, progressAmount floa
 		progressView,
 	)
 
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#7D56F4")).
-		PaddingLeft(1).
-		PaddingRight(1).
-		Width(70)
-
-	boxedContent := boxStyle.Render(
-		lipgloss.PlaceHorizontal(68, lipgloss.Center, content),
+	sized := boxStyle.Width(bw).Render(
+		lipgloss.PlaceHorizontal(bw-2, lipgloss.Center, content),
 	)
 
-	return lipgloss.PlaceHorizontal(width, lipgloss.Center, boxedContent)
+	return lipgloss.PlaceHorizontal(width, lipgloss.Center, sized)
 }
 
 func RenderResults(m *model.Model, width int) string {
@@ -156,7 +139,7 @@ func RenderResults(m *model.Model, width int) string {
 		Headers(headers...).
 		Rows(visibleRows...).
 		Border(lipgloss.RoundedBorder()).
-		BorderStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))).
+		BorderStyle(tableBorderStyle).
 		StyleFunc(func(row, _ int) lipgloss.Style {
 			if row == table.HeaderRow {
 				return headerStyle
@@ -169,10 +152,7 @@ func RenderResults(m *model.Model, width int) string {
 
 	tableStr := t.Render()
 
-	label := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#7D56F4")).
-		Bold(true).
-		Render("📊 Previous Tests")
+	label := sectionLabelStyle.Render("📊 Previous Tests")
 
 	historyContent := lipgloss.JoinVertical(lipgloss.Left, label, "", tableStr)
 
