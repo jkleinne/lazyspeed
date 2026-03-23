@@ -130,17 +130,7 @@ func runHeadlessTest() {
 		if runJSON {
 			jsonResults = append(jsonResults, res)
 		} else if runCSV {
-			_ = csvWriter.Write([]string{
-				res.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
-				res.ServerName,
-				res.ServerCountry,
-				fmt.Sprintf("%.2f", res.DownloadSpeed),
-				fmt.Sprintf("%.2f", res.UploadSpeed),
-				fmt.Sprintf("%.2f", res.Ping),
-				fmt.Sprintf("%.2f", res.Jitter),
-				res.UserIP,
-				res.UserISP,
-			})
+			_ = csvWriter.Write(res.CSVRow())
 			csvWriter.Flush()
 		} else if runSimple {
 			fmt.Println(formatSimpleResult(res))

@@ -81,6 +81,21 @@ func (r *SpeedTestResult) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// CSVRow returns the result as a string slice suitable for csv.Writer.Write.
+func (r *SpeedTestResult) CSVRow() []string {
+	return []string{
+		r.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
+		r.ServerName,
+		r.ServerCountry,
+		fmt.Sprintf("%.2f", r.DownloadSpeed),
+		fmt.Sprintf("%.2f", r.UploadSpeed),
+		fmt.Sprintf("%.2f", r.Ping),
+		fmt.Sprintf("%.2f", r.Jitter),
+		r.UserIP,
+		r.UserISP,
+	}
+}
+
 // RunOptions configures a headless speed test run.
 type RunOptions struct {
 	SkipDownload bool
@@ -506,17 +521,7 @@ func ExportResult(result *SpeedTestResult, format string, dir string) (string, e
 		defer func() { _ = f.Close() }()
 		w := csv.NewWriter(f)
 		_ = w.Write([]string{"timestamp", "server", "country", "download_mbps", "upload_mbps", "ping_ms", "jitter_ms", "ip", "isp"})
-		_ = w.Write([]string{
-			result.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
-			result.ServerName,
-			result.ServerCountry,
-			fmt.Sprintf("%.2f", result.DownloadSpeed),
-			fmt.Sprintf("%.2f", result.UploadSpeed),
-			fmt.Sprintf("%.2f", result.Ping),
-			fmt.Sprintf("%.2f", result.Jitter),
-			result.UserIP,
-			result.UserISP,
-		})
+		_ = w.Write(result.CSVRow())
 		w.Flush()
 		if err := w.Error(); err != nil {
 			return "", fmt.Errorf("failed to flush CSV writer: %v", err)

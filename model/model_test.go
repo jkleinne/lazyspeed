@@ -1605,3 +1605,40 @@ func TestDiagnosticsConfigOverlay(t *testing.T) {
 		t.Errorf("MaxEntries = %d, want 20 (default)", cfg.Diagnostics.MaxEntries)
 	}
 }
+
+func TestResultCSVRow(t *testing.T) {
+	ts := time.Date(2026, 3, 15, 12, 30, 45, 0, time.UTC)
+	res := &SpeedTestResult{
+		Timestamp:     ts,
+		ServerName:    "Test Server",
+		ServerCountry: "US",
+		DownloadSpeed: 95.50,
+		UploadSpeed:   45.25,
+		Ping:          12.34,
+		Jitter:        1.56,
+		UserIP:        "1.2.3.4",
+		UserISP:       "Test ISP",
+	}
+
+	row := res.CSVRow()
+	if len(row) != 9 {
+		t.Fatalf("CSVRow() returned %d fields, want 9", len(row))
+	}
+
+	want := []string{
+		"2026-03-15T12:30:45Z",
+		"Test Server",
+		"US",
+		"95.50",
+		"45.25",
+		"12.34",
+		"1.56",
+		"1.2.3.4",
+		"Test ISP",
+	}
+	for i, w := range want {
+		if row[i] != w {
+			t.Errorf("row[%d] = %q, want %q", i, row[i], w)
+		}
+	}
+}

@@ -80,17 +80,7 @@ func runHistory() {
 		w := csv.NewWriter(os.Stdout)
 		_ = w.Write([]string{"timestamp", "server", "country", "download_mbps", "upload_mbps", "ping_ms", "jitter_ms", "ip", "isp"})
 		for _, res := range entries {
-			_ = w.Write([]string{
-				res.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
-				res.ServerName,
-				res.ServerCountry,
-				fmt.Sprintf("%.2f", res.DownloadSpeed),
-				fmt.Sprintf("%.2f", res.UploadSpeed),
-				fmt.Sprintf("%.2f", res.Ping),
-				fmt.Sprintf("%.2f", res.Jitter),
-				res.UserIP,
-				res.UserISP,
-			})
+			_ = w.Write(res.CSVRow())
 		}
 		w.Flush()
 
