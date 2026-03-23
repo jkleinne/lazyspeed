@@ -23,6 +23,8 @@ type exportDoneMsg struct {
 
 const keyCtrlC = "ctrl+c"
 
+const keyUp = "up"
+
 const keyDown = "down"
 
 const fetchingServerListPhase = "Fetching server list..."
@@ -158,7 +160,7 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "q", keyCtrlC:
 				s.quitting = true
 				return s, tea.Quit
-			case "up", "k":
+			case keyUp, "k":
 				if s.model.Cursor > 0 {
 					s.model.Cursor--
 					s.adjustServerListOffset()
@@ -206,7 +208,7 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "esc":
 				s.showDiagExpanded = false
 				s.showDiagCompact = true
-			case "up", "k":
+			case keyUp, "k":
 				if s.diagOffset > 0 {
 					s.diagOffset--
 				}
@@ -259,7 +261,7 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				s.cancelTestIfRunning()
 				s.quitting = true
 				return s, tea.Quit
-			case "up", "k":
+			case keyUp, "k":
 				if s.model.HistoryOffset > 0 {
 					s.model.HistoryOffset--
 				}
