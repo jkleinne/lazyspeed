@@ -150,16 +150,16 @@ func RenderDiagCompact(result *diag.DiagResult, width int) string {
 	b.WriteString("\n\n")
 
 	// Target
-	b.WriteString(infoStyle.Render(fmt.Sprintf("Target: %s", result.Target)))
+	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, infoStyle.Render(fmt.Sprintf("Target: %s", result.Target))))
 	b.WriteString("\n\n")
 
 	// Score line
 	scoreStr := scoreStyle(result.Quality.Grade).Render(fmt.Sprintf("%d/100 (%s)", result.Quality.Score, result.Quality.Grade))
-	b.WriteString(scoreStr)
+	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, scoreStr))
 	b.WriteString("\n")
 
 	// Label
-	b.WriteString(infoStyle.Render(result.Quality.Label))
+	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, infoStyle.Render(result.Quality.Label)))
 	b.WriteString("\n\n")
 
 	// Summary line
@@ -175,7 +175,7 @@ func RenderDiagCompact(result *diag.DiagResult, width int) string {
 		dnsStr,
 		len(result.Hops),
 	)
-	b.WriteString(helpStyle.Render(summaryPrefix) + routeStatusStyled(result.Hops))
+	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, helpStyle.Render(summaryPrefix)+routeStatusStyled(result.Hops)))
 	b.WriteString("\n")
 
 	// Anomaly warnings
@@ -183,7 +183,7 @@ func RenderDiagCompact(result *diag.DiagResult, width int) string {
 	for _, a := range anomalies {
 		warn := fmt.Sprintf("Warning: hop %d (%s) has unusually high latency: %dms",
 			a.Number, a.IP, a.Latency.Milliseconds())
-		b.WriteString(warningStyle.Render(warn))
+		b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, warningStyle.Render(warn)))
 		b.WriteString("\n")
 	}
 
@@ -191,7 +191,7 @@ func RenderDiagCompact(result *diag.DiagResult, width int) string {
 
 	// Hint
 	hint := "Enter: expand trace | d: new diagnostic | n: speed test | q: quit"
-	b.WriteString(helpStyle.Render(hint))
+	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, helpStyle.Render(hint)))
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, b.String())
 }
@@ -227,9 +227,9 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 	colHeader := diagHeaderLightStyle.Render(
 		fmt.Sprintf("%-6s %-18s %-30s %s", "Hop", "IP", "Host", "Latency"),
 	)
-	b.WriteString(colHeader)
+	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, colHeader))
 	b.WriteString("\n")
-	b.WriteString(helpStyle.Render(strings.Repeat("─", 76)))
+	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, helpStyle.Render(strings.Repeat("─", 76))))
 	b.WriteString("\n")
 
 	// Viewport windowing — same pattern as HistoryVisibleRows
@@ -259,7 +259,7 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 
 	// Up indicator
 	if offset > 0 {
-		b.WriteString(helpStyle.Render(fmt.Sprintf("  ^ %d more above", offset)))
+		b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, helpStyle.Render(fmt.Sprintf("^ %d more above", offset))))
 		b.WriteString("\n")
 	}
 
@@ -289,26 +289,28 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 		)
 
 		// Alternate by absolute hop position so color is stable when scrolling
+		var styledRow string
 		if (offset+i)%2 == 0 {
-			b.WriteString(diagEvenRowStyle.Render(row))
+			styledRow = diagEvenRowStyle.Render(row)
 		} else {
-			b.WriteString(diagOddRowStyle.Render(row))
+			styledRow = diagOddRowStyle.Render(row)
 		}
+		b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, styledRow))
 		b.WriteString("\n")
 	}
 
 	// Down indicator / pagination
 	remaining := totalRows - end
 	if remaining > 0 {
-		b.WriteString(helpStyle.Render(fmt.Sprintf("  v %d more below", remaining)))
+		b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, helpStyle.Render(fmt.Sprintf("v %d more below", remaining))))
 		b.WriteString("\n")
 	}
 
 	if totalRows > maxVisible {
 		b.WriteString("\n")
-		b.WriteString(helpStyle.Render(
+		b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, helpStyle.Render(
 			fmt.Sprintf("Showing %d-%d of %d hops", offset+1, end, totalRows),
-		))
+		)))
 		b.WriteString("\n")
 	}
 
@@ -316,7 +318,7 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 
 	// Hint
 	hint := "Up/Down: scroll | Esc: compact view | d: new diagnostic | q: quit"
-	b.WriteString(helpStyle.Render(hint))
+	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, helpStyle.Render(hint)))
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, b.String())
 }
