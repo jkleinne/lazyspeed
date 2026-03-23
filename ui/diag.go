@@ -13,29 +13,29 @@ import (
 var (
 	diagTitleStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("#FAFAFA")).
-			Background(lipgloss.Color("#7D56F4")).
+			Foreground(lipgloss.Color(colorTextBright)).
+			Background(lipgloss.Color(colorPrimary)).
 			PaddingLeft(2).
 			PaddingRight(2)
 
 	latencyGreenStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#22c55e"))
+				Foreground(lipgloss.Color(colorStatusGreen))
 
 	latencyAmberStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#f59e0b"))
+				Foreground(lipgloss.Color(colorStatusAmber))
 
 	latencyRedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#ef4444"))
+			Foreground(lipgloss.Color(colorStatusRed))
 
 	diagHeaderLightStyle = lipgloss.NewStyle().
 				Bold(true).
-				Foreground(lipgloss.Color("#7D56F4"))
+				Foreground(lipgloss.Color(colorPrimary))
 
 	diagEvenRowStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#CCCCCC"))
+				Foreground(lipgloss.Color(colorTableEven))
 
 	diagOddRowStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#999999"))
+			Foreground(lipgloss.Color(colorTableOdd))
 )
 
 // latencyStyle returns the appropriate lipgloss style for a given latency.

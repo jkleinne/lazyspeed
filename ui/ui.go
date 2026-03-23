@@ -14,25 +14,25 @@ import (
 var (
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("#FAFAFA")).
-			Background(lipgloss.Color("#7D56F4")).
+			Foreground(lipgloss.Color(colorTextBright)).
+			Background(lipgloss.Color(colorPrimary)).
 			PaddingLeft(2).
 			PaddingRight(2)
 
 	infoStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FFFFFF"))
+			Foreground(lipgloss.Color(colorTextDefault))
 
 	errorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FF0000"))
+			Foreground(lipgloss.Color(colorError))
 
 	warningStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FFA500"))
+			Foreground(lipgloss.Color(colorWarning))
 
 	helpStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#626262"))
+			Foreground(lipgloss.Color(colorMuted))
 
 	spinnerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#7D56F4"))
+			Foreground(lipgloss.Color(colorPrimary))
 
 	DefaultSpinner = spinner.New(
 		spinner.WithSpinner(spinner.Spinner{
@@ -45,16 +45,16 @@ var (
 	// Table styles
 	headerStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("#FAFAFA")).
-			Background(lipgloss.Color("#7D56F4")).
+			Foreground(lipgloss.Color(colorTextBright)).
+			Background(lipgloss.Color(colorPrimary)).
 			Padding(0, 1)
 
 	evenRowStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#CCCCCC")).
+			Foreground(lipgloss.Color(colorTableEven)).
 			Padding(0, 1)
 
 	oddRowStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#999999")).
+			Foreground(lipgloss.Color(colorTableOdd)).
 			Padding(0, 1)
 )
 
