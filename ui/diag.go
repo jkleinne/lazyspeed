@@ -10,65 +10,10 @@ import (
 	"github.com/jkleinne/lazyspeed/diag"
 )
 
-var (
-	diagTitleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color(colorTextBright)).
-			Background(lipgloss.Color(colorPrimary)).
-			PaddingLeft(2).
-			PaddingRight(2)
-
-	latencyGreenStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(colorStatusGreen))
-
-	latencyAmberStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(colorStatusAmber))
-
-	latencyRedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorStatusRed))
-
-	diagHeaderLightStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color(colorPrimary))
-
-	diagEvenRowStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(colorTableEven))
-
-	diagOddRowStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorTableOdd))
-)
-
-// latencyStyle returns the appropriate lipgloss style for a given latency.
-func latencyStyle(d time.Duration) lipgloss.Style {
-	ms := d.Milliseconds()
-	switch {
-	case ms < 50:
-		return latencyGreenStyle
-	case ms <= 100:
-		return latencyAmberStyle
-	default:
-		return latencyRedStyle
-	}
-}
-
 // renderLatency formats a duration value with colour coding.
 func renderLatency(d time.Duration) string {
 	s := fmt.Sprintf("%dms", d.Milliseconds())
 	return latencyStyle(d).Render(s)
-}
-
-// scoreStyle returns a bold lipgloss style color-coded by grade.
-func scoreStyle(grade string) lipgloss.Style {
-	switch grade {
-	case "A":
-		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#22c55e"))
-	case "B", "C":
-		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#f59e0b"))
-	case "D", "F":
-		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#ef4444"))
-	default:
-		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4"))
-	}
 }
 
 // findAnomalies returns hops whose latency is more than 2x the median and

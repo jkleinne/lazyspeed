@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"time"
+
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -57,7 +59,61 @@ var (
 	oddRowStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(colorTableOdd)).
 			Padding(0, 1)
+
+	// Diagnostics styles
+	diagTitleStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color(colorTextBright)).
+			Background(lipgloss.Color(colorPrimary)).
+			PaddingLeft(2).
+			PaddingRight(2)
+
+	latencyGreenStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color(colorStatusGreen))
+
+	latencyAmberStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color(colorStatusAmber))
+
+	latencyRedStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(colorStatusRed))
+
+	diagHeaderLightStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color(colorPrimary))
+
+	diagEvenRowStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color(colorTableEven))
+
+	diagOddRowStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(colorTableOdd))
 )
+
+// scoreStyle returns a bold style color-coded by grade.
+func scoreStyle(grade string) lipgloss.Style {
+	switch grade {
+	case "A":
+		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorStatusGreen))
+	case "B", "C":
+		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorStatusAmber))
+	case "D", "F":
+		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorStatusRed))
+	default:
+		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorPrimary))
+	}
+}
+
+// latencyStyle returns the appropriate style for a given latency.
+func latencyStyle(d time.Duration) lipgloss.Style {
+	ms := d.Milliseconds()
+	switch {
+	case ms < 50:
+		return latencyGreenStyle
+	case ms <= 100:
+		return latencyAmberStyle
+	default:
+		return latencyRedStyle
+	}
+}
 
 // spinnerBoxWidth returns a responsive spinner box width clamped to [40, 80].
 func spinnerBoxWidth(termWidth int) int {
