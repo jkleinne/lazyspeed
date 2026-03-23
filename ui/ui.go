@@ -11,51 +11,12 @@ import (
 	"github.com/jkleinne/lazyspeed/model"
 )
 
-var (
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color(colorTextBright)).
-			Background(lipgloss.Color(colorPrimary)).
-			PaddingLeft(2).
-			PaddingRight(2)
-
-	infoStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorTextDefault))
-
-	errorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorError))
-
-	warningStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorWarning))
-
-	helpStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorMuted))
-
-	spinnerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorPrimary))
-
-	DefaultSpinner = spinner.New(
-		spinner.WithSpinner(spinner.Spinner{
-			Frames: []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"},
-			FPS:    3,
-		}),
-		spinner.WithStyle(spinnerStyle),
-	)
-
-	// Table styles
-	headerStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color(colorTextBright)).
-			Background(lipgloss.Color(colorPrimary)).
-			Padding(0, 1)
-
-	evenRowStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorTableEven)).
-			Padding(0, 1)
-
-	oddRowStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorTableOdd)).
-			Padding(0, 1)
+var DefaultSpinner = spinner.New(
+	spinner.WithSpinner(spinner.Spinner{
+		Frames: []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"},
+		FPS:    3,
+	}),
+	spinner.WithStyle(spinnerStyle),
 )
 
 func RenderTitle(width int) string {
