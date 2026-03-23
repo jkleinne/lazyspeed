@@ -23,6 +23,23 @@ const (
 	estimatedTestDurationMs = 15_000
 )
 
+const (
+	progressInit          = 0.0
+	progressFetchNet      = 0.1
+	progressServer        = 0.2
+	progressPingStart     = 0.3
+	progressPingIncrement = 0.02
+	progressDownloadStart = 0.5
+	progressDownloadSpan  = 0.25
+	progressDownloadMax   = 0.7
+	progressDownloadDone  = 0.75
+	progressUploadStart   = 0.8
+	progressUploadSpan    = 0.15
+	progressUploadMax     = 0.95
+	progressUploadDone    = 0.9 // intentionally < progressUploadMax: progress steps down when phase finishes
+	progressComplete      = 1.0
+)
+
 type ProgressUpdate struct {
 	Progress float64
 	Phase    string
@@ -279,9 +296,9 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	m.Results = nil
 	m.PingResults = make([]float64, 0)
 
-	sendUpdate(0.0, "Initializing speed test...", updateChan)
+	sendUpdate(progressInit, "Initializing speed test...", updateChan)
 
-	sendUpdate(0.1, "Fetching network information...", updateChan)
+	sendUpdate(progressFetchNet, "Fetching network information...", updateChan)
 	user, userErr := m.Backend.FetchUserInfo()
 	if userErr == nil {
 		m.User = user
@@ -294,14 +311,14 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		return ctx.Err()
 	}
 
-	sendUpdate(0.2, fmt.Sprintf("Testing with server: %s", server.Name), updateChan)
+	sendUpdate(progressServer, fmt.Sprintf("Testing with server: %s", server.Name), updateChan)
 
 	pingCount := pingIterations
 	if m.Config != nil && m.Config.Test.PingCount > 0 {
 		pingCount = m.Config.Test.PingCount
 	}
 
-	sendUpdate(0.3, "Measuring ping and jitter...", updateChan)
+	sendUpdate(progressPingStart, "Measuring ping and jitter...", updateChan)
 	var sumPing float64
 	for i := 0; i < pingCount; i++ {
 		if ctx.Err() != nil {
@@ -316,11 +333,11 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 				// Calculate current jitter for display
 				lastIdx := len(m.PingResults) - 1
 				currentJitter := math.Abs(m.PingResults[lastIdx] - m.PingResults[lastIdx-1])
-				sendUpdate(0.3+float64(i+1)*0.02,
+				sendUpdate(progressPingStart+float64(i+1)*progressPingIncrement,
 					fmt.Sprintf("Ping: %.1f ms, Jitter: %.1f ms (%d/%d)",
 						ping, currentJitter, i+1, pingCount), updateChan)
 			} else {
-				sendUpdate(0.3+float64(i+1)*0.02,
+				sendUpdate(progressPingStart+float64(i+1)*progressPingIncrement,
 					fmt.Sprintf("Ping: %.1f ms (%d/%d)", ping, i+1, pingCount), updateChan)
 			}
 		})
@@ -349,7 +366,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		return ctx.Err()
 	}
 
-	sendUpdate(0.5, "Starting download test...", updateChan)
+	sendUpdate(progressDownloadStart, "Starting download test...", updateChan)
 	done := make(chan struct{})
 	doneAck := make(chan struct{})
 	go func() {
@@ -365,7 +382,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 				return
 			case <-ticker.C:
 				elapsed := time.Since(start)
-				progress := min(0.5+(float64(elapsed.Milliseconds())/estimatedTestDurationMs)*0.25, 0.7)
+				progress := min(progressDownloadStart+(float64(elapsed.Milliseconds())/estimatedTestDurationMs)*progressDownloadSpan, progressDownloadMax)
 
 				// Fetch the Exponential Weighted Moving Average (EWMA) download rate in bytes/sec
 				rate := server.Context.GetEWMADownloadRate()
@@ -387,9 +404,9 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		return fmt.Errorf("download test failed: %v", err)
 	}
 	dlSpeed := float64(server.DLSpeed) / bytesToMbps
-	sendUpdate(0.75, fmt.Sprintf("Download complete: %.2f Mbps", dlSpeed), updateChan)
+	sendUpdate(progressDownloadDone, fmt.Sprintf("Download complete: %.2f Mbps", dlSpeed), updateChan)
 
-	sendUpdate(0.8, "Starting upload test...", updateChan)
+	sendUpdate(progressUploadStart, "Starting upload test...", updateChan)
 	done = make(chan struct{})
 	doneAck = make(chan struct{})
 	go func() {
@@ -405,7 +422,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 				return
 			case <-ticker.C:
 				elapsed := time.Since(start)
-				progress := min(0.8+(float64(elapsed.Milliseconds())/estimatedTestDurationMs)*0.15, 0.95)
+				progress := min(progressUploadStart+(float64(elapsed.Milliseconds())/estimatedTestDurationMs)*progressUploadSpan, progressUploadMax)
 
 				rate := server.Context.GetEWMAUploadRate()
 				mbps := float64(rate) / bytesToMbps
@@ -426,7 +443,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		return fmt.Errorf("upload test failed: %v", err)
 	}
 	ulSpeed := float64(server.ULSpeed) / bytesToMbps
-	sendUpdate(0.9, fmt.Sprintf("Upload complete: %.2f Mbps", ulSpeed), updateChan)
+	sendUpdate(progressUploadDone, fmt.Sprintf("Upload complete: %.2f Mbps", ulSpeed), updateChan)
 
 	var userIP, userISP string
 	if m.User != nil {
@@ -459,7 +476,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		m.Warning = fmt.Sprintf("failed to save history: %v", saveErr)
 	}
 
-	sendUpdate(1.0, "Test completed", updateChan)
+	sendUpdate(progressComplete, "Test completed", updateChan)
 	m.Testing = false
 	return nil
 }
