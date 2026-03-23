@@ -27,11 +27,15 @@ var (
 	latencyRedStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#ef4444"))
 
-	diagHeaderStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#FAFAFA")).
-			Background(lipgloss.Color("#7D56F4")).
-			Padding(0, 1)
+	diagHeaderLightStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("#7D56F4"))
+
+	diagEvenRowStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#CCCCCC"))
+
+	diagOddRowStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#999999"))
 )
 
 // latencyStyle returns the appropriate lipgloss style for a given latency.
@@ -220,12 +224,12 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 	b.WriteString("\n\n")
 
 	// Column headers
-	hopCol := diagHeaderStyle.Render("Hop")
-	ipCol := diagHeaderStyle.Render("IP")
-	hostCol := diagHeaderStyle.Render("Host")
-	latCol := diagHeaderStyle.Render("Latency")
-	colHeader := fmt.Sprintf("%-6s %-18s %-30s %s", hopCol, ipCol, hostCol, latCol)
+	colHeader := diagHeaderLightStyle.Render(
+		fmt.Sprintf("%-6s %-18s %-30s %s", "Hop", "IP", "Host", "Latency"),
+	)
 	b.WriteString(colHeader)
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render(strings.Repeat("─", 76)))
 	b.WriteString("\n")
 
 	// Viewport windowing — same pattern as HistoryVisibleRows
@@ -260,7 +264,7 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 	}
 
 	// Hop rows
-	for _, hop := range result.Hops[offset:end] {
+	for i, hop := range result.Hops[offset:end] {
 		var latStr string
 		if hop.Timeout {
 			latStr = latencyRedStyle.Render("timeout")
@@ -283,7 +287,13 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 			truncate(hostStr, 29),
 			latStr,
 		)
-		b.WriteString(infoStyle.Render(row))
+
+		// Alternate by absolute hop position so color is stable when scrolling
+		if (offset+i)%2 == 0 {
+			b.WriteString(diagEvenRowStyle.Render(row))
+		} else {
+			b.WriteString(diagOddRowStyle.Render(row))
+		}
 		b.WriteString("\n")
 	}
 

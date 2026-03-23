@@ -115,6 +115,60 @@ func TestRouteStatusStyled(t *testing.T) {
 	}
 }
 
+func TestRenderDiagExpandedAlternatingRows(t *testing.T) {
+	result := &diag.DiagResult{
+		Target: "example.com",
+		Method: "udp",
+		Hops: []diag.Hop{
+			{Number: 1, IP: "10.0.0.1", Host: "gw", Latency: 1 * time.Millisecond},
+			{Number: 2, IP: "10.0.0.2", Host: "isp", Latency: 8 * time.Millisecond},
+			{Number: 3, IP: "10.0.0.3", Host: "core", Latency: 15 * time.Millisecond},
+			{Number: 4, IP: "10.0.0.4", Host: "edge", Latency: 22 * time.Millisecond},
+		},
+		Quality: diag.QualityScore{Score: 90, Grade: "A", Label: "Great for streaming and video calls"},
+	}
+
+	out := RenderDiagExpanded(result, 100, 30, 0)
+
+	// Verify separator line exists
+	if !strings.Contains(out, "─") {
+		t.Error("expected separator line in output")
+	}
+
+	// Verify all hops still present
+	for _, ip := range []string{"10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4"} {
+		if !strings.Contains(out, ip) {
+			t.Errorf("expected hop IP %s in output", ip)
+		}
+	}
+
+	// Verify even and odd rows produce different ANSI output
+	evenRendered := diagEvenRowStyle.Render("X")
+	oddRendered := diagOddRowStyle.Render("X")
+	if evenRendered == oddRendered {
+		t.Error("expected diagEvenRowStyle and diagOddRowStyle to produce different output")
+	}
+}
+
+func TestRenderDiagExpandedEmptyHops(t *testing.T) {
+	result := &diag.DiagResult{
+		Target:  "example.com",
+		Method:  "udp",
+		Hops:    []diag.Hop{},
+		Quality: diag.QualityScore{Score: 50, Grade: "C", Label: "Adequate for browsing, poor for real-time"},
+	}
+
+	out := RenderDiagExpanded(result, 100, 30, 0)
+
+	// Should not panic and should still contain header elements
+	if !strings.Contains(out, "Network Diagnostics") {
+		t.Error("expected title in output")
+	}
+	if !strings.Contains(out, "example.com") {
+		t.Error("expected target in output")
+	}
+}
+
 func TestScoreStyle(t *testing.T) {
 	tests := []struct {
 		name  string
