@@ -199,6 +199,7 @@ func RenderHelp(width int, hasResult bool) string {
 	help.WriteString("\nIn Server Selection:\n")
 	help.WriteString("  ↑/↓, j/k: Navigate\n")
 	help.WriteString("  Enter: Select Server\n")
+	help.WriteString("  Esc: Back to Home\n")
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center,
 		helpStyle.Render(help.String()))

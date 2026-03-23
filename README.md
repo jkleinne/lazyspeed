@@ -127,6 +127,7 @@ lazyspeed version
 |-----|--------|
 | `↑`/`↓` or `k`/`j` | Navigate server list |
 | `Enter` | Select server |
+| `Esc` | Back to home |
 | `q` / `Ctrl+C` | Quit |
 
 **Export prompt (after pressing `e`):**
