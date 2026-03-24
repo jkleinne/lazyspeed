@@ -48,13 +48,7 @@ func ComputeScore(result *DiagResult) QualityScore {
 			packetLossScore*(weightPacketLoss/total)
 	}
 
-	score := int(math.Round(composite * 100))
-	if score > 100 {
-		score = 100
-	}
-	if score < 0 {
-		score = 0
-	}
+	score := max(0, min(100, int(math.Round(composite*100))))
 
 	grade := gradeFromScore(score)
 	return QualityScore{

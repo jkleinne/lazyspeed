@@ -81,6 +81,13 @@ func isPermissionError(err error) bool {
 
 const hopTimeout = 3 * time.Second
 
+const (
+	tracerouteBasePort = 33434
+	icmpIDMask         = 0xffff // ICMP Echo ID field is 16-bit
+	maxPacketSize      = 1500
+	icmpProtocol       = 1
+)
+
 // icmpTraceroute performs traceroute using ICMP echo requests via "udp4" network.
 // Using "udp4" with icmp.ListenPacket works without root on macOS and on Linux
 // with appropriate sysctl settings.
@@ -118,7 +125,7 @@ func traceHop(ctx context.Context, conn *icmp.PacketConn, destIP string, ttl int
 		Type: ipv4.ICMPTypeEcho,
 		Code: 0,
 		Body: &icmp.Echo{
-			ID:   os.Getpid() & 0xffff,
+			ID:   os.Getpid() & icmpIDMask,
 			Seq:  ttl,
 			Data: []byte("LAZYSPEED"),
 		},
@@ -147,7 +154,7 @@ func traceHop(ctx context.Context, conn *icmp.PacketConn, destIP string, ttl int
 		return hop
 	}
 
-	buf := make([]byte, 1500)
+	buf := make([]byte, maxPacketSize)
 	n, peer, err := conn.ReadFrom(buf)
 	latency := time.Since(start)
 	if err != nil {
@@ -155,7 +162,7 @@ func traceHop(ctx context.Context, conn *icmp.PacketConn, destIP string, ttl int
 		return hop
 	}
 
-	rm, err := icmp.ParseMessage(1, buf[:n]) // protocol 1 = ICMP
+	rm, err := icmp.ParseMessage(icmpProtocol, buf[:n]) // protocol 1 = ICMP
 	if err != nil {
 		hop.Timeout = true
 		return hop
@@ -202,12 +209,12 @@ func udpTraceroute(ctx context.Context, destIP string, maxHops int) ([]Hop, erro
 	return hops, nil
 }
 
-// udpTraceHop sends a UDP packet to port 33434+ttl with a specific TTL
+// udpTraceHop sends a UDP packet to tracerouteBasePort+ttl with a specific TTL
 // and listens for an ICMP TTL Exceeded response.
 func udpTraceHop(ctx context.Context, icmpConn *icmp.PacketConn, destIP string, ttl int) Hop {
 	hop := Hop{Number: ttl}
 
-	port := 33434 + ttl
+	port := tracerouteBasePort + ttl
 	udpConn, err := net.DialUDP("udp4", nil, &net.UDPAddr{
 		IP:   net.ParseIP(destIP),
 		Port: port,
@@ -255,7 +262,7 @@ func udpTraceHop(ctx context.Context, icmpConn *icmp.PacketConn, destIP string, 
 		return hop
 	}
 
-	buf := make([]byte, 1500)
+	buf := make([]byte, maxPacketSize)
 	n, peer, err := icmpConn.ReadFrom(buf)
 	latency := time.Since(start)
 	if err != nil {
@@ -263,7 +270,7 @@ func udpTraceHop(ctx context.Context, icmpConn *icmp.PacketConn, destIP string, 
 		return hop
 	}
 
-	rm, err := icmp.ParseMessage(1, buf[:n])
+	rm, err := icmp.ParseMessage(icmpProtocol, buf[:n])
 	if err != nil {
 		hop.Timeout = true
 		return hop
@@ -298,9 +305,5 @@ func reverseResolve(ip string) string {
 		return ip
 	}
 	// Remove trailing dot from DNS name
-	name := names[0]
-	if len(name) > 0 && name[len(name)-1] == '.' {
-		name = name[:len(name)-1]
-	}
-	return name
+	return strings.TrimSuffix(names[0], ".")
 }

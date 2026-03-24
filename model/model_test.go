@@ -1605,3 +1605,271 @@ func TestDiagnosticsConfigOverlay(t *testing.T) {
 		t.Errorf("MaxEntries = %d, want 20 (default)", cfg.Diagnostics.MaxEntries)
 	}
 }
+
+func TestResultCSVRow(t *testing.T) {
+	ts := time.Date(2026, 3, 15, 12, 30, 45, 0, time.UTC)
+	res := &SpeedTestResult{
+		Timestamp:     ts,
+		ServerName:    "Test Server",
+		ServerCountry: "US",
+		DownloadSpeed: 95.50,
+		UploadSpeed:   45.25,
+		Ping:          12.34,
+		Jitter:        1.56,
+		UserIP:        "1.2.3.4",
+		UserISP:       "Test ISP",
+	}
+
+	row := res.CSVRow()
+	if len(row) != 9 {
+		t.Fatalf("CSVRow() returned %d fields, want 9", len(row))
+	}
+
+	want := []string{
+		"2026-03-15T12:30:45Z",
+		"Test Server",
+		"US",
+		"95.50",
+		"45.25",
+		"12.34",
+		"1.56",
+		"1.2.3.4",
+		"Test ISP",
+	}
+	for i, w := range want {
+		if row[i] != w {
+			t.Errorf("row[%d] = %q, want %q", i, row[i], w)
+		}
+	}
+}
+
+func TestResultCSVRowZeroValues(t *testing.T) {
+	res := &SpeedTestResult{}
+	row := res.CSVRow()
+	if len(row) != 9 {
+		t.Fatalf("CSVRow() returned %d fields, want 9", len(row))
+	}
+	// Numeric fields should format as "0.00"
+	for _, idx := range []int{3, 4, 5, 6} {
+		if row[idx] != "0.00" {
+			t.Errorf("row[%d] = %q, want %q", idx, row[idx], "0.00")
+		}
+	}
+	// String fields should be empty
+	for _, idx := range []int{1, 2, 7, 8} {
+		if row[idx] != "" {
+			t.Errorf("row[%d] = %q, want empty", idx, row[idx])
+		}
+	}
+}
+
+func TestMeasurePing(t *testing.T) {
+	latencies := []time.Duration{
+		10 * time.Millisecond,
+		12 * time.Millisecond,
+		8 * time.Millisecond,
+	}
+	callIdx := 0
+	backend := &mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			if callIdx < len(latencies) {
+				fn(latencies[callIdx])
+				callIdx++
+			}
+			return nil
+		},
+	}
+
+	ctx := context.Background()
+	server := &speedtest.Server{}
+	result, err := measurePing(ctx, backend, server, 3, nil)
+	if err != nil {
+		t.Fatalf("measurePing failed: %v", err)
+	}
+	if len(result.pings) != 3 {
+		t.Fatalf("got %d pings, want 3", len(result.pings))
+	}
+	// avg = (10+12+8)/3 = 10
+	if result.avgPing != 10 {
+		t.Errorf("AvgPing = %f, want 10", result.avgPing)
+	}
+	// jitter = mean of |12-10|, |8-12| = (2+4)/2 = 3
+	if result.jitter != 3 {
+		t.Errorf("Jitter = %f, want 3", result.jitter)
+	}
+}
+
+func TestMeasurePingSinglePingZeroJitter(t *testing.T) {
+	backend := &mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(15 * time.Millisecond)
+			return nil
+		},
+	}
+	ctx := context.Background()
+	server := &speedtest.Server{}
+	result, err := measurePing(ctx, backend, server, 1, nil)
+	if err != nil {
+		t.Fatalf("measurePing failed: %v", err)
+	}
+	if len(result.pings) != 1 {
+		t.Fatalf("got %d pings, want 1", len(result.pings))
+	}
+	if result.avgPing != 15 {
+		t.Errorf("AvgPing = %f, want 15", result.avgPing)
+	}
+	if result.jitter != 0 {
+		t.Errorf("Jitter = %f, want 0 (single ping)", result.jitter)
+	}
+}
+
+func TestMeasurePingContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
+
+	backend := &mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(10 * time.Millisecond)
+			return nil
+		},
+	}
+	server := &speedtest.Server{}
+	result, err := measurePing(ctx, backend, server, 5, nil)
+	if err == nil {
+		t.Fatal("expected context error, got nil")
+	}
+	if result != nil {
+		t.Errorf("expected nil result on cancellation, got %+v", result)
+	}
+}
+
+func TestMeasurePingNoPings(t *testing.T) {
+	backend := &mockBackend{
+		pingTestFn: func(_ *speedtest.Server, _ func(time.Duration)) error {
+			return errors.New("network error")
+		},
+	}
+	ctx := context.Background()
+	server := &speedtest.Server{}
+	result, err := measurePing(ctx, backend, server, 3, nil)
+	if err != nil {
+		t.Fatalf("measurePing should not error: %v", err)
+	}
+	if len(result.pings) != 0 {
+		t.Errorf("got %d pings, want 0", len(result.pings))
+	}
+	if result.avgPing != 0 {
+		t.Errorf("avgPing = %f, want 0", result.avgPing)
+	}
+	if result.jitter != 0 {
+		t.Errorf("jitter = %f, want 0", result.jitter)
+	}
+}
+
+func TestMeasurePingObserverCalled(t *testing.T) {
+	latencies := []time.Duration{
+		10 * time.Millisecond,
+		14 * time.Millisecond,
+	}
+	callIdx := 0
+	backend := &mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			if callIdx < len(latencies) {
+				fn(latencies[callIdx])
+				callIdx++
+			}
+			return nil
+		},
+	}
+
+	type observation struct {
+		iteration int
+		total     int
+		ping      float64
+		jitter    float64
+	}
+	var observations []observation
+	observer := func(i, total int, ping, jitter float64) {
+		observations = append(observations, observation{i, total, ping, jitter})
+	}
+
+	ctx := context.Background()
+	_, err := measurePing(ctx, backend, &speedtest.Server{}, 2, observer)
+	if err != nil {
+		t.Fatalf("measurePing failed: %v", err)
+	}
+	if len(observations) != 2 {
+		t.Fatalf("observer called %d times, want 2", len(observations))
+	}
+	// First ping: iteration=1, jitter=0 (only one sample)
+	if observations[0].iteration != 1 || observations[0].jitter != 0 {
+		t.Errorf("obs[0] = %+v, want iteration=1 jitter=0", observations[0])
+	}
+	// Second ping: iteration=2, jitter=|14-10|=4
+	if observations[1].iteration != 2 || observations[1].jitter != 4 {
+		t.Errorf("obs[1] = %+v, want iteration=2 jitter=4", observations[1])
+	}
+}
+
+func TestMonitorTransferProgress(t *testing.T) {
+	updateChan := make(chan ProgressUpdate, 50)
+	ctx := context.Background()
+
+	done, doneAck := monitorTransferProgress(ctx, transferPhase{
+		start:   0.5,
+		span:    0.25,
+		maxProg: 0.7,
+		label:   "download",
+		rateFn:  func() float64 { return 100 * bytesToMbps }, // 100 Mbps in bytes/sec
+	}, updateChan)
+
+	// Let the ticker fire at least once (progressInterval = 200ms)
+	time.Sleep(300 * time.Millisecond)
+	close(done)
+	<-doneAck
+
+	// Drain updates
+	close(updateChan)
+	var updates []ProgressUpdate
+	for u := range updateChan {
+		updates = append(updates, u)
+	}
+
+	if len(updates) == 0 {
+		t.Fatal("monitorTransferProgress sent no updates")
+	}
+	for _, u := range updates {
+		if u.Progress < 0.5 || u.Progress > 0.7 {
+			t.Errorf("progress %f out of [0.5, 0.7] bounds", u.Progress)
+		}
+		if !strings.Contains(u.Phase, "download") {
+			t.Errorf("phase %q does not mention download", u.Phase)
+		}
+		if !strings.Contains(u.Phase, "100.00 Mbps") {
+			t.Errorf("phase %q does not show expected rate", u.Phase)
+		}
+	}
+}
+
+func TestMonitorTransferProgressContextCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	updateChan := make(chan ProgressUpdate, 50)
+
+	done, doneAck := monitorTransferProgress(ctx, transferPhase{
+		start:   0.0,
+		span:    1.0,
+		maxProg: 1.0,
+		label:   "test",
+		rateFn:  func() float64 { return 0 },
+	}, updateChan)
+
+	cancel()
+	// doneAck should close promptly after context cancellation
+	select {
+	case <-doneAck:
+		// goroutine exited cleanly
+	case <-time.After(time.Second):
+		t.Fatal("monitorTransferProgress did not stop after context cancellation")
+	}
+	_ = done // done channel is still open, but goroutine exited via ctx
+}

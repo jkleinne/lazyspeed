@@ -10,6 +10,24 @@ import (
 	"github.com/jkleinne/lazyspeed/model"
 )
 
+const (
+	historyOverhead      = 22 // title + latest-results box + table header + controls + padding
+	historyMinVisible    = 3
+	serverListOverhead   = 8 // title + header + hint + padding
+	serverListMinVisible = 3
+)
+
+// clampViewport clamps offset into [0, total-maxVisible] and returns
+// the adjusted offset and the exclusive end index for slicing.
+func clampViewport(total, maxVisible, offset int) (clampedOffset, end int) {
+	clampedOffset = max(0, offset)
+	if total > maxVisible {
+		clampedOffset = min(clampedOffset, total-maxVisible)
+	}
+	end = min(clampedOffset+maxVisible, total)
+	return clampedOffset, end
+}
+
 var DefaultSpinner = spinner.New(
 	spinner.WithSpinner(spinner.Spinner{
 		Frames: []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"},
@@ -117,21 +135,7 @@ func RenderResults(m *model.Model, width int) string {
 	totalRows := len(allRows)
 	maxVisible := HistoryVisibleRows(m.Height, totalRows)
 
-	offset := m.HistoryOffset
-	if offset < 0 {
-		offset = 0
-	}
-	if totalRows > maxVisible && offset > totalRows-maxVisible {
-		offset = totalRows - maxVisible
-	}
-	if offset < 0 {
-		offset = 0
-	}
-
-	end := offset + maxVisible
-	if end > totalRows {
-		end = totalRows
-	}
+	offset, end := clampViewport(totalRows, maxVisible, m.HistoryOffset)
 
 	visibleRows := allRows[offset:end]
 
@@ -223,26 +227,12 @@ func RenderExportMessage(msg string, width int) string {
 
 // HistoryVisibleRows returns how many history rows fit in the viewport.
 func HistoryVisibleRows(height, total int) int {
-	visible := height - 22
-	if visible < 3 {
-		visible = 3
-	}
-	if visible > total {
-		visible = total
-	}
-	return visible
+	return min(total, max(historyMinVisible, height-historyOverhead))
 }
 
 // ServerListVisibleLines returns how many server entries fit in the viewport.
 func ServerListVisibleLines(height, total int) int {
-	visible := height - 8
-	if visible < 3 {
-		visible = 3
-	}
-	if visible > total {
-		visible = total
-	}
-	return visible
+	return min(total, max(serverListMinVisible, height-serverListOverhead))
 }
 
 // RenderServerSelection renders the server list with viewport-based windowing.
@@ -257,21 +247,10 @@ func RenderServerSelection(m *model.Model, width int) string {
 	}
 
 	visible := ServerListVisibleLines(m.Height, total)
-	offset := m.ServerListOffset
-	if offset < 0 {
-		offset = 0
-	}
-	if offset > total-visible {
-		offset = total - visible
-	}
+	offset, end := clampViewport(total, visible, m.ServerListOffset)
 
 	if offset > 0 {
 		fmt.Fprintf(&b, "  ↑ %d more\n", offset)
-	}
-
-	end := offset + visible
-	if end > total {
-		end = total
 	}
 
 	for i := offset; i < end; i++ {

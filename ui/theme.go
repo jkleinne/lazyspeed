@@ -134,17 +134,22 @@ func latencyStyle(d time.Duration) lipgloss.Style {
 	}
 }
 
-// spinnerBoxWidth returns a responsive spinner box width clamped to [40, 80].
+const (
+	spinnerBoxMin       = 40
+	spinnerBoxMax       = 80
+	spinnerBoxMargin    = 10 // horizontal padding deducted from terminal width
+	progressBarMin      = 10
+	progressBarOverhead = 20 // border + padding deducted from box width
+)
+
+// spinnerBoxWidth returns a responsive spinner box width clamped to [spinnerBoxMin, spinnerBoxMax].
 func spinnerBoxWidth(termWidth int) int {
-	return max(40, min(80, termWidth-10))
+	return max(spinnerBoxMin, min(spinnerBoxMax, termWidth-spinnerBoxMargin))
 }
 
 // newProgress creates a progress bar sized to the given spinner box width.
 func newProgress(boxWidth int) progress.Model {
-	barWidth := boxWidth - 20
-	if barWidth < 10 {
-		barWidth = 10
-	}
+	barWidth := max(progressBarMin, boxWidth-progressBarOverhead)
 	return progress.New(
 		progress.WithDefaultGradient(),
 		progress.WithWidth(barWidth),
