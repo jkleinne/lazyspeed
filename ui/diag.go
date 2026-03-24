@@ -135,7 +135,7 @@ func RenderDiagCompact(result *diag.DiagResult, width int) string {
 	b.WriteString("\n")
 
 	// Hint
-	hint := "Enter: expand trace | d: new diagnostic | n: speed test | q: quit"
+	hint := "Enter: expand trace | Esc: back | d: new diagnostic | n: speed test | q: quit"
 	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, helpStyle.Render(hint)))
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, b.String())

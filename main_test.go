@@ -129,6 +129,16 @@ func TestUpdateKeyMsgNavigation(t *testing.T) {
 	if newS.model.Cursor != 0 {
 		t.Errorf("Expected cursor to stay at 0, got %d", newS.model.Cursor)
 	}
+
+	// Back to home
+	newModel, _ = s.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	newS = newModel.(*speedTest)
+	if newS.model.SelectingServer {
+		t.Errorf("Expected SelectingServer to be false")
+	}
+	if !newS.model.ShowHelp {
+		t.Errorf("Expected ShowHelp to be true")
+	}
 }
 
 func TestView(t *testing.T) {

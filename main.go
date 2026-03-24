@@ -23,6 +23,7 @@ type exportDoneMsg struct {
 
 const (
 	keyCtrlC = "ctrl+c"
+	keyEsc   = "esc"
 	keyUp    = "up"
 	keyDown  = "down"
 	keyJ     = "j"
@@ -144,7 +145,7 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "c":
 				s.model.Exporting = false
 				return s, exportCmd(s.model.Results, "csv", s.model)
-			case "esc", "q", keyCtrlC:
+			case keyEsc, "q", keyCtrlC:
 				s.model.Exporting = false
 			}
 			return s, nil
@@ -162,6 +163,9 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "q", keyCtrlC:
 				s.quitting = true
 				return s, tea.Quit
+			case keyEsc:
+				s.model.SelectingServer = false
+				s.model.ShowHelp = true
 			case keyUp, keyK:
 				if s.model.Cursor > 0 {
 					s.model.Cursor--
@@ -207,7 +211,7 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "q", keyCtrlC:
 				s.quitting = true
 				return s, tea.Quit
-			case "esc":
+			case keyEsc:
 				s.showDiagExpanded = false
 				s.showDiagCompact = true
 			case keyUp, keyK:
@@ -233,6 +237,11 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "q", keyCtrlC:
 				s.quitting = true
 				return s, tea.Quit
+			case keyEsc:
+				s.showDiagCompact = false
+				s.diagResult = nil
+				s.diagRunning = false
+				s.model.ShowHelp = true
 			case "enter":
 				s.showDiagCompact = false
 				s.showDiagExpanded = true
