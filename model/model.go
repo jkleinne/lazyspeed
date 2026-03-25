@@ -531,11 +531,11 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 
 // ExportResult writes result to a file named lazyspeed_<timestamp>.<ext> in dir.
 // format must be "json" or "csv". It returns the full path of the written file.
-func ExportResult(result *SpeedTestResult, format string, dir string) (string, error) {
+func ExportResult(result *SpeedTestResult, format string, dir string) (path string, err error) {
 	ts := result.Timestamp.Format(exportTimestampFormat)
 	switch format {
 	case "json":
-		path := filepath.Join(dir, fmt.Sprintf("lazyspeed_%s.json", ts))
+		path = filepath.Join(dir, fmt.Sprintf("lazyspeed_%s.json", ts))
 		data, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
 			return "", fmt.Errorf("failed to serialise result: %v", err)
@@ -546,17 +546,21 @@ func ExportResult(result *SpeedTestResult, format string, dir string) (string, e
 		return path, nil
 
 	case "csv":
-		path := filepath.Join(dir, fmt.Sprintf("lazyspeed_%s.csv", ts))
+		path = filepath.Join(dir, fmt.Sprintf("lazyspeed_%s.csv", ts))
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
 			return "", fmt.Errorf("failed to create file: %v", err)
 		}
-		defer func() { _ = f.Close() }()
+		defer func() {
+			if cerr := f.Close(); cerr != nil && err == nil {
+				err = fmt.Errorf("failed to close export file: %v", cerr)
+			}
+		}()
 		w := csv.NewWriter(f)
 		_ = w.Write(SpeedTestCSVHeader)
 		_ = w.Write(result.CSVRow())
 		w.Flush()
-		if err := w.Error(); err != nil {
+		if err = w.Error(); err != nil {
 			return "", fmt.Errorf("failed to flush CSV writer: %v", err)
 		}
 		return path, nil

@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	historyFormatJSON    = "json"
-	historyFormatCSV     = "csv"
-	historyServerMaxLen  = 20
+	historyFormatJSON   = "json"
+	historyFormatCSV    = "csv"
+	historyServerMaxLen = 20
 )
 
 var (
