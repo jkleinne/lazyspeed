@@ -106,28 +106,24 @@ type RunOptions struct {
 
 // Model holds all application state for the TUI and speed test orchestration.
 type Model struct {
-	Results                *SpeedTestResult
-	TestHistory            []*SpeedTestResult
-	Testing                bool
-	FetchingServers        bool
-	Progress               float64
-	CurrentPhase           string
-	Error                  error
-	Warning                string
-	ShowHelp               bool
-	Width, Height          int
-	PingResults            []float64 // Used for jitter calculation
-	ServerList             speedtest.Servers
-	Backend                Backend
-	Config                 *Config
-	SelectingServer        bool
-	PendingServerSelection bool
-	Cursor                 int
-	ServerListOffset       int
-	HistoryOffset          int
-	User                   *speedtest.User
-	// Exporting is true when the TUI is showing the inline export format prompt.
-	Exporting bool
+	Results      *SpeedTestResult
+	TestHistory  []*SpeedTestResult
+	State        ModelState
+	Progress     float64
+	CurrentPhase string
+	Error        error
+	Warning      string
+	ShowHelp     bool
+	Width        int
+	Height       int
+	PingResults  []float64 // Used for jitter calculation
+	ServerList   speedtest.Servers
+	Backend      Backend
+	Config       *Config
+	Cursor       int
+	ServerListOffset int
+	HistoryOffset    int
+	User             *speedtest.User
 	// ExportMessage is set after an export attempt (success path or error) and
 	// shown briefly in the TUI view.
 	ExportMessage string
