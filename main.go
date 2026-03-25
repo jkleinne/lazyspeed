@@ -34,6 +34,16 @@ const fetchingServerListPhase = "Fetching server list..."
 
 const runningDiagnosticsPhase = "Running diagnostics..."
 
+// ViewState represents the TUI view overlay state.
+type ViewState int
+
+const (
+	ViewMain         ViewState = iota // Delegates to Model.State for rendering
+	ViewDiagRunning                   // Diagnostics spinner
+	ViewDiagCompact                   // Compact diagnostics summary
+	ViewDiagExpanded                  // Full hop-by-hop trace table
+)
+
 type speedTest struct {
 	model        *model.Model
 	spinner      spinner.Model
@@ -42,11 +52,9 @@ type speedTest struct {
 	errChan      chan error
 	cancelTest   context.CancelFunc
 
-	diagResult       *diag.DiagResult
-	diagRunning      bool
-	showDiagCompact  bool
-	showDiagExpanded bool
-	diagOffset       int
+	diagResult *diag.DiagResult
+	viewState  ViewState
+	diagOffset int
 }
 
 type progressMsg struct {
