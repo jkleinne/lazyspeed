@@ -41,6 +41,9 @@ const (
 	progressComplete      = 1.0
 )
 
+// SpeedTestCSVHeader is the CSV header row for speed test results.
+var SpeedTestCSVHeader = []string{"timestamp", "server", "country", "download_mbps", "upload_mbps", "ping_ms", "jitter_ms", "ip", "isp"}
+
 type ProgressUpdate struct {
 	Progress float64
 	Phase    string
@@ -550,7 +553,7 @@ func ExportResult(result *SpeedTestResult, format string, dir string) (string, e
 		}
 		defer func() { _ = f.Close() }()
 		w := csv.NewWriter(f)
-		_ = w.Write([]string{"timestamp", "server", "country", "download_mbps", "upload_mbps", "ping_ms", "jitter_ms", "ip", "isp"})
+		_ = w.Write(SpeedTestCSVHeader)
 		_ = w.Write(result.CSVRow())
 		w.Flush()
 		if err := w.Error(); err != nil {

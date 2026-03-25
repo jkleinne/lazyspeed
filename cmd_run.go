@@ -47,13 +47,17 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 }
 
+func runIsInteractive() bool {
+	return !runJSON && !runCSV && !runSimple
+}
+
 func runHeadlessTest() {
 	m := model.NewDefaultModel()
 
 	fetchCtx, fetchCancel := context.WithTimeout(context.Background(), m.FetchTimeoutDuration())
 	defer fetchCancel()
 
-	if !runJSON && !runCSV && !runSimple {
+	if runIsInteractive() {
 		fmt.Println("Fetching server list...")
 	}
 
@@ -83,7 +87,7 @@ func runHeadlessTest() {
 		}
 	}
 
-	if !runJSON && !runCSV && !runSimple {
+	if runIsInteractive() {
 		fmt.Printf("Selected server: %s (%s)\n", server.Name, server.Country)
 	}
 
@@ -91,7 +95,7 @@ func runHeadlessTest() {
 		SkipDownload: runNoDownload,
 		SkipUpload:   runNoUpload,
 	}
-	if !runJSON && !runCSV && !runSimple {
+	if runIsInteractive() {
 		opts.ProgressFn = func(phase string) {
 			fmt.Fprintf(os.Stderr, "  %s\n", phase)
 		}
@@ -103,7 +107,7 @@ func runHeadlessTest() {
 	var csvWriter *csv.Writer
 	if runCSV {
 		csvWriter = csv.NewWriter(os.Stdout)
-		_ = csvWriter.Write([]string{"timestamp", "server", "country", "download_mbps", "upload_mbps", "ping_ms", "jitter_ms", "ip", "isp"})
+		_ = csvWriter.Write(model.SpeedTestCSVHeader)
 	}
 
 	// Collect results for JSON mode so we can emit valid JSON after all runs.

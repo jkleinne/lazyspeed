@@ -13,8 +13,10 @@ import (
 )
 
 const (
-	serversFormatJSON = "json"
-	serversFormatCSV  = "csv"
+	serversFormatJSON    = "json"
+	serversFormatCSV     = "csv"
+	serversNameMaxLen    = 30
+	serversSponsorMaxLen = 20
 )
 
 var serversFormat string
@@ -100,12 +102,12 @@ func runServers() {
 		_, _ = fmt.Fprintln(w, "ID\tNAME\tSPONSOR\tCOUNTRY\tLATENCY (ms)\tDISTANCE (km)")
 		for _, s := range m.ServerList {
 			name := s.Name
-			if len(name) > 30 {
-				name = name[:27] + "..."
+			if len(name) > serversNameMaxLen {
+				name = name[:serversNameMaxLen-3] + "..."
 			}
 			sponsor := s.Sponsor
-			if len(sponsor) > 20 {
-				sponsor = sponsor[:17] + "..."
+			if len(sponsor) > serversSponsorMaxLen {
+				sponsor = sponsor[:serversSponsorMaxLen-3] + "..."
 			}
 			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%.2f\t%.1f\n",
 				s.ID, name, sponsor, s.Country,
