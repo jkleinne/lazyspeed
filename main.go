@@ -451,54 +451,67 @@ func (s *speedTest) View() string {
 	b.WriteString(ui.RenderTitle(s.model.Width))
 	b.WriteString("\n\n")
 
-	if s.model.FetchingServers && s.model.PendingServerSelection {
+	switch s.viewState {
+	case ViewDiagRunning:
 		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, 0))
 		b.WriteString("\n\n")
-	} else if s.model.SelectingServer {
-		b.WriteString(ui.RenderServerSelection(s.model, s.model.Width))
-	} else if s.model.Testing {
-		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, s.model.Progress))
-		b.WriteString("\n\n")
-	} else if s.diagRunning {
-		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, 0))
-		b.WriteString("\n\n")
-	} else if s.showDiagCompact && s.diagResult != nil {
-		b.WriteString(ui.RenderDiagCompact(s.diagResult, s.model.Width))
-		b.WriteString("\n")
-	} else if s.showDiagExpanded && s.diagResult != nil {
-		b.WriteString(ui.RenderDiagExpanded(s.diagResult, s.model.Width, s.model.Height, s.diagOffset))
-		b.WriteString("\n")
-	} else {
-		if s.model.Results != nil || len(s.model.TestHistory) > 0 {
-			b.WriteString(ui.RenderResults(s.model, s.model.Width))
+
+	case ViewDiagCompact:
+		if s.diagResult != nil {
+			b.WriteString(ui.RenderDiagCompact(s.diagResult, s.model.Width))
 			b.WriteString("\n")
 		}
 
-		if s.model.Error != nil {
+	case ViewDiagExpanded:
+		if s.diagResult != nil {
+			b.WriteString(ui.RenderDiagExpanded(s.diagResult, s.model.Width, s.model.Height, s.diagOffset))
 			b.WriteString("\n")
-			b.WriteString(ui.RenderError(s.model.Error, s.model.Width))
 		}
 
-		if s.model.Warning != "" {
-			b.WriteString("\n")
-			b.WriteString(ui.RenderWarning(s.model.Warning, s.model.Width))
-		}
+	case ViewMain:
+		switch s.model.State {
+		case model.StateAwaitingServers:
+			b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, 0))
+			b.WriteString("\n\n")
 
-		if s.model.Exporting {
-			b.WriteString("\n")
-			b.WriteString(ui.RenderExportPrompt(s.model.Width))
-		} else if s.model.ExportMessage != "" {
-			b.WriteString("\n")
-			b.WriteString(ui.RenderExportMessage(s.model.ExportMessage, s.model.Width))
-		}
+		case model.StateSelectingServer:
+			b.WriteString(ui.RenderServerSelection(s.model, s.model.Width))
 
-		if s.model.ShowHelp {
-			b.WriteString(ui.RenderHelp(s.model.Width, s.model.Results != nil))
+		case model.StateTesting:
+			b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, s.model.Progress))
+			b.WriteString("\n\n")
+
+		case model.StateExporting, model.StateIdle:
+			if s.model.Results != nil || len(s.model.TestHistory) > 0 {
+				b.WriteString(ui.RenderResults(s.model, s.model.Width))
+				b.WriteString("\n")
+			}
+
+			if s.model.Error != nil {
+				b.WriteString("\n")
+				b.WriteString(ui.RenderError(s.model.Error, s.model.Width))
+			}
+
+			if s.model.Warning != "" {
+				b.WriteString("\n")
+				b.WriteString(ui.RenderWarning(s.model.Warning, s.model.Width))
+			}
+
+			if s.model.State == model.StateExporting {
+				b.WriteString("\n")
+				b.WriteString(ui.RenderExportPrompt(s.model.Width))
+			} else if s.model.ExportMessage != "" {
+				b.WriteString("\n")
+				b.WriteString(ui.RenderExportMessage(s.model.ExportMessage, s.model.Width))
+			}
+
+			if s.model.ShowHelp {
+				b.WriteString(ui.RenderHelp(s.model.Width, s.model.Results != nil))
+			}
 		}
 	}
 
 	b.WriteString("\n")
-
 	return b.String()
 }
 
