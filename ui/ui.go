@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/lipgloss"
@@ -31,7 +32,7 @@ func clampViewport(total, maxVisible, offset int) (clampedOffset, end int) {
 var DefaultSpinner = spinner.New(
 	spinner.WithSpinner(spinner.Spinner{
 		Frames: []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"},
-		FPS:    3,
+		FPS:    time.Second / 3,
 	}),
 	spinner.WithStyle(spinnerStyle),
 )
