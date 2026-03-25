@@ -107,12 +107,10 @@ func fetchServerListCmd(m *model.Model) tea.Cmd {
 }
 
 func (s *speedTest) Init() tea.Cmd {
-	s.model.FetchingServers = true
 	cmds := []tea.Cmd{fetchServerListCmd(s.model)}
 
 	if len(s.model.TestHistory) == 0 {
-		// First launch: show loading spinner since there's nothing else to display
-		s.model.PendingServerSelection = true
+		s.model.State = model.StateAwaitingServers
 		s.model.CurrentPhase = fetchingServerListPhase
 		cmds = append(cmds, s.spinner.Tick)
 	}
