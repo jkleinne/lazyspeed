@@ -241,7 +241,7 @@ func runDiagHistory() {
 		}
 		dnsMs := "-"
 		if r.DNS != nil {
-			dnsMs = fmt.Sprintf("%.1f", float64(r.DNS.Latency.Microseconds())/1000.0)
+			dnsMs = fmt.Sprintf("%.1f", diag.DurationMs(r.DNS.Latency))
 		}
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%d\t%s\t%d\t%s\n",
 			dateStr, targetStr, r.Quality.Score, r.Quality.Grade, len(r.Hops), dnsMs)
@@ -254,7 +254,7 @@ func diagCSVRow(r *diag.DiagResult) []string {
 	dnsMs := ""
 	dnsCached := ""
 	if r.DNS != nil {
-		dnsMs = fmt.Sprintf("%.3f", float64(r.DNS.Latency.Microseconds())/1000.0)
+		dnsMs = fmt.Sprintf("%.3f", diag.DurationMs(r.DNS.Latency))
 		dnsCached = fmt.Sprintf("%v", r.DNS.Cached)
 	}
 
@@ -279,7 +279,7 @@ func diagCSVRow(r *diag.DiagResult) []string {
 func diagSimpleLine(r *diag.DiagResult) string {
 	dnsStr := "-"
 	if r.DNS != nil {
-		dnsStr = fmt.Sprintf("%.0fms", float64(r.DNS.Latency.Microseconds())/1000.0)
+		dnsStr = fmt.Sprintf("%.0fms", diag.DurationMs(r.DNS.Latency))
 	}
 	return fmt.Sprintf("Score: %d/%s | DNS: %s | Hops: %d",
 		r.Quality.Score, r.Quality.Grade, dnsStr, len(r.Hops))
@@ -300,7 +300,7 @@ func diagDefaultOutput(r *diag.DiagResult) string {
 			cachedStr = "yes"
 		}
 		out += fmt.Sprintf("DNS:         %.1f ms (cached: %s)\n",
-			float64(r.DNS.Latency.Microseconds())/1000.0, cachedStr)
+			diag.DurationMs(r.DNS.Latency), cachedStr)
 	}
 
 	out += fmt.Sprintf("\nHops (%d):\n", len(r.Hops))
@@ -310,7 +310,7 @@ func diagDefaultOutput(r *diag.DiagResult) string {
 		if h.Timeout {
 			sb += fmt.Sprintf("  %2d  *\n", h.Number)
 		} else {
-			latencyMs := float64(h.Latency.Microseconds()) / 1000.0
+			latencyMs := diag.DurationMs(h.Latency)
 			host := h.Host
 			if host == "" || host == h.IP {
 				host = h.IP
@@ -342,7 +342,7 @@ func diagPacketLossPct(hops []diag.Hop) float64 {
 func diagFinalHopLatencyMs(hops []diag.Hop) float64 {
 	for i := len(hops) - 1; i >= 0; i-- {
 		if !hops[i].Timeout {
-			return float64(hops[i].Latency.Microseconds()) / 1000.0
+			return diag.DurationMs(hops[i].Latency)
 		}
 	}
 	return 0

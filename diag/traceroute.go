@@ -2,6 +2,7 @@ package diag
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -35,7 +36,8 @@ func (b *RealDiagBackend) Traceroute(ctx context.Context, target string, maxHops
 	// Resolve target to IP if it's a hostname
 	ip := net.ParseIP(target)
 	if ip == nil {
-		addrs, err := net.LookupHost(target)
+		resolver := &net.Resolver{}
+		addrs, err := resolver.LookupHost(ctx, target)
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to resolve target %s: %v", target, err)
 		}
@@ -67,14 +69,12 @@ func (b *RealDiagBackend) Traceroute(ctx context.Context, target string, maxHops
 
 // isPermissionError checks if the error indicates a permission problem.
 func isPermissionError(err error) bool {
-	if err == nil {
-		return false
+	if os.IsPermission(err) {
+		return true
 	}
-	msg := err.Error()
-	for _, s := range []string{"permission denied", "operation not permitted", "EPERM", "EACCES"} {
-		if strings.Contains(msg, s) {
-			return true
-		}
+	var syscallErr *os.SyscallError
+	if errors.As(err, &syscallErr) {
+		return os.IsPermission(syscallErr.Err)
 	}
 	return false
 }
@@ -82,6 +82,8 @@ func isPermissionError(err error) bool {
 const hopTimeout = 3 * time.Second
 
 const (
+	traceroutePayload  = "LAZYSPEED"
+	reverseDNSTimeout  = 2 * time.Second
 	tracerouteBasePort = 33434
 	icmpIDMask         = 0xffff // ICMP Echo ID field is 16-bit
 	maxPacketSize      = 1500
@@ -127,7 +129,7 @@ func traceHop(ctx context.Context, conn *icmp.PacketConn, destIP string, ttl int
 		Body: &icmp.Echo{
 			ID:   os.Getpid() & icmpIDMask,
 			Seq:  ttl,
-			Data: []byte("LAZYSPEED"),
+			Data: []byte(traceroutePayload),
 		},
 	}
 	msgBytes, err := msg.Marshal(nil)
@@ -247,7 +249,7 @@ func udpTraceHop(ctx context.Context, icmpConn *icmp.PacketConn, destIP string, 
 	start := time.Now()
 
 	// Send a UDP packet
-	if _, err := udpConn.Write([]byte("LAZYSPEED")); err != nil {
+	if _, err := udpConn.Write([]byte(traceroutePayload)); err != nil {
 		hop.Timeout = true
 		return hop
 	}
@@ -296,7 +298,7 @@ func udpTraceHop(ctx context.Context, icmpConn *icmp.PacketConn, destIP string, 
 // reverseResolve does best-effort reverse DNS lookup for an IP address.
 // Returns the IP string if reverse lookup fails.
 func reverseResolve(ip string) string {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), reverseDNSTimeout)
 	defer cancel()
 
 	resolver := &net.Resolver{}

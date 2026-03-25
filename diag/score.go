@@ -2,7 +2,6 @@ package diag
 
 import (
 	"math"
-	"time"
 )
 
 const (
@@ -22,6 +21,11 @@ const (
 
 	dnsExcellent = 10.0
 	dnsTerrible  = 500.0
+
+	gradeA = 90
+	gradeB = 75
+	gradeC = 50
+	gradeD = 25
 )
 
 func ComputeScore(result *DiagResult) QualityScore {
@@ -35,7 +39,7 @@ func ComputeScore(result *DiagResult) QualityScore {
 
 	var composite float64
 	if result.DNS != nil {
-		dnsMs := float64(result.DNS.Latency) / float64(time.Millisecond)
+		dnsMs := DurationMs(result.DNS.Latency)
 		dnsScore := normalizeMetric(dnsMs, dnsExcellent, dnsTerrible)
 		composite = latencyScore*weightLatency +
 			jitterScore*weightJitter +
@@ -71,7 +75,7 @@ func normalizeMetric(value, excellent, terrible float64) float64 {
 func finalHopLatency(hops []Hop) float64 {
 	for i := len(hops) - 1; i >= 0; i-- {
 		if !hops[i].Timeout {
-			return float64(hops[i].Latency) / float64(time.Millisecond)
+			return DurationMs(hops[i].Latency)
 		}
 	}
 	return latencyTerrible
@@ -81,7 +85,7 @@ func hopJitter(hops []Hop) float64 {
 	var latencies []float64
 	for _, h := range hops {
 		if !h.Timeout {
-			latencies = append(latencies, float64(h.Latency)/float64(time.Millisecond))
+			latencies = append(latencies, DurationMs(h.Latency))
 		}
 	}
 	if len(latencies) < 2 {
@@ -116,13 +120,13 @@ func hopPacketLoss(hops []Hop) float64 {
 
 func gradeFromScore(score int) string {
 	switch {
-	case score >= 90:
+	case score >= gradeA:
 		return "A"
-	case score >= 75:
+	case score >= gradeB:
 		return "B"
-	case score >= 50:
+	case score >= gradeC:
 		return "C"
-	case score >= 25:
+	case score >= gradeD:
 		return "D"
 	default:
 		return "F"
