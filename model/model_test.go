@@ -790,8 +790,8 @@ func TestExportResultFilenameContainsTimestamp(t *testing.T) {
 		t.Fatalf("ExportResult failed: %v", err)
 	}
 	base := filepath.Base(path)
-	if !strings.Contains(base, "20260315_123045") {
-		t.Errorf("Expected filename to contain timestamp '20260315_123045', got %q", base)
+	if !strings.Contains(base, "20260315_123045_000000000") {
+		t.Errorf("Expected filename to contain timestamp '20260315_123045_000000000', got %q", base)
 	}
 }
 

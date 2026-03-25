@@ -524,7 +524,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 // ExportResult writes result to a file named lazyspeed_<timestamp>.<ext> in dir.
 // format must be "json" or "csv". It returns the full path of the written file.
 func ExportResult(result *SpeedTestResult, format string, dir string) (string, error) {
-	ts := result.Timestamp.Format("20060102_150405")
+	ts := result.Timestamp.Format("20060102_150405_000000000")
 	switch format {
 	case "json":
 		path := filepath.Join(dir, fmt.Sprintf("lazyspeed_%s.json", ts))

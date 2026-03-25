@@ -93,7 +93,7 @@ func runServers() {
 				fmt.Sprintf("%.1f", s.Distance),
 			})
 		}
-		w.Flush()
+		flushCSV(w)
 
 	default:
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)

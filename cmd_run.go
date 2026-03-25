@@ -131,7 +131,7 @@ func runHeadlessTest() {
 			jsonResults = append(jsonResults, res)
 		} else if runCSV {
 			_ = csvWriter.Write(res.CSVRow())
-			csvWriter.Flush()
+			flushCSV(csvWriter)
 		} else if runSimple {
 			fmt.Println(formatSimpleResult(res))
 		} else {

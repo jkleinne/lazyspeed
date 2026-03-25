@@ -82,7 +82,7 @@ func runHistory() {
 		for _, res := range entries {
 			_ = w.Write(res.CSVRow())
 		}
-		w.Flush()
+		flushCSV(w)
 
 	default:
 		// Default: table view
