@@ -23,6 +23,7 @@ func TestDiagCmdFlagDefaults(t *testing.T) {
 			f := diagCmd.Flags().Lookup(tt.flag)
 			if f == nil {
 				t.Fatalf("flag %q not found", tt.flag)
+				return
 			}
 			if f.DefValue != tt.want {
 				t.Errorf("flag %q default = %q, want %q", tt.flag, f.DefValue, tt.want)
