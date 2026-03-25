@@ -1550,6 +1550,20 @@ func TestExportResultUnwritableDirectory(t *testing.T) {
 	})
 }
 
+func TestDefaultPathsRespectXDGDataHome(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", "/tmp/xdg-data")
+
+	histPath := defaultHistoryPath()
+	if histPath != "/tmp/xdg-data/lazyspeed/history.json" {
+		t.Errorf("defaultHistoryPath() = %s, want /tmp/xdg-data/lazyspeed/history.json", histPath)
+	}
+
+	diagPath := defaultDiagnosticsPath()
+	if diagPath != "/tmp/xdg-data/lazyspeed/diagnostics.json" {
+		t.Errorf("defaultDiagnosticsPath() = %s, want /tmp/xdg-data/lazyspeed/diagnostics.json", diagPath)
+	}
+}
+
 func TestLegacyHistoryPath(t *testing.T) {
 	t.Setenv("HOME", "/tmp/fakehome")
 

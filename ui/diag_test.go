@@ -169,6 +169,17 @@ func TestRenderDiagExpandedEmptyHops(t *testing.T) {
 	}
 }
 
+func TestTruncateMultiByteRunes(t *testing.T) {
+	// "日本語テスト" is 6 runes but 18 bytes. The old byte-based truncate(s, 4)
+	// would slice at byte 3, corrupting the string. The rune-based fix
+	// correctly keeps 3 full runes + "…".
+	got := truncate("日本語テスト", 4)
+	want := "日本語…"
+	if got != want {
+		t.Errorf("truncate(CJK, 4) = %q, want %q", got, want)
+	}
+}
+
 func TestScoreStyle(t *testing.T) {
 	tests := []struct {
 		name  string
