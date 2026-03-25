@@ -397,7 +397,7 @@ func monitorTransferProgress(
 
 func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, updateChan chan<- ProgressUpdate) error {
 	var err error
-	m.Testing = true
+	m.State = StateTesting
 	m.Progress = 0
 	m.Error = nil
 	m.Warning = ""
@@ -415,7 +415,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	}
 
 	if ctx.Err() != nil {
-		m.Testing = false
+		m.State = StateIdle
 		return ctx.Err()
 	}
 
@@ -438,7 +438,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		}
 	})
 	if err != nil {
-		m.Testing = false
+		m.State = StateIdle
 		return err
 	}
 	m.PingResults = pr.pings
@@ -458,11 +458,11 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	close(dlDone)
 	<-dlAck
 	if ctx.Err() != nil {
-		m.Testing = false
+		m.State = StateIdle
 		return ctx.Err()
 	}
 	if err != nil {
-		m.Testing = false
+		m.State = StateIdle
 		return fmt.Errorf("download test failed: %v", err)
 	}
 	dlSpeed := float64(server.DLSpeed) / bytesToMbps
@@ -480,11 +480,11 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	close(ulDone)
 	<-ulAck
 	if ctx.Err() != nil {
-		m.Testing = false
+		m.State = StateIdle
 		return ctx.Err()
 	}
 	if err != nil {
-		m.Testing = false
+		m.State = StateIdle
 		return fmt.Errorf("upload test failed: %v", err)
 	}
 	ulSpeed := float64(server.ULSpeed) / bytesToMbps
@@ -517,7 +517,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	}
 
 	sendUpdate(progressComplete, "Test completed", updateChan)
-	m.Testing = false
+	m.State = StateIdle
 	return nil
 }
 
