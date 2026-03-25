@@ -314,11 +314,11 @@ func TestPerformSpeedTest(t *testing.T) {
 			return nil
 		},
 		downloadTestFn: func(s *speedtest.Server) error {
-			s.DLSpeed = 100 * bytesToMbps // 100 Mbps
+			s.DLSpeed = 100 * bytesPerMbit // 100 Mbps
 			return nil
 		},
 		uploadTestFn: func(s *speedtest.Server) error {
-			s.ULSpeed = 50 * bytesToMbps // 50 Mbps
+			s.ULSpeed = 50 * bytesPerMbit // 50 Mbps
 			return nil
 		},
 	}, nil)
@@ -815,11 +815,11 @@ func TestRunHeadless(t *testing.T) {
 						return nil
 					},
 					downloadTestFn: func(s *speedtest.Server) error {
-						s.DLSpeed = 100 * bytesToMbps
+						s.DLSpeed = 100 * bytesPerMbit
 						return nil
 					},
 					uploadTestFn: func(s *speedtest.Server) error {
-						s.ULSpeed = 50 * bytesToMbps
+						s.ULSpeed = 50 * bytesPerMbit
 						return nil
 					},
 				}
@@ -860,7 +860,7 @@ func TestRunHeadless(t *testing.T) {
 						return nil
 					},
 					uploadTestFn: func(s *speedtest.Server) error {
-						s.ULSpeed = 50 * bytesToMbps
+						s.ULSpeed = 50 * bytesPerMbit
 						return nil
 					},
 				}
@@ -885,7 +885,7 @@ func TestRunHeadless(t *testing.T) {
 						return nil
 					},
 					downloadTestFn: func(s *speedtest.Server) error {
-						s.DLSpeed = 100 * bytesToMbps
+						s.DLSpeed = 100 * bytesPerMbit
 						return nil
 					},
 					uploadTestFn: func(_ *speedtest.Server) error {
@@ -960,7 +960,7 @@ func TestRunHeadless(t *testing.T) {
 						return nil
 					},
 					downloadTestFn: func(s *speedtest.Server) error {
-						s.DLSpeed = 100 * bytesToMbps
+						s.DLSpeed = 100 * bytesPerMbit
 						return nil
 					},
 					uploadTestFn: func(_ *speedtest.Server) error {
@@ -984,11 +984,11 @@ func TestRunHeadless(t *testing.T) {
 						return nil
 					},
 					downloadTestFn: func(s *speedtest.Server) error {
-						s.DLSpeed = 100 * bytesToMbps
+						s.DLSpeed = 100 * bytesPerMbit
 						return nil
 					},
 					uploadTestFn: func(s *speedtest.Server) error {
-						s.ULSpeed = 50 * bytesToMbps
+						s.ULSpeed = 50 * bytesPerMbit
 						return nil
 					},
 				}
@@ -1012,11 +1012,11 @@ func TestRunHeadless(t *testing.T) {
 						return errors.New("ping timeout")
 					},
 					downloadTestFn: func(s *speedtest.Server) error {
-						s.DLSpeed = 100 * bytesToMbps
+						s.DLSpeed = 100 * bytesPerMbit
 						return nil
 					},
 					uploadTestFn: func(s *speedtest.Server) error {
-						s.ULSpeed = 50 * bytesToMbps
+						s.ULSpeed = 50 * bytesPerMbit
 						return nil
 					},
 				}
@@ -1077,11 +1077,11 @@ func TestRunHeadless(t *testing.T) {
 				return nil
 			},
 			downloadTestFn: func(s *speedtest.Server) error {
-				s.DLSpeed = 100 * bytesToMbps
+				s.DLSpeed = 100 * bytesPerMbit
 				return nil
 			},
 			uploadTestFn: func(s *speedtest.Server) error {
-				s.ULSpeed = 50 * bytesToMbps
+				s.ULSpeed = 50 * bytesPerMbit
 				return nil
 			},
 		}, cfg)
@@ -1143,11 +1143,11 @@ func TestRunHeadlessProgressCallback(t *testing.T) {
 			return nil
 		},
 		downloadTestFn: func(s *speedtest.Server) error {
-			s.DLSpeed = 100 * bytesToMbps
+			s.DLSpeed = 100 * bytesPerMbit
 			return nil
 		},
 		uploadTestFn: func(s *speedtest.Server) error {
-			s.ULSpeed = 50 * bytesToMbps
+			s.ULSpeed = 50 * bytesPerMbit
 			return nil
 		},
 	}, cfg)
@@ -1199,11 +1199,11 @@ func TestRunHeadlessProgressCallbackNil(t *testing.T) {
 			return nil
 		},
 		downloadTestFn: func(s *speedtest.Server) error {
-			s.DLSpeed = 100 * bytesToMbps
+			s.DLSpeed = 100 * bytesPerMbit
 			return nil
 		},
 		uploadTestFn: func(s *speedtest.Server) error {
-			s.ULSpeed = 50 * bytesToMbps
+			s.ULSpeed = 50 * bytesPerMbit
 			return nil
 		},
 	}, cfg)
@@ -1260,7 +1260,7 @@ func TestPerformSpeedTestUploadFailure(t *testing.T) {
 			return nil
 		},
 		downloadTestFn: func(s *speedtest.Server) error {
-			s.DLSpeed = 100 * bytesToMbps
+			s.DLSpeed = 100 * bytesPerMbit
 			return nil
 		},
 		uploadTestFn: func(_ *speedtest.Server) error {
@@ -1338,11 +1338,11 @@ func TestPerformSpeedTestJitterCalculation(t *testing.T) {
 			return nil
 		},
 		downloadTestFn: func(s *speedtest.Server) error {
-			s.DLSpeed = 100 * bytesToMbps
+			s.DLSpeed = 100 * bytesPerMbit
 			return nil
 		},
 		uploadTestFn: func(s *speedtest.Server) error {
-			s.ULSpeed = 50 * bytesToMbps
+			s.ULSpeed = 50 * bytesPerMbit
 			return nil
 		},
 	}, cfg)
@@ -1372,11 +1372,11 @@ func TestPerformSpeedTestUserInfoFailure(t *testing.T) {
 			return nil
 		},
 		downloadTestFn: func(s *speedtest.Server) error {
-			s.DLSpeed = 100 * bytesToMbps
+			s.DLSpeed = 100 * bytesPerMbit
 			return nil
 		},
 		uploadTestFn: func(s *speedtest.Server) error {
-			s.ULSpeed = 50 * bytesToMbps
+			s.ULSpeed = 50 * bytesPerMbit
 			return nil
 		},
 	}, nil)
@@ -1405,11 +1405,11 @@ func TestPerformSpeedTestProgressChannel(t *testing.T) {
 			return nil
 		},
 		downloadTestFn: func(s *speedtest.Server) error {
-			s.DLSpeed = 100 * bytesToMbps
+			s.DLSpeed = 100 * bytesPerMbit
 			return nil
 		},
 		uploadTestFn: func(s *speedtest.Server) error {
-			s.ULSpeed = 50 * bytesToMbps
+			s.ULSpeed = 50 * bytesPerMbit
 			return nil
 		},
 	}, cfg)
@@ -1468,11 +1468,11 @@ func TestPerformSpeedTestSinglePing(t *testing.T) {
 			return nil
 		},
 		downloadTestFn: func(s *speedtest.Server) error {
-			s.DLSpeed = 100 * bytesToMbps
+			s.DLSpeed = 100 * bytesPerMbit
 			return nil
 		},
 		uploadTestFn: func(s *speedtest.Server) error {
-			s.ULSpeed = 50 * bytesToMbps
+			s.ULSpeed = 50 * bytesPerMbit
 			return nil
 		},
 	}, cfg)
@@ -1548,6 +1548,20 @@ func TestExportResultUnwritableDirectory(t *testing.T) {
 			t.Errorf("Expected error writing CSV to read-only directory, got nil")
 		}
 	})
+}
+
+func TestDefaultPathsRespectXDGDataHome(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", "/tmp/xdg-data")
+
+	histPath := defaultHistoryPath()
+	if histPath != "/tmp/xdg-data/lazyspeed/history.json" {
+		t.Errorf("defaultHistoryPath() = %s, want /tmp/xdg-data/lazyspeed/history.json", histPath)
+	}
+
+	diagPath := defaultDiagnosticsPath()
+	if diagPath != "/tmp/xdg-data/lazyspeed/diagnostics.json" {
+		t.Errorf("defaultDiagnosticsPath() = %s, want /tmp/xdg-data/lazyspeed/diagnostics.json", diagPath)
+	}
 }
 
 func TestLegacyHistoryPath(t *testing.T) {
@@ -1816,7 +1830,7 @@ func TestMonitorTransferProgress(t *testing.T) {
 		span:    0.25,
 		maxProg: 0.7,
 		label:   "download",
-		rateFn:  func() float64 { return 100 * bytesToMbps }, // 100 Mbps in bytes/sec
+		rateFn:  func() float64 { return 100 * bytesPerMbit }, // 100 Mbps in bytes/sec
 	}, updateChan)
 
 	// Let the ticker fire at least once (progressInterval = 200ms)

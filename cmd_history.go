@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	historyFormatJSON = "json"
-	historyFormatCSV  = "csv"
+	historyFormatJSON   = "json"
+	historyFormatCSV    = "csv"
+	historyServerMaxLen = 20
 )
 
 var (
@@ -78,7 +79,7 @@ func runHistory() {
 
 	case historyFormatCSV:
 		w := csv.NewWriter(os.Stdout)
-		_ = w.Write([]string{"timestamp", "server", "country", "download_mbps", "upload_mbps", "ping_ms", "jitter_ms", "ip", "isp"})
+		_ = w.Write(model.SpeedTestCSVHeader)
 		for _, res := range entries {
 			_ = w.Write(res.CSVRow())
 		}
@@ -91,8 +92,8 @@ func runHistory() {
 		for _, res := range entries {
 			dateStr := res.Timestamp.Format("2006-01-02 15:04")
 			serverStr := res.ServerName
-			if len(serverStr) > 20 {
-				serverStr = serverStr[:17] + "..."
+			if len(serverStr) > historyServerMaxLen {
+				serverStr = serverStr[:historyServerMaxLen-3] + "..."
 			}
 			_, _ = fmt.Fprintf(w, "%s\t%s\t%.2f\t%.2f\t%.2f\n", dateStr, serverStr, res.DownloadSpeed, res.UploadSpeed, res.Ping)
 		}

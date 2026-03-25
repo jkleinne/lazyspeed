@@ -15,6 +15,11 @@ const (
 	diagMinVisible       = 3
 	anomalyMultiplier    = 2  // latency must exceed this factor of the median
 	anomalyAbsoluteMinMs = 50 // latency must also exceed this absolute floor (ms)
+
+	hopColWidth   = 6
+	ipColWidth    = 18
+	hostColWidth  = 30
+	hopTableWidth = 76
 )
 
 // renderLatency formats a duration value with colour coding.
@@ -97,7 +102,7 @@ func RenderDiagCompact(result *diag.DiagResult, width int) string {
 	var b strings.Builder
 
 	// Title
-	title := diagTitleStyle.Render("~ Network Diagnostics ~")
+	title := titleStyle.Render("~ Network Diagnostics ~")
 	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, title))
 	b.WriteString("\n\n")
 
@@ -115,14 +120,7 @@ func RenderDiagCompact(result *diag.DiagResult, width int) string {
 	b.WriteString("\n\n")
 
 	// Summary line
-	dnsStr := "N/A"
-	if result.DNS != nil {
-		cacheLabel := "cold"
-		if result.DNS.Cached {
-			cacheLabel = "cached"
-		}
-		dnsStr = fmt.Sprintf("%dms (%s)", result.DNS.Latency.Milliseconds(), cacheLabel)
-	}
+	dnsStr := dnsDisplayStr(result.DNS)
 	summaryPrefix := fmt.Sprintf("DNS: %s | Hops: %d | Route: ",
 		dnsStr,
 		len(result.Hops),
@@ -153,7 +151,7 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 	var b strings.Builder
 
 	// Compact header: title + score inline
-	titleText := diagTitleStyle.Render("~ Network Diagnostics ~")
+	titleText := titleStyle.Render("~ Network Diagnostics ~")
 	scoreText := scoreStyle(result.Quality.Grade).Render(
 		fmt.Sprintf("%d/100 (%s) — %s", result.Quality.Score, result.Quality.Grade, result.Quality.Label),
 	)
@@ -162,14 +160,7 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 	b.WriteString("\n")
 
 	// Meta line
-	dnsStr := "N/A"
-	if result.DNS != nil {
-		cacheLabel := "cold"
-		if result.DNS.Cached {
-			cacheLabel = "cached"
-		}
-		dnsStr = fmt.Sprintf("%dms (%s)", result.DNS.Latency.Milliseconds(), cacheLabel)
-	}
+	dnsStr := dnsDisplayStr(result.DNS)
 	meta := helpStyle.Render(fmt.Sprintf("Target: %s | Method: %s | DNS: %s",
 		result.Target, result.Method, dnsStr))
 	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, meta))
@@ -181,7 +172,7 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 	)
 	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, colHeader))
 	b.WriteString("\n")
-	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, helpStyle.Render(strings.Repeat("─", 76))))
+	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, helpStyle.Render(strings.Repeat("─", hopTableWidth))))
 	b.WriteString("\n")
 
 	// Viewport windowing — same pattern as HistoryVisibleRows
@@ -217,8 +208,8 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 
 		row := fmt.Sprintf("%-6d %-18s %-30s %s",
 			hop.Number,
-			truncate(ipStr, 17),
-			truncate(hostStr, 29),
+			truncate(ipStr, ipColWidth-1),
+			truncate(hostStr, hostColWidth-1),
 			latStr,
 		)
 
@@ -257,13 +248,26 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, b.String())
 }
 
-// truncate shortens s to at most maxLen characters, appending "…" if trimmed.
+// truncate shortens s to at most maxLen runes, appending "…" if trimmed.
 func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
 		return s
 	}
 	if maxLen <= 1 {
-		return s[:maxLen]
+		return string(runes[:maxLen])
 	}
-	return s[:maxLen-1] + "…"
+	return string(runes[:maxLen-1]) + "…"
+}
+
+// dnsDisplayStr formats a DNS result for display.
+func dnsDisplayStr(dns *diag.DNSResult) string {
+	if dns == nil {
+		return "N/A"
+	}
+	cacheLabel := "cold"
+	if dns.Cached {
+		cacheLabel = "cached"
+	}
+	return fmt.Sprintf("%dms (%s)", dns.Latency.Milliseconds(), cacheLabel)
 }

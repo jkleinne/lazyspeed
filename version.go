@@ -15,6 +15,8 @@ var (
 	date    = ""
 )
 
+const shortHashLen = 7
+
 // Returns a formatted version string using embedded build info
 func GetVersionInfo() string {
 	// Prefer values injected by GoReleaser via ldflags
@@ -44,8 +46,8 @@ func GetVersionInfo() string {
 					buildDate = t.Format("2006-01-02")
 				}
 			case "vcs.revision":
-				if len(setting.Value) > 7 {
-					commitHash = setting.Value[:7]
+				if len(setting.Value) > shortHashLen {
+					commitHash = setting.Value[:shortHashLen]
 				} else {
 					commitHash = setting.Value
 				}

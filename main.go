@@ -32,6 +32,8 @@ const (
 
 const fetchingServerListPhase = "Fetching server list..."
 
+const defaultDiagTarget = "8.8.8.8"
+
 const runningDiagnosticsPhase = "Running diagnostics..."
 
 // ViewState represents the TUI view overlay state.
@@ -85,7 +87,7 @@ func runDiagCmd(m *model.Model, cfg *diag.DiagConfig) tea.Cmd {
 				target = srv.Name
 			}
 		} else {
-			target = "8.8.8.8"
+			target = defaultDiagTarget
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Timeout)*time.Second)
@@ -341,6 +343,30 @@ func (s *speedTest) handleDiagRunningKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return s, nil
 }
 
+func (s *speedTest) startDiagnostics() (tea.Model, tea.Cmd) {
+	s.viewState = ViewDiagRunning
+	s.diagResult = nil
+	s.model.CurrentPhase = runningDiagnosticsPhase
+	s.model.ShowHelp = false
+	cfg := diagConfigFromModel(s.model)
+	return s, tea.Batch(s.spinner.Tick, runDiagCmd(s.model, cfg))
+}
+
+func (s *speedTest) startNewTest() (tea.Model, tea.Cmd) {
+	s.viewState = ViewMain
+	s.diagResult = nil
+	s.model.ShowHelp = false
+	if len(s.model.ServerList) == 0 {
+		s.model.State = model.StateAwaitingServers
+		s.model.CurrentPhase = fetchingServerListPhase
+		return s, s.spinner.Tick
+	}
+	s.model.State = model.StateSelectingServer
+	s.model.Cursor = 0
+	s.model.ServerListOffset = 0
+	return s, nil
+}
+
 func (s *speedTest) handleDiagExpandedKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", keyCtrlC:
@@ -357,11 +383,7 @@ func (s *speedTest) handleDiagExpandedKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 			s.diagOffset++
 		}
 	case "d":
-		s.viewState = ViewDiagRunning
-		s.diagResult = nil
-		s.model.CurrentPhase = runningDiagnosticsPhase
-		cfg := diagConfigFromModel(s.model)
-		return s, tea.Batch(s.spinner.Tick, runDiagCmd(s.model, cfg))
+		return s.startDiagnostics()
 	}
 	return s, nil
 }
@@ -379,22 +401,9 @@ func (s *speedTest) handleDiagCompactKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		s.viewState = ViewDiagExpanded
 		s.diagOffset = 0
 	case "d":
-		s.viewState = ViewDiagRunning
-		s.diagResult = nil
-		s.model.CurrentPhase = runningDiagnosticsPhase
-		cfg := diagConfigFromModel(s.model)
-		return s, tea.Batch(s.spinner.Tick, runDiagCmd(s.model, cfg))
+		return s.startDiagnostics()
 	case "n":
-		s.viewState = ViewMain
-		s.diagResult = nil
-		if len(s.model.ServerList) == 0 {
-			s.model.State = model.StateAwaitingServers
-			s.model.CurrentPhase = fetchingServerListPhase
-			return s, s.spinner.Tick
-		}
-		s.model.State = model.StateSelectingServer
-		s.model.Cursor = 0
-		s.model.ServerListOffset = 0
+		return s.startNewTest()
 	}
 	return s, nil
 }
@@ -416,23 +425,9 @@ func (s *speedTest) handleIdleKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			s.model.HistoryOffset++
 		}
 	case "n":
-		if len(s.model.ServerList) == 0 {
-			s.model.State = model.StateAwaitingServers
-			s.model.CurrentPhase = fetchingServerListPhase
-			s.model.ShowHelp = false
-			return s, s.spinner.Tick
-		}
-		s.model.State = model.StateSelectingServer
-		s.model.Cursor = 0
-		s.model.ServerListOffset = 0
-		s.model.ShowHelp = false
+		return s.startNewTest()
 	case "d":
-		s.viewState = ViewDiagRunning
-		s.diagResult = nil
-		s.model.CurrentPhase = runningDiagnosticsPhase
-		s.model.ShowHelp = false
-		cfg := diagConfigFromModel(s.model)
-		return s, tea.Batch(s.spinner.Tick, runDiagCmd(s.model, cfg))
+		return s.startDiagnostics()
 	case "e":
 		if s.model.Results != nil {
 			s.model.State = model.StateExporting
@@ -584,7 +579,7 @@ func runTUI() {
 	}
 
 	if _, err := tea.NewProgram(&s, tea.WithAltScreen()).Run(); err != nil {
-		fmt.Printf("Error running program: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error running program: %v\n", err)
 		os.Exit(1)
 	}
 }

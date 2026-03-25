@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -23,6 +24,15 @@ var (
 	diagServer  string
 	diagLast    int
 )
+
+var diagCSVHeader = []string{
+	"timestamp", "target", "method", "score", "grade",
+	"dns_ms", "dns_cached", "hops", "packet_loss_pct", "final_hop_latency_ms",
+}
+
+func diagIsInteractive() bool {
+	return !diagJSON && !diagCSV && !diagSimple
+}
 
 var diagCmd = &cobra.Command{
 	Use:   "diag [target]",
@@ -65,21 +75,32 @@ func stripPort(hostPort string) string {
 // diagConfigFromModel maps model.Config.Diagnostics to diag.DiagConfig.
 func diagConfigFromModel(m *model.Model) *diag.DiagConfig {
 	cfg := diag.DefaultDiagConfig()
-	if m.Config != nil {
-		if m.Config.Diagnostics.MaxHops > 0 {
-			cfg.MaxHops = m.Config.Diagnostics.MaxHops
-		}
-		if m.Config.Diagnostics.Timeout > 0 {
-			cfg.Timeout = m.Config.Diagnostics.Timeout
-		}
-		if m.Config.Diagnostics.MaxEntries > 0 {
-			cfg.MaxEntries = m.Config.Diagnostics.MaxEntries
-		}
-		if m.Config.Diagnostics.Path != "" {
-			cfg.Path = m.Config.Diagnostics.Path
-		}
+	if m.Config.Diagnostics.MaxHops > 0 {
+		cfg.MaxHops = m.Config.Diagnostics.MaxHops
+	}
+	if m.Config.Diagnostics.Timeout > 0 {
+		cfg.Timeout = m.Config.Diagnostics.Timeout
+	}
+	if m.Config.Diagnostics.MaxEntries > 0 {
+		cfg.MaxEntries = m.Config.Diagnostics.MaxEntries
+	}
+	if m.Config.Diagnostics.Path != "" {
+		cfg.Path = m.Config.Diagnostics.Path
 	}
 	return cfg
+}
+
+// fetchDiagServers fetches the server list, printing status if interactive.
+func fetchDiagServers(m *model.Model) {
+	if diagIsInteractive() {
+		fmt.Fprintln(os.Stderr, "Fetching server list...")
+	}
+	fetchCtx, fetchCancel := context.WithTimeout(context.Background(), m.FetchTimeoutDuration())
+	defer fetchCancel()
+	if err := m.FetchServerList(fetchCtx); err != nil {
+		fmt.Fprintf(os.Stderr, "Error fetching servers: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 func runDiag(args []string) {
@@ -91,16 +112,7 @@ func runDiag(args []string) {
 	if len(args) > 0 {
 		target = args[0]
 	} else if diagServer != "" {
-		// Use the specified server ID — fetch server list to resolve host
-		if !diagJSON && !diagCSV && !diagSimple {
-			fmt.Fprintln(os.Stderr, "Fetching server list...")
-		}
-		fetchCtx, fetchCancel := context.WithTimeout(context.Background(), m.FetchTimeoutDuration())
-		defer fetchCancel()
-		if err := m.FetchServerList(fetchCtx); err != nil {
-			fmt.Fprintf(os.Stderr, "Error fetching servers: %v\n", err)
-			os.Exit(1)
-		}
+		fetchDiagServers(m)
 		found := false
 		for _, s := range m.ServerList {
 			if s.ID == diagServer {
@@ -114,27 +126,18 @@ func runDiag(args []string) {
 			os.Exit(1)
 		}
 	} else {
-		// Auto-select closest speedtest server
-		if !diagJSON && !diagCSV && !diagSimple {
-			fmt.Fprintln(os.Stderr, "Fetching server list...")
-		}
-		fetchCtx, fetchCancel := context.WithTimeout(context.Background(), m.FetchTimeoutDuration())
-		defer fetchCancel()
-		if err := m.FetchServerList(fetchCtx); err != nil {
-			fmt.Fprintf(os.Stderr, "Error fetching servers: %v\n", err)
-			os.Exit(1)
-		}
+		fetchDiagServers(m)
 		if len(m.ServerList) == 0 {
 			fmt.Fprintf(os.Stderr, "Error: no servers found\n")
 			os.Exit(1)
 		}
 		target = stripPort(m.ServerList[0].Host)
-		if !diagJSON && !diagCSV && !diagSimple {
+		if diagIsInteractive() {
 			fmt.Fprintf(os.Stderr, "Selected server: %s (%s)\n", m.ServerList[0].Name, m.ServerList[0].Country)
 		}
 	}
 
-	if !diagJSON && !diagCSV && !diagSimple {
+	if diagIsInteractive() {
 		fmt.Fprintf(os.Stderr, "Running diagnostics against %s...\n", target)
 	}
 
@@ -168,10 +171,7 @@ func runDiag(args []string) {
 
 	if diagCSV {
 		w := csv.NewWriter(os.Stdout)
-		_ = w.Write([]string{
-			"timestamp", "target", "method", "score", "grade",
-			"dns_ms", "dns_cached", "hops", "packet_loss_pct", "final_hop_latency_ms",
-		})
+		_ = w.Write(diagCSVHeader)
 		_ = w.Write(diagCSVRow(result))
 		flushCSV(w)
 		return
@@ -219,10 +219,7 @@ func runDiagHistory() {
 
 	if diagCSV {
 		w := csv.NewWriter(os.Stdout)
-		_ = w.Write([]string{
-			"timestamp", "target", "method", "score", "grade",
-			"dns_ms", "dns_cached", "hops", "packet_loss_pct", "final_hop_latency_ms",
-		})
+		_ = w.Write(diagCSVHeader)
 		for _, r := range entries {
 			_ = w.Write(diagCSVRow(r))
 		}
@@ -236,12 +233,12 @@ func runDiagHistory() {
 	for _, r := range entries {
 		dateStr := r.Timestamp.Format("2006-01-02 15:04")
 		targetStr := r.Target
-		if len(targetStr) > 30 {
-			targetStr = targetStr[:27] + "..."
+		if len(targetStr) > diagTargetMaxLen {
+			targetStr = targetStr[:diagTargetMaxLen-3] + "..."
 		}
 		dnsMs := "-"
 		if r.DNS != nil {
-			dnsMs = fmt.Sprintf("%.1f", float64(r.DNS.Latency.Microseconds())/1000.0)
+			dnsMs = fmt.Sprintf("%.1f", diag.DurationMs(r.DNS.Latency))
 		}
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%d\t%s\t%d\t%s\n",
 			dateStr, targetStr, r.Quality.Score, r.Quality.Grade, len(r.Hops), dnsMs)
@@ -249,12 +246,14 @@ func runDiagHistory() {
 	_ = tw.Flush()
 }
 
+const diagTargetMaxLen = 30
+
 // diagCSVRow returns a CSV row for a DiagResult.
 func diagCSVRow(r *diag.DiagResult) []string {
 	dnsMs := ""
 	dnsCached := ""
 	if r.DNS != nil {
-		dnsMs = fmt.Sprintf("%.3f", float64(r.DNS.Latency.Microseconds())/1000.0)
+		dnsMs = fmt.Sprintf("%.3f", diag.DurationMs(r.DNS.Latency))
 		dnsCached = fmt.Sprintf("%v", r.DNS.Cached)
 	}
 
@@ -279,7 +278,7 @@ func diagCSVRow(r *diag.DiagResult) []string {
 func diagSimpleLine(r *diag.DiagResult) string {
 	dnsStr := "-"
 	if r.DNS != nil {
-		dnsStr = fmt.Sprintf("%.0fms", float64(r.DNS.Latency.Microseconds())/1000.0)
+		dnsStr = fmt.Sprintf("%.0fms", diag.DurationMs(r.DNS.Latency))
 	}
 	return fmt.Sprintf("Score: %d/%s | DNS: %s | Hops: %d",
 		r.Quality.Score, r.Quality.Grade, dnsStr, len(r.Hops))
@@ -287,11 +286,11 @@ func diagSimpleLine(r *diag.DiagResult) string {
 
 // diagDefaultOutput formats a DiagResult as a human-readable report with a hop table.
 func diagDefaultOutput(r *diag.DiagResult) string {
-	var out string
-	out += fmt.Sprintf("\nDiagnostics: %s\n", r.Target)
-	out += fmt.Sprintf("Timestamp:   %s\n", r.Timestamp.Format("2006-01-02 15:04:05"))
-	out += fmt.Sprintf("Method:      %s\n", r.Method)
-	out += fmt.Sprintf("Score:       %d / %s  (%s)\n",
+	var b strings.Builder
+	fmt.Fprintf(&b, "\nDiagnostics: %s\n", r.Target)
+	fmt.Fprintf(&b, "Timestamp:   %s\n", r.Timestamp.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&b, "Method:      %s\n", r.Method)
+	fmt.Fprintf(&b, "Score:       %d / %s  (%s)\n",
 		r.Quality.Score, r.Quality.Grade, r.Quality.Label)
 
 	if r.DNS != nil {
@@ -299,29 +298,27 @@ func diagDefaultOutput(r *diag.DiagResult) string {
 		if r.DNS.Cached {
 			cachedStr = "yes"
 		}
-		out += fmt.Sprintf("DNS:         %.1f ms (cached: %s)\n",
-			float64(r.DNS.Latency.Microseconds())/1000.0, cachedStr)
+		fmt.Fprintf(&b, "DNS:         %.1f ms (cached: %s)\n",
+			diag.DurationMs(r.DNS.Latency), cachedStr)
 	}
 
-	out += fmt.Sprintf("\nHops (%d):\n", len(r.Hops))
+	fmt.Fprintf(&b, "\nHops (%d):\n", len(r.Hops))
 
-	var sb string
 	for _, h := range r.Hops {
 		if h.Timeout {
-			sb += fmt.Sprintf("  %2d  *\n", h.Number)
+			fmt.Fprintf(&b, "  %2d  *\n", h.Number)
 		} else {
-			latencyMs := float64(h.Latency.Microseconds()) / 1000.0
+			latencyMs := diag.DurationMs(h.Latency)
 			host := h.Host
 			if host == "" || host == h.IP {
 				host = h.IP
 			} else {
 				host = fmt.Sprintf("%s (%s)", h.Host, h.IP)
 			}
-			sb += fmt.Sprintf("  %2d  %-50s  %.3f ms\n", h.Number, host, latencyMs)
+			fmt.Fprintf(&b, "  %2d  %-50s  %.3f ms\n", h.Number, host, latencyMs)
 		}
 	}
-	out += sb
-	return out
+	return b.String()
 }
 
 // diagPacketLossPct computes the packet loss percentage across hops.
@@ -342,7 +339,7 @@ func diagPacketLossPct(hops []diag.Hop) float64 {
 func diagFinalHopLatencyMs(hops []diag.Hop) float64 {
 	for i := len(hops) - 1; i >= 0; i-- {
 		if !hops[i].Timeout {
-			return float64(hops[i].Latency.Microseconds()) / 1000.0
+			return diag.DurationMs(hops[i].Latency)
 		}
 	}
 	return 0
