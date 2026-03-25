@@ -34,6 +34,16 @@ const fetchingServerListPhase = "Fetching server list..."
 
 const runningDiagnosticsPhase = "Running diagnostics..."
 
+// ViewState represents the TUI view overlay state.
+type ViewState int
+
+const (
+	ViewMain         ViewState = iota // Delegates to Model.State for rendering
+	ViewDiagRunning                   // Diagnostics spinner
+	ViewDiagCompact                   // Compact diagnostics summary
+	ViewDiagExpanded                  // Full hop-by-hop trace table
+)
+
 type speedTest struct {
 	model        *model.Model
 	spinner      spinner.Model
@@ -42,11 +52,9 @@ type speedTest struct {
 	errChan      chan error
 	cancelTest   context.CancelFunc
 
-	diagResult       *diag.DiagResult
-	diagRunning      bool
-	showDiagCompact  bool
-	showDiagExpanded bool
-	diagOffset       int
+	diagResult *diag.DiagResult
+	viewState  ViewState
+	diagOffset int
 }
 
 type progressMsg struct {
@@ -99,12 +107,10 @@ func fetchServerListCmd(m *model.Model) tea.Cmd {
 }
 
 func (s *speedTest) Init() tea.Cmd {
-	s.model.FetchingServers = true
 	cmds := []tea.Cmd{fetchServerListCmd(s.model)}
 
 	if len(s.model.TestHistory) == 0 {
-		// First launch: show loading spinner since there's nothing else to display
-		s.model.PendingServerSelection = true
+		s.model.State = model.StateAwaitingServers
 		s.model.CurrentPhase = fetchingServerListPhase
 		cmds = append(cmds, s.spinner.Tick)
 	}
@@ -132,235 +138,16 @@ func (s *speedTest) adjustServerListOffset() {
 }
 
 func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		// Export format prompt takes priority over all other key handlers
-		if s.model.Exporting {
-			switch msg.String() {
-			case "j":
-				s.model.Exporting = false
-				return s, exportCmd(s.model.Results, "json", s.model)
-			case "c":
-				s.model.Exporting = false
-				return s, exportCmd(s.model.Results, "csv", s.model)
-			case keyEsc, "q", keyCtrlC:
-				s.model.Exporting = false
-			}
-			return s, nil
-		}
-
-		if s.model.FetchingServers && s.model.PendingServerSelection {
-			// Spinner is visible while waiting for server list — only allow quit
-			switch msg.String() {
-			case "q", keyCtrlC:
-				s.quitting = true
-				return s, tea.Quit
-			}
-		} else if s.model.SelectingServer {
-			switch msg.String() {
-			case "q", keyCtrlC:
-				s.quitting = true
-				return s, tea.Quit
-			case keyEsc:
-				s.model.SelectingServer = false
-				s.model.ShowHelp = true
-			case keyUp, keyK:
-				if s.model.Cursor > 0 {
-					s.model.Cursor--
-					s.adjustServerListOffset()
-				}
-			case keyDown, keyJ:
-				if s.model.Cursor < len(s.model.ServerList)-1 {
-					s.model.Cursor++
-					s.adjustServerListOffset()
-				}
-			case "enter":
-				if s.model.Cursor < 0 || s.model.Cursor >= len(s.model.ServerList) {
-					s.model.Error = fmt.Errorf("invalid server selection")
-					s.model.SelectingServer = false
-					s.model.ShowHelp = false
-					return s, nil
-				}
-				s.model.SelectingServer = false
-				s.model.Testing = true
-				s.model.Progress = 0
-				s.model.CurrentPhase = "Starting speed test..."
-				s.model.Error = nil
-
-				ctx, cancel := context.WithTimeout(context.Background(), s.model.TestTimeoutDuration())
-				s.cancelTest = cancel
-
-				s.progressChan = make(chan model.ProgressUpdate)
-				s.errChan = make(chan error, 1)
-				go func() {
-					server := s.model.ServerList[s.model.Cursor]
-					err := s.model.PerformSpeedTest(ctx, server, s.progressChan)
-					s.errChan <- err
-					close(s.progressChan)
-				}()
-				s.model.ShowHelp = false
-				return s, tea.Batch(
-					s.spinner.Tick,
-					waitForProgress(s.progressChan, s.errChan),
-				)
-			}
-		} else if s.showDiagExpanded {
-			switch msg.String() {
-			case "q", keyCtrlC:
-				s.quitting = true
-				return s, tea.Quit
-			case keyEsc:
-				s.showDiagExpanded = false
-				s.showDiagCompact = true
-			case keyUp, keyK:
-				if s.diagOffset > 0 {
-					s.diagOffset--
-				}
-			case keyDown, keyJ:
-				if s.diagResult != nil && s.diagOffset < len(s.diagResult.Hops)-1 {
-					s.diagOffset++
-				}
-			case "d":
-				s.showDiagExpanded = false
-				s.showDiagCompact = false
-				s.diagResult = nil
-				s.diagRunning = true
-				s.model.CurrentPhase = runningDiagnosticsPhase
-				cfg := diagConfigFromModel(s.model)
-				return s, tea.Batch(s.spinner.Tick, runDiagCmd(s.model, cfg))
-			}
-			return s, nil
-		} else if s.showDiagCompact {
-			switch msg.String() {
-			case "q", keyCtrlC:
-				s.quitting = true
-				return s, tea.Quit
-			case keyEsc:
-				s.showDiagCompact = false
-				s.diagResult = nil
-				s.diagRunning = false
-				s.model.ShowHelp = true
-			case "enter":
-				s.showDiagCompact = false
-				s.showDiagExpanded = true
-				s.diagOffset = 0
-			case "d":
-				s.showDiagCompact = false
-				s.diagResult = nil
-				s.diagRunning = true
-				s.model.CurrentPhase = runningDiagnosticsPhase
-				cfg := diagConfigFromModel(s.model)
-				return s, tea.Batch(s.spinner.Tick, runDiagCmd(s.model, cfg))
-			case "n":
-				s.showDiagCompact = false
-				s.diagResult = nil
-				if s.model.FetchingServers {
-					s.model.PendingServerSelection = true
-					s.model.CurrentPhase = fetchingServerListPhase
-					return s, s.spinner.Tick
-				}
-				s.model.SelectingServer = true
-				s.model.Cursor = 0
-				s.model.ServerListOffset = 0
-			}
-			return s, nil
-		} else {
-			switch msg.String() {
-			case "q", keyCtrlC:
-				s.cancelTestIfRunning()
-				s.quitting = true
-				return s, tea.Quit
-			case keyUp, keyK:
-				if s.model.HistoryOffset > 0 {
-					s.model.HistoryOffset--
-				}
-			case keyDown, keyJ:
-				totalRows := len(s.model.TestHistory) - 1
-				maxVisible := ui.HistoryVisibleRows(s.model.Height, totalRows)
-				if totalRows > maxVisible && s.model.HistoryOffset < totalRows-maxVisible {
-					s.model.HistoryOffset++
-				}
-			case "n":
-				if !s.model.Testing && !s.model.SelectingServer {
-					if s.model.FetchingServers {
-						// Servers still loading — show the spinner and queue the transition
-						s.model.PendingServerSelection = true
-						s.model.CurrentPhase = fetchingServerListPhase
-						s.model.ShowHelp = false
-						return s, s.spinner.Tick
-					}
-					s.model.SelectingServer = true
-					s.model.Cursor = 0
-					s.model.ServerListOffset = 0
-					s.model.ShowHelp = false
-				}
-			case "d":
-				if !s.model.Testing && !s.model.SelectingServer && !s.diagRunning {
-					s.diagRunning = true
-					s.showDiagCompact = false
-					s.showDiagExpanded = false
-					s.diagResult = nil
-					s.model.CurrentPhase = runningDiagnosticsPhase
-					s.model.ShowHelp = false
-					cfg := diagConfigFromModel(s.model)
-					return s, tea.Batch(s.spinner.Tick, runDiagCmd(s.model, cfg))
-				}
-			case "e":
-				if !s.model.Testing && s.model.Results != nil {
-					s.model.Exporting = true
-					s.model.ExportMessage = ""
-				}
-			case "h":
-				s.model.ShowHelp = !s.model.ShowHelp
-			}
-		}
-
 	case tea.WindowSizeMsg:
 		s.model.Width = msg.Width
 		s.model.Height = msg.Height
+		return s, nil
 
 	case spinner.TickMsg:
-		var tickCmd tea.Cmd
-		s.spinner, tickCmd = s.spinner.Update(msg)
-		return s, tickCmd
-
-	case serverListMsg:
-		s.model.FetchingServers = false
-		s.model.CurrentPhase = ""
-		if msg.err != nil {
-			s.model.Error = msg.err
-			s.model.PendingServerSelection = false
-		} else if s.model.PendingServerSelection || len(s.model.TestHistory) == 0 {
-			s.model.SelectingServer = true
-			s.model.Cursor = 0
-			s.model.ServerListOffset = 0
-			s.model.PendingServerSelection = false
-		}
-		return s, nil
-
-	case progressMsg:
-		s.model.Progress = msg.Progress
-		s.model.CurrentPhase = msg.Phase
-		// Continue listening for further updates if the test is still running
-		if s.model.Testing {
-			return s, tea.Batch(
-				s.spinner.Tick,
-				waitForProgress(s.progressChan, s.errChan),
-			)
-		}
-		return s, nil
-
-	case testComplete:
-		s.cancelTest = nil
-		s.model.Testing = false
-		s.model.HistoryOffset = 0
-		if msg.err != nil {
-			s.model.Error = msg.err
-			s.model.Results = nil
-		}
-		return s, nil
+		var cmd tea.Cmd
+		s.spinner, cmd = s.spinner.Update(msg)
+		return s, cmd
 
 	case exportDoneMsg:
 		if msg.err != nil {
@@ -370,24 +157,291 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return s, nil
 
-	case diagCompleteMsg:
-		s.diagRunning = false
-		s.model.CurrentPhase = ""
-		if msg.err != nil {
-			s.model.Error = msg.err
-		} else {
-			s.diagResult = msg.result
-			s.showDiagCompact = true
-			m := s.model
-			cfg := diagConfigFromModel(m)
-			history, _ := diag.LoadHistory(cfg.Path)
-			history = append(history, msg.result)
-			_ = diag.SaveHistory(cfg.Path, history, cfg.MaxEntries)
-		}
-		return s, nil
-	}
+	case serverListMsg:
+		return s.handleServerListMsg(msg)
 
-	return s, cmd
+	case progressMsg:
+		return s.handleProgressMsg(msg)
+
+	case testComplete:
+		return s.handleTestComplete(msg)
+
+	case diagCompleteMsg:
+		return s.handleDiagComplete(msg)
+
+	case tea.KeyMsg:
+		switch s.viewState {
+		case ViewDiagExpanded:
+			return s.handleDiagExpandedKeys(msg)
+		case ViewDiagCompact:
+			return s.handleDiagCompactKeys(msg)
+		case ViewDiagRunning:
+			return s.handleDiagRunningKeys(msg)
+		case ViewMain:
+			switch s.model.State {
+			case model.StateExporting:
+				return s.handleExportKeys(msg)
+			case model.StateAwaitingServers:
+				return s.handleAwaitingServersKeys(msg)
+			case model.StateSelectingServer:
+				return s.handleServerSelectionKeys(msg)
+			case model.StateTesting:
+				return s.handleTestingKeys(msg)
+			case model.StateIdle:
+				return s.handleIdleKeys(msg)
+			}
+		}
+	}
+	return s, nil
+}
+
+func (s *speedTest) handleServerListMsg(msg serverListMsg) (tea.Model, tea.Cmd) {
+	s.model.CurrentPhase = ""
+	if msg.err != nil {
+		s.model.Error = msg.err
+		if s.model.State == model.StateAwaitingServers {
+			s.model.State = model.StateIdle
+		}
+	} else if s.model.State == model.StateAwaitingServers || len(s.model.TestHistory) == 0 {
+		s.model.State = model.StateSelectingServer
+		s.model.Cursor = 0
+		s.model.ServerListOffset = 0
+	}
+	return s, nil
+}
+
+func (s *speedTest) handleProgressMsg(msg progressMsg) (tea.Model, tea.Cmd) {
+	s.model.Progress = msg.Progress
+	s.model.CurrentPhase = msg.Phase
+	if s.model.State == model.StateTesting {
+		return s, tea.Batch(
+			s.spinner.Tick,
+			waitForProgress(s.progressChan, s.errChan),
+		)
+	}
+	return s, nil
+}
+
+func (s *speedTest) handleTestComplete(msg testComplete) (tea.Model, tea.Cmd) {
+	s.cancelTest = nil
+	s.model.State = model.StateIdle
+	s.model.HistoryOffset = 0
+	if msg.err != nil {
+		s.model.Error = msg.err
+		s.model.Results = nil
+	}
+	return s, nil
+}
+
+func (s *speedTest) handleDiagComplete(msg diagCompleteMsg) (tea.Model, tea.Cmd) {
+	s.model.CurrentPhase = ""
+	if msg.err != nil {
+		s.model.Error = msg.err
+		s.viewState = ViewMain
+	} else {
+		s.diagResult = msg.result
+		s.viewState = ViewDiagCompact
+		cfg := diagConfigFromModel(s.model)
+		history, _ := diag.LoadHistory(cfg.Path)
+		history = append(history, msg.result)
+		_ = diag.SaveHistory(cfg.Path, history, cfg.MaxEntries)
+	}
+	return s, nil
+}
+
+func (s *speedTest) handleExportKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "j":
+		s.model.State = model.StateIdle
+		return s, exportCmd(s.model.Results, "json", s.model)
+	case "c":
+		s.model.State = model.StateIdle
+		return s, exportCmd(s.model.Results, "csv", s.model)
+	case keyEsc, "q", keyCtrlC:
+		s.model.State = model.StateIdle
+	}
+	return s, nil
+}
+
+func (s *speedTest) handleAwaitingServersKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", keyCtrlC:
+		s.quitting = true
+		return s, tea.Quit
+	}
+	return s, nil
+}
+
+func (s *speedTest) handleServerSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", keyCtrlC:
+		s.quitting = true
+		return s, tea.Quit
+	case keyEsc:
+		s.model.State = model.StateIdle
+		s.model.ShowHelp = true
+	case keyUp, keyK:
+		if s.model.Cursor > 0 {
+			s.model.Cursor--
+			s.adjustServerListOffset()
+		}
+	case keyDown, keyJ:
+		if s.model.Cursor < len(s.model.ServerList)-1 {
+			s.model.Cursor++
+			s.adjustServerListOffset()
+		}
+	case "enter":
+		if s.model.Cursor < 0 || s.model.Cursor >= len(s.model.ServerList) {
+			s.model.Error = fmt.Errorf("invalid server selection")
+			s.model.State = model.StateIdle
+			s.model.ShowHelp = false
+			return s, nil
+		}
+		s.model.State = model.StateTesting
+		s.model.Progress = 0
+		s.model.CurrentPhase = "Starting speed test..."
+		s.model.Error = nil
+
+		ctx, cancel := context.WithTimeout(context.Background(), s.model.TestTimeoutDuration())
+		s.cancelTest = cancel
+
+		s.progressChan = make(chan model.ProgressUpdate)
+		s.errChan = make(chan error, 1)
+		go func() {
+			server := s.model.ServerList[s.model.Cursor]
+			err := s.model.PerformSpeedTest(ctx, server, s.progressChan)
+			s.errChan <- err
+			close(s.progressChan)
+		}()
+		s.model.ShowHelp = false
+		return s, tea.Batch(
+			s.spinner.Tick,
+			waitForProgress(s.progressChan, s.errChan),
+		)
+	}
+	return s, nil
+}
+
+func (s *speedTest) handleTestingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", keyCtrlC:
+		s.cancelTestIfRunning()
+		s.quitting = true
+		return s, tea.Quit
+	}
+	return s, nil
+}
+
+func (s *speedTest) handleDiagRunningKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", keyCtrlC:
+		s.quitting = true
+		return s, tea.Quit
+	}
+	return s, nil
+}
+
+func (s *speedTest) handleDiagExpandedKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", keyCtrlC:
+		s.quitting = true
+		return s, tea.Quit
+	case keyEsc:
+		s.viewState = ViewDiagCompact
+	case keyUp, keyK:
+		if s.diagOffset > 0 {
+			s.diagOffset--
+		}
+	case keyDown, keyJ:
+		if s.diagResult != nil && s.diagOffset < len(s.diagResult.Hops)-1 {
+			s.diagOffset++
+		}
+	case "d":
+		s.viewState = ViewDiagRunning
+		s.diagResult = nil
+		s.model.CurrentPhase = runningDiagnosticsPhase
+		cfg := diagConfigFromModel(s.model)
+		return s, tea.Batch(s.spinner.Tick, runDiagCmd(s.model, cfg))
+	}
+	return s, nil
+}
+
+func (s *speedTest) handleDiagCompactKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", keyCtrlC:
+		s.quitting = true
+		return s, tea.Quit
+	case keyEsc:
+		s.viewState = ViewMain
+		s.diagResult = nil
+		s.model.ShowHelp = true
+	case "enter":
+		s.viewState = ViewDiagExpanded
+		s.diagOffset = 0
+	case "d":
+		s.viewState = ViewDiagRunning
+		s.diagResult = nil
+		s.model.CurrentPhase = runningDiagnosticsPhase
+		cfg := diagConfigFromModel(s.model)
+		return s, tea.Batch(s.spinner.Tick, runDiagCmd(s.model, cfg))
+	case "n":
+		s.viewState = ViewMain
+		s.diagResult = nil
+		if len(s.model.ServerList) == 0 {
+			s.model.State = model.StateAwaitingServers
+			s.model.CurrentPhase = fetchingServerListPhase
+			return s, s.spinner.Tick
+		}
+		s.model.State = model.StateSelectingServer
+		s.model.Cursor = 0
+		s.model.ServerListOffset = 0
+	}
+	return s, nil
+}
+
+func (s *speedTest) handleIdleKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", keyCtrlC:
+		s.cancelTestIfRunning()
+		s.quitting = true
+		return s, tea.Quit
+	case keyUp, keyK:
+		if s.model.HistoryOffset > 0 {
+			s.model.HistoryOffset--
+		}
+	case keyDown, keyJ:
+		totalRows := len(s.model.TestHistory) - 1
+		maxVisible := ui.HistoryVisibleRows(s.model.Height, totalRows)
+		if totalRows > maxVisible && s.model.HistoryOffset < totalRows-maxVisible {
+			s.model.HistoryOffset++
+		}
+	case "n":
+		if len(s.model.ServerList) == 0 {
+			s.model.State = model.StateAwaitingServers
+			s.model.CurrentPhase = fetchingServerListPhase
+			s.model.ShowHelp = false
+			return s, s.spinner.Tick
+		}
+		s.model.State = model.StateSelectingServer
+		s.model.Cursor = 0
+		s.model.ServerListOffset = 0
+		s.model.ShowHelp = false
+	case "d":
+		s.viewState = ViewDiagRunning
+		s.diagResult = nil
+		s.model.CurrentPhase = runningDiagnosticsPhase
+		s.model.ShowHelp = false
+		cfg := diagConfigFromModel(s.model)
+		return s, tea.Batch(s.spinner.Tick, runDiagCmd(s.model, cfg))
+	case "e":
+		if s.model.Results != nil {
+			s.model.State = model.StateExporting
+			s.model.ExportMessage = ""
+		}
+	case "h":
+		s.model.ShowHelp = !s.model.ShowHelp
+	}
+	return s, nil
 }
 
 func (s *speedTest) View() string {
@@ -397,54 +451,67 @@ func (s *speedTest) View() string {
 	b.WriteString(ui.RenderTitle(s.model.Width))
 	b.WriteString("\n\n")
 
-	if s.model.FetchingServers && s.model.PendingServerSelection {
+	switch s.viewState {
+	case ViewDiagRunning:
 		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, 0))
 		b.WriteString("\n\n")
-	} else if s.model.SelectingServer {
-		b.WriteString(ui.RenderServerSelection(s.model, s.model.Width))
-	} else if s.model.Testing {
-		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, s.model.Progress))
-		b.WriteString("\n\n")
-	} else if s.diagRunning {
-		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, 0))
-		b.WriteString("\n\n")
-	} else if s.showDiagCompact && s.diagResult != nil {
-		b.WriteString(ui.RenderDiagCompact(s.diagResult, s.model.Width))
-		b.WriteString("\n")
-	} else if s.showDiagExpanded && s.diagResult != nil {
-		b.WriteString(ui.RenderDiagExpanded(s.diagResult, s.model.Width, s.model.Height, s.diagOffset))
-		b.WriteString("\n")
-	} else {
-		if s.model.Results != nil || len(s.model.TestHistory) > 0 {
-			b.WriteString(ui.RenderResults(s.model, s.model.Width))
+
+	case ViewDiagCompact:
+		if s.diagResult != nil {
+			b.WriteString(ui.RenderDiagCompact(s.diagResult, s.model.Width))
 			b.WriteString("\n")
 		}
 
-		if s.model.Error != nil {
+	case ViewDiagExpanded:
+		if s.diagResult != nil {
+			b.WriteString(ui.RenderDiagExpanded(s.diagResult, s.model.Width, s.model.Height, s.diagOffset))
 			b.WriteString("\n")
-			b.WriteString(ui.RenderError(s.model.Error, s.model.Width))
 		}
 
-		if s.model.Warning != "" {
-			b.WriteString("\n")
-			b.WriteString(ui.RenderWarning(s.model.Warning, s.model.Width))
-		}
+	case ViewMain:
+		switch s.model.State {
+		case model.StateAwaitingServers:
+			b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, 0))
+			b.WriteString("\n\n")
 
-		if s.model.Exporting {
-			b.WriteString("\n")
-			b.WriteString(ui.RenderExportPrompt(s.model.Width))
-		} else if s.model.ExportMessage != "" {
-			b.WriteString("\n")
-			b.WriteString(ui.RenderExportMessage(s.model.ExportMessage, s.model.Width))
-		}
+		case model.StateSelectingServer:
+			b.WriteString(ui.RenderServerSelection(s.model, s.model.Width))
 
-		if s.model.ShowHelp {
-			b.WriteString(ui.RenderHelp(s.model.Width, s.model.Results != nil))
+		case model.StateTesting:
+			b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, s.model.Progress))
+			b.WriteString("\n\n")
+
+		case model.StateExporting, model.StateIdle:
+			if s.model.Results != nil || len(s.model.TestHistory) > 0 {
+				b.WriteString(ui.RenderResults(s.model, s.model.Width))
+				b.WriteString("\n")
+			}
+
+			if s.model.Error != nil {
+				b.WriteString("\n")
+				b.WriteString(ui.RenderError(s.model.Error, s.model.Width))
+			}
+
+			if s.model.Warning != "" {
+				b.WriteString("\n")
+				b.WriteString(ui.RenderWarning(s.model.Warning, s.model.Width))
+			}
+
+			if s.model.State == model.StateExporting {
+				b.WriteString("\n")
+				b.WriteString(ui.RenderExportPrompt(s.model.Width))
+			} else if s.model.ExportMessage != "" {
+				b.WriteString("\n")
+				b.WriteString(ui.RenderExportMessage(s.model.ExportMessage, s.model.Width))
+			}
+
+			if s.model.ShowHelp {
+				b.WriteString(ui.RenderHelp(s.model.Width, s.model.Results != nil))
+			}
 		}
 	}
 
 	b.WriteString("\n")
-
 	return b.String()
 }
 

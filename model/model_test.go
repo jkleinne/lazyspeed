@@ -167,8 +167,8 @@ func TestNewModel(t *testing.T) {
 		t.Errorf("Expected TestHistory to be empty, got length %d", len(m.TestHistory))
 	}
 
-	if m.Testing != false {
-		t.Errorf("Expected Testing to be false, got %t", m.Testing)
+	if m.State != StateIdle {
+		t.Errorf("Expected State to be StateIdle, got %d", m.State)
 	}
 
 	if m.Progress != 0 {
@@ -181,10 +181,6 @@ func TestNewModel(t *testing.T) {
 
 	if m.ShowHelp != true {
 		t.Errorf("Expected ShowHelp to be true, got %t", m.ShowHelp)
-	}
-
-	if m.SelectingServer != false {
-		t.Errorf("Expected SelectingServer to be false, got %t", m.SelectingServer)
 	}
 
 	if m.Cursor != 0 {
@@ -353,8 +349,8 @@ func TestPerformSpeedTest(t *testing.T) {
 	if m.Results.ServerCountry != "Test Country" {
 		t.Errorf("Expected ServerCountry 'Test Country', got %q", m.Results.ServerCountry)
 	}
-	if m.Testing != false {
-		t.Errorf("Expected Testing to be false at end")
+	if m.State != StateIdle {
+		t.Errorf("Expected State to be StateIdle at end")
 	}
 }
 
@@ -1302,8 +1298,8 @@ func TestPerformSpeedTestContextCancellation(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("Expected context.Canceled, got %v", err)
 	}
-	if m.Testing {
-		t.Errorf("Expected Testing to be false after cancellation")
+	if m.State != StateIdle {
+		t.Errorf("Expected State to be StateIdle after cancellation")
 	}
 }
 

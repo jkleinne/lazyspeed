@@ -10,7 +10,10 @@ linters:
     - goconst
     - misspell
     - revive
+    - exhaustive
   settings:
+    exhaustive:
+      default-signifies-exhaustive: false
     revive:
       rules:
         - name: package-comments

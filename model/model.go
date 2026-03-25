@@ -106,28 +106,24 @@ type RunOptions struct {
 
 // Model holds all application state for the TUI and speed test orchestration.
 type Model struct {
-	Results                *SpeedTestResult
-	TestHistory            []*SpeedTestResult
-	Testing                bool
-	FetchingServers        bool
-	Progress               float64
-	CurrentPhase           string
-	Error                  error
-	Warning                string
-	ShowHelp               bool
-	Width, Height          int
-	PingResults            []float64 // Used for jitter calculation
-	ServerList             speedtest.Servers
-	Backend                Backend
-	Config                 *Config
-	SelectingServer        bool
-	PendingServerSelection bool
-	Cursor                 int
-	ServerListOffset       int
-	HistoryOffset          int
-	User                   *speedtest.User
-	// Exporting is true when the TUI is showing the inline export format prompt.
-	Exporting bool
+	Results          *SpeedTestResult
+	TestHistory      []*SpeedTestResult
+	State            ModelState
+	Progress         float64
+	CurrentPhase     string
+	Error            error
+	Warning          string
+	ShowHelp         bool
+	Width            int
+	Height           int
+	PingResults      []float64 // Used for jitter calculation
+	ServerList       speedtest.Servers
+	Backend          Backend
+	Config           *Config
+	Cursor           int
+	ServerListOffset int
+	HistoryOffset    int
+	User             *speedtest.User
 	// ExportMessage is set after an export attempt (success path or error) and
 	// shown briefly in the TUI view.
 	ExportMessage string
@@ -401,7 +397,7 @@ func monitorTransferProgress(
 
 func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, updateChan chan<- ProgressUpdate) error {
 	var err error
-	m.Testing = true
+	m.State = StateTesting
 	m.Progress = 0
 	m.Error = nil
 	m.Warning = ""
@@ -419,7 +415,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	}
 
 	if ctx.Err() != nil {
-		m.Testing = false
+		m.State = StateIdle
 		return ctx.Err()
 	}
 
@@ -442,7 +438,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		}
 	})
 	if err != nil {
-		m.Testing = false
+		m.State = StateIdle
 		return err
 	}
 	m.PingResults = pr.pings
@@ -462,11 +458,11 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	close(dlDone)
 	<-dlAck
 	if ctx.Err() != nil {
-		m.Testing = false
+		m.State = StateIdle
 		return ctx.Err()
 	}
 	if err != nil {
-		m.Testing = false
+		m.State = StateIdle
 		return fmt.Errorf("download test failed: %v", err)
 	}
 	dlSpeed := float64(server.DLSpeed) / bytesToMbps
@@ -484,11 +480,11 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	close(ulDone)
 	<-ulAck
 	if ctx.Err() != nil {
-		m.Testing = false
+		m.State = StateIdle
 		return ctx.Err()
 	}
 	if err != nil {
-		m.Testing = false
+		m.State = StateIdle
 		return fmt.Errorf("upload test failed: %v", err)
 	}
 	ulSpeed := float64(server.ULSpeed) / bytesToMbps
@@ -521,7 +517,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	}
 
 	sendUpdate(progressComplete, "Test completed", updateChan)
-	m.Testing = false
+	m.State = StateIdle
 	return nil
 }
 
