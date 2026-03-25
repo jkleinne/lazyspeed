@@ -10,6 +10,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jkleinne/lazyspeed/diag"
 	"github.com/jkleinne/lazyspeed/model"
 	"github.com/jkleinne/lazyspeed/ui"
 	"github.com/showwin/speedtest-go/speedtest"
@@ -1001,5 +1002,275 @@ func TestHistoryOffsetResetOnTestComplete(t *testing.T) {
 	}
 	if newS.model.State != model.StateIdle {
 		t.Errorf("Expected State to be StateIdle after testComplete, got %d", newS.model.State)
+	}
+}
+
+func TestViewStateValues(t *testing.T) {
+	var s ViewState
+	if s != ViewMain {
+		t.Errorf("Expected zero value to be ViewMain, got %d", s)
+	}
+
+	states := []ViewState{ViewMain, ViewDiagRunning, ViewDiagCompact, ViewDiagExpanded}
+	seen := make(map[ViewState]bool)
+	for _, st := range states {
+		if seen[st] {
+			t.Errorf("Duplicate ViewState value: %d", st)
+		}
+		seen[st] = true
+	}
+}
+
+func TestUpdateDiagCompleteSuccess(t *testing.T) {
+	m := model.NewDefaultModel()
+	s := speedTest{model: m, spinner: ui.DefaultSpinner, viewState: ViewDiagRunning}
+
+	result := &diag.DiagResult{
+		Target: "8.8.8.8",
+		Hops:   []diag.Hop{{Number: 1, IP: "10.0.0.1"}},
+	}
+
+	newModel, _ := s.Update(diagCompleteMsg{result: result})
+	newS := newModel.(*speedTest)
+
+	if newS.viewState != ViewDiagCompact {
+		t.Errorf("Expected viewState ViewDiagCompact, got %d", newS.viewState)
+	}
+	if newS.diagResult == nil {
+		t.Errorf("Expected diagResult to be set")
+	}
+	if newS.diagResult.Target != "8.8.8.8" {
+		t.Errorf("Expected target 8.8.8.8, got %s", newS.diagResult.Target)
+	}
+}
+
+func TestUpdateDiagCompleteError(t *testing.T) {
+	m := model.NewDefaultModel()
+	s := speedTest{model: m, spinner: ui.DefaultSpinner, viewState: ViewDiagRunning}
+
+	newModel, _ := s.Update(diagCompleteMsg{err: errors.New("traceroute failed")})
+	newS := newModel.(*speedTest)
+
+	if newS.viewState != ViewMain {
+		t.Errorf("Expected viewState ViewMain after error, got %d", newS.viewState)
+	}
+	if newS.model.Error == nil || newS.model.Error.Error() != "traceroute failed" {
+		t.Errorf("Expected error to be set")
+	}
+}
+
+func TestDiagCompactEscReturnsToMain(t *testing.T) {
+	m := model.NewDefaultModel()
+	s := speedTest{
+		model:      m,
+		spinner:    ui.DefaultSpinner,
+		viewState:  ViewDiagCompact,
+		diagResult: &diag.DiagResult{Target: "8.8.8.8"},
+	}
+
+	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	newS := newModel.(*speedTest)
+
+	if newS.viewState != ViewMain {
+		t.Errorf("Expected viewState ViewMain after Esc, got %d", newS.viewState)
+	}
+	if newS.diagResult != nil {
+		t.Errorf("Expected diagResult to be cleared")
+	}
+	if !newS.model.ShowHelp {
+		t.Errorf("Expected ShowHelp to be true")
+	}
+}
+
+func TestDiagCompactEnterExpandsTrace(t *testing.T) {
+	m := model.NewDefaultModel()
+	s := speedTest{
+		model:      m,
+		spinner:    ui.DefaultSpinner,
+		viewState:  ViewDiagCompact,
+		diagResult: &diag.DiagResult{Target: "8.8.8.8"},
+		diagOffset: 5,
+	}
+
+	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newS := newModel.(*speedTest)
+
+	if newS.viewState != ViewDiagExpanded {
+		t.Errorf("Expected viewState ViewDiagExpanded, got %d", newS.viewState)
+	}
+	if newS.diagOffset != 0 {
+		t.Errorf("Expected diagOffset reset to 0, got %d", newS.diagOffset)
+	}
+}
+
+func TestDiagCompactNewTestWithServers(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.ServerList = speedtest.Servers{&speedtest.Server{Name: "S1"}}
+	s := speedTest{
+		model:      m,
+		spinner:    ui.DefaultSpinner,
+		viewState:  ViewDiagCompact,
+		diagResult: &diag.DiagResult{Target: "8.8.8.8"},
+	}
+
+	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	newS := newModel.(*speedTest)
+
+	if newS.viewState != ViewMain {
+		t.Errorf("Expected viewState ViewMain, got %d", newS.viewState)
+	}
+	if newS.model.State != model.StateSelectingServer {
+		t.Errorf("Expected State StateSelectingServer, got %d", newS.model.State)
+	}
+	if newS.diagResult != nil {
+		t.Errorf("Expected diagResult to be cleared")
+	}
+}
+
+func TestDiagCompactNewTestWithoutServers(t *testing.T) {
+	m := model.NewDefaultModel()
+	s := speedTest{
+		model:      m,
+		spinner:    ui.DefaultSpinner,
+		viewState:  ViewDiagCompact,
+		diagResult: &diag.DiagResult{Target: "8.8.8.8"},
+	}
+
+	newModel, cmd := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	newS := newModel.(*speedTest)
+
+	if newS.viewState != ViewMain {
+		t.Errorf("Expected viewState ViewMain, got %d", newS.viewState)
+	}
+	if newS.model.State != model.StateAwaitingServers {
+		t.Errorf("Expected State StateAwaitingServers, got %d", newS.model.State)
+	}
+	if cmd == nil {
+		t.Errorf("Expected non-nil cmd for spinner tick")
+	}
+}
+
+func TestDiagExpandedEscCollapsesToCompact(t *testing.T) {
+	m := model.NewDefaultModel()
+	s := speedTest{
+		model:      m,
+		spinner:    ui.DefaultSpinner,
+		viewState:  ViewDiagExpanded,
+		diagResult: &diag.DiagResult{Target: "8.8.8.8"},
+	}
+
+	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	newS := newModel.(*speedTest)
+
+	if newS.viewState != ViewDiagCompact {
+		t.Errorf("Expected viewState ViewDiagCompact after Esc, got %d", newS.viewState)
+	}
+}
+
+func TestDiagExpandedScrollNavigation(t *testing.T) {
+	m := model.NewDefaultModel()
+	s := speedTest{
+		model:     m,
+		spinner:   ui.DefaultSpinner,
+		viewState: ViewDiagExpanded,
+		diagResult: &diag.DiagResult{
+			Target: "8.8.8.8",
+			Hops: []diag.Hop{
+				{Number: 1, IP: "10.0.0.1"},
+				{Number: 2, IP: "10.0.0.2"},
+				{Number: 3, IP: "10.0.0.3"},
+			},
+		},
+		diagOffset: 0,
+	}
+
+	// Scroll down
+	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	newS := newModel.(*speedTest)
+	if newS.diagOffset != 1 {
+		t.Errorf("Expected diagOffset 1 after j, got %d", newS.diagOffset)
+	}
+
+	// Scroll up
+	newModel, _ = newS.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	newS = newModel.(*speedTest)
+	if newS.diagOffset != 0 {
+		t.Errorf("Expected diagOffset 0 after k, got %d", newS.diagOffset)
+	}
+
+	// Don't scroll past 0
+	newModel, _ = newS.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	newS = newModel.(*speedTest)
+	if newS.diagOffset != 0 {
+		t.Errorf("Expected diagOffset to stay at 0, got %d", newS.diagOffset)
+	}
+}
+
+func TestViewDiagStates(t *testing.T) {
+	t.Run("DiagRunning", func(t *testing.T) {
+		m := model.NewDefaultModel()
+		m.CurrentPhase = runningDiagnosticsPhase
+		s := speedTest{model: m, spinner: ui.DefaultSpinner, viewState: ViewDiagRunning}
+
+		view := s.View()
+		if !strings.Contains(view, "Running diagnostics...") {
+			t.Errorf("Expected diagnostics phase in view")
+		}
+	})
+
+	t.Run("DiagCompact", func(t *testing.T) {
+		m := model.NewDefaultModel()
+		s := speedTest{
+			model:     m,
+			spinner:   ui.DefaultSpinner,
+			viewState: ViewDiagCompact,
+			diagResult: &diag.DiagResult{
+				Target:  "example.com",
+				Hops:    []diag.Hop{{Number: 1, IP: "10.0.0.1"}},
+				Quality: diag.QualityScore{Score: 85, Grade: "B"},
+			},
+		}
+
+		view := s.View()
+		if !strings.Contains(view, "example.com") {
+			t.Errorf("Expected target in compact view")
+		}
+	})
+
+	t.Run("DiagExpanded", func(t *testing.T) {
+		m := model.NewDefaultModel()
+		m.Height = 40
+		s := speedTest{
+			model:     m,
+			spinner:   ui.DefaultSpinner,
+			viewState: ViewDiagExpanded,
+			diagResult: &diag.DiagResult{
+				Target:  "example.com",
+				Hops:    []diag.Hop{{Number: 1, IP: "10.0.0.1"}},
+				Quality: diag.QualityScore{Score: 85, Grade: "B"},
+			},
+		}
+
+		view := s.View()
+		if !strings.Contains(view, "10.0.0.1") {
+			t.Errorf("Expected hop address in expanded view")
+		}
+	})
+}
+
+func TestServerListMsgErrorDuringIdleKeepsState(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.TestHistory = []*model.SpeedTestResult{{DownloadSpeed: 100}}
+	// State is StateIdle (background fetch)
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	newModel, _ := s.Update(serverListMsg{err: errors.New("network error")})
+	newS := newModel.(*speedTest)
+
+	if newS.model.State != model.StateIdle {
+		t.Errorf("Expected State to remain StateIdle during background fetch error, got %d", newS.model.State)
+	}
+	if newS.model.Error == nil {
+		t.Errorf("Expected error to be set")
 	}
 }
