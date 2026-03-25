@@ -256,15 +256,13 @@ func RenderServerSelection(m *model.Model, width int) string {
 
 	for i := offset; i < end; i++ {
 		server := m.ServerList[i]
+		prefix := "  "
 		if m.Cursor == i {
-			fmt.Fprintf(&b, "> %s: %s (%s) - %.2f ms\n",
-				server.Sponsor, server.Name, server.Country,
-				server.Latency.Seconds()*1000)
-		} else {
-			fmt.Fprintf(&b, "  %s: %s (%s) - %.2f ms\n",
-				server.Sponsor, server.Name, server.Country,
-				server.Latency.Seconds()*1000)
+			prefix = "> "
 		}
+		fmt.Fprintf(&b, "%s%s: %s (%s) - %.2f ms\n",
+			prefix, server.Sponsor, server.Name, server.Country,
+			server.Latency.Seconds()*1000)
 	}
 
 	remaining := total - end

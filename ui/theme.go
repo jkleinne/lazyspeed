@@ -61,13 +61,6 @@ var (
 			Padding(0, 1)
 
 	// Diagnostics styles
-	diagTitleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color(colorTextBright)).
-			Background(lipgloss.Color(colorPrimary)).
-			PaddingLeft(2).
-			PaddingRight(2)
-
 	latencyGreenStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color(colorStatusGreen))
 
@@ -107,27 +100,39 @@ var (
 				Bold(true)
 )
 
+var (
+	scoreGreenStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorStatusGreen))
+	scoreAmberStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorStatusAmber))
+	scoreRedStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorStatusRed))
+	scoreDefaultStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorPrimary))
+)
+
 // scoreStyle returns a bold style color-coded by grade.
 func scoreStyle(grade string) lipgloss.Style {
 	switch grade {
 	case "A":
-		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorStatusGreen))
+		return scoreGreenStyle
 	case "B", "C":
-		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorStatusAmber))
+		return scoreAmberStyle
 	case "D", "F":
-		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorStatusRed))
+		return scoreRedStyle
 	default:
-		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorPrimary))
+		return scoreDefaultStyle
 	}
 }
+
+const (
+	latencyGoodMs = 50
+	latencyFairMs = 100
+)
 
 // latencyStyle returns the appropriate style for a given latency.
 func latencyStyle(d time.Duration) lipgloss.Style {
 	ms := d.Milliseconds()
 	switch {
-	case ms < 50:
+	case ms < latencyGoodMs:
 		return latencyGreenStyle
-	case ms <= 100:
+	case ms <= latencyFairMs:
 		return latencyAmberStyle
 	default:
 		return latencyRedStyle
