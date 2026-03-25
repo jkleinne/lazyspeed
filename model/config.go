@@ -134,9 +134,12 @@ func LoadConfig() (*Config, error) {
 	return cfg, nil
 }
 
-// defaultHistoryPath returns the XDG-compliant default history file path:
-// ~/.local/share/lazyspeed/history.json
+// defaultHistoryPath returns the XDG-compliant default history file path.
+// Respects $XDG_DATA_HOME if set, otherwise uses ~/.local/share/lazyspeed/history.json.
 func defaultHistoryPath() string {
+	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
+		return filepath.Join(xdg, "lazyspeed", "history.json")
+	}
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return ".lazyspeed_history.json" // Fallback to cwd if $HOME is unavailable
@@ -144,9 +147,12 @@ func defaultHistoryPath() string {
 	return filepath.Join(homeDir, ".local", "share", "lazyspeed", "history.json")
 }
 
-// defaultDiagnosticsPath returns the XDG-compliant default diagnostics file path:
-// ~/.local/share/lazyspeed/diagnostics.json
+// defaultDiagnosticsPath returns the XDG-compliant default diagnostics file path.
+// Respects $XDG_DATA_HOME if set, otherwise uses ~/.local/share/lazyspeed/diagnostics.json.
 func defaultDiagnosticsPath() string {
+	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
+		return filepath.Join(xdg, "lazyspeed", "diagnostics.json")
+	}
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return ".lazyspeed_diagnostics.json"

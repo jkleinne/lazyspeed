@@ -65,19 +65,17 @@ func stripPort(hostPort string) string {
 // diagConfigFromModel maps model.Config.Diagnostics to diag.DiagConfig.
 func diagConfigFromModel(m *model.Model) *diag.DiagConfig {
 	cfg := diag.DefaultDiagConfig()
-	if m.Config != nil {
-		if m.Config.Diagnostics.MaxHops > 0 {
-			cfg.MaxHops = m.Config.Diagnostics.MaxHops
-		}
-		if m.Config.Diagnostics.Timeout > 0 {
-			cfg.Timeout = m.Config.Diagnostics.Timeout
-		}
-		if m.Config.Diagnostics.MaxEntries > 0 {
-			cfg.MaxEntries = m.Config.Diagnostics.MaxEntries
-		}
-		if m.Config.Diagnostics.Path != "" {
-			cfg.Path = m.Config.Diagnostics.Path
-		}
+	if m.Config.Diagnostics.MaxHops > 0 {
+		cfg.MaxHops = m.Config.Diagnostics.MaxHops
+	}
+	if m.Config.Diagnostics.Timeout > 0 {
+		cfg.Timeout = m.Config.Diagnostics.Timeout
+	}
+	if m.Config.Diagnostics.MaxEntries > 0 {
+		cfg.MaxEntries = m.Config.Diagnostics.MaxEntries
+	}
+	if m.Config.Diagnostics.Path != "" {
+		cfg.Path = m.Config.Diagnostics.Path
 	}
 	return cfg
 }
