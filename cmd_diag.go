@@ -173,7 +173,7 @@ func runDiag(args []string) {
 			"dns_ms", "dns_cached", "hops", "packet_loss_pct", "final_hop_latency_ms",
 		})
 		_ = w.Write(diagCSVRow(result))
-		w.Flush()
+		flushCSV(w)
 		return
 	}
 
@@ -226,7 +226,7 @@ func runDiagHistory() {
 		for _, r := range entries {
 			_ = w.Write(diagCSVRow(r))
 		}
-		w.Flush()
+		flushCSV(w)
 		return
 	}
 
