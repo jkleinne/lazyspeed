@@ -90,6 +90,54 @@ const (
 	icmpProtocol       = 1
 )
 
+// traceLoop runs a traceroute loop, calling hopFn for each TTL until the destination
+// is reached, maxHops is exceeded, or the context is cancelled.
+func traceLoop(ctx context.Context, destIP string, maxHops int, hopFn func(ttl int) Hop) []Hop {
+	var hops []Hop
+	for ttl := 1; ttl <= maxHops; ttl++ {
+		if ctx.Err() != nil {
+			break
+		}
+		hop := hopFn(ttl)
+		hops = append(hops, hop)
+		if hop.IP == destIP {
+			break
+		}
+	}
+	return hops
+}
+
+// readICMPResponse reads an ICMP response from conn, parses it, and populates the hop
+// if the response type matches one of validTypes. Returns false if any step fails.
+func readICMPResponse(conn *icmp.PacketConn, start time.Time, hop *Hop, validTypes ...icmp.Type) bool {
+	buf := make([]byte, maxPacketSize)
+	n, peer, err := conn.ReadFrom(buf)
+	latency := time.Since(start)
+	if err != nil {
+		return false
+	}
+
+	rm, err := icmp.ParseMessage(icmpProtocol, buf[:n])
+	if err != nil {
+		return false
+	}
+
+	peerIP := ""
+	if udpAddr, ok := peer.(*net.UDPAddr); ok {
+		peerIP = udpAddr.IP.String()
+	}
+
+	for _, t := range validTypes {
+		if rm.Type == t {
+			hop.IP = peerIP
+			hop.Host = reverseResolve(peerIP)
+			hop.Latency = latency
+			return true
+		}
+	}
+	return false
+}
+
 // icmpTraceroute performs traceroute using ICMP echo requests via "udp4" network.
 // Using "udp4" with icmp.ListenPacket works without root on macOS and on Linux
 // with appropriate sysctl settings.
@@ -100,18 +148,9 @@ func icmpTraceroute(ctx context.Context, destIP string, maxHops int) ([]Hop, err
 	}
 	defer func() { _ = conn.Close() }()
 
-	var hops []Hop
-	for ttl := 1; ttl <= maxHops; ttl++ {
-		if ctx.Err() != nil {
-			break
-		}
-		hop := traceHop(ctx, conn, destIP, ttl)
-		hops = append(hops, hop)
-		if hop.IP == destIP {
-			break
-		}
-	}
-	return hops, nil
+	return traceLoop(ctx, destIP, maxHops, func(ttl int) Hop {
+		return traceHop(ctx, conn, destIP, ttl)
+	}), nil
 }
 
 // traceHop sends an ICMP echo request with the given TTL and waits for a response.
@@ -156,59 +195,24 @@ func traceHop(ctx context.Context, conn *icmp.PacketConn, destIP string, ttl int
 		return hop
 	}
 
-	buf := make([]byte, maxPacketSize)
-	n, peer, err := conn.ReadFrom(buf)
-	latency := time.Since(start)
-	if err != nil {
-		hop.Timeout = true
-		return hop
-	}
-
-	rm, err := icmp.ParseMessage(icmpProtocol, buf[:n]) // protocol 1 = ICMP
-	if err != nil {
-		hop.Timeout = true
-		return hop
-	}
-
-	peerIP := ""
-	if udpAddr, ok := peer.(*net.UDPAddr); ok {
-		peerIP = udpAddr.IP.String()
-	}
-
-	switch rm.Type {
-	case ipv4.ICMPTypeEchoReply, ipv4.ICMPTypeTimeExceeded:
-		hop.IP = peerIP
-		hop.Host = reverseResolve(peerIP)
-		hop.Latency = latency
-	default:
+	if !readICMPResponse(conn, start, &hop, ipv4.ICMPTypeEchoReply, ipv4.ICMPTypeTimeExceeded) {
 		hop.Timeout = true
 	}
-
 	return hop
 }
 
 // udpTraceroute performs traceroute using UDP packets with increasing TTL,
 // listening for ICMP TTL Exceeded responses.
 func udpTraceroute(ctx context.Context, destIP string, maxHops int) ([]Hop, error) {
-	// Listen for ICMP responses
 	icmpConn, err := icmp.ListenPacket("udp4", "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen for ICMP: %v", err)
 	}
 	defer func() { _ = icmpConn.Close() }()
 
-	var hops []Hop
-	for ttl := 1; ttl <= maxHops; ttl++ {
-		if ctx.Err() != nil {
-			break
-		}
-		hop := udpTraceHop(ctx, icmpConn, destIP, ttl)
-		hops = append(hops, hop)
-		if hop.IP == destIP {
-			break
-		}
-	}
-	return hops, nil
+	return traceLoop(ctx, destIP, maxHops, func(ttl int) Hop {
+		return udpTraceHop(ctx, icmpConn, destIP, ttl)
+	}), nil
 }
 
 // udpTraceHop sends a UDP packet to tracerouteBasePort+ttl with a specific TTL
@@ -264,34 +268,9 @@ func udpTraceHop(ctx context.Context, icmpConn *icmp.PacketConn, destIP string, 
 		return hop
 	}
 
-	buf := make([]byte, maxPacketSize)
-	n, peer, err := icmpConn.ReadFrom(buf)
-	latency := time.Since(start)
-	if err != nil {
-		hop.Timeout = true
-		return hop
-	}
-
-	rm, err := icmp.ParseMessage(icmpProtocol, buf[:n])
-	if err != nil {
-		hop.Timeout = true
-		return hop
-	}
-
-	peerIP := ""
-	if udpAddr, ok := peer.(*net.UDPAddr); ok {
-		peerIP = udpAddr.IP.String()
-	}
-
-	switch rm.Type {
-	case ipv4.ICMPTypeTimeExceeded, ipv4.ICMPTypeDestinationUnreachable:
-		hop.IP = peerIP
-		hop.Host = reverseResolve(peerIP)
-		hop.Latency = latency
-	default:
+	if !readICMPResponse(icmpConn, start, &hop, ipv4.ICMPTypeTimeExceeded, ipv4.ICMPTypeDestinationUnreachable) {
 		hop.Timeout = true
 	}
-
 	return hop
 }
 
