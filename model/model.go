@@ -106,21 +106,21 @@ type RunOptions struct {
 
 // Model holds all application state for the TUI and speed test orchestration.
 type Model struct {
-	Results      *SpeedTestResult
-	TestHistory  []*SpeedTestResult
-	State        ModelState
-	Progress     float64
-	CurrentPhase string
-	Error        error
-	Warning      string
-	ShowHelp     bool
-	Width        int
-	Height       int
-	PingResults  []float64 // Used for jitter calculation
-	ServerList   speedtest.Servers
-	Backend      Backend
-	Config       *Config
-	Cursor       int
+	Results          *SpeedTestResult
+	TestHistory      []*SpeedTestResult
+	State            ModelState
+	Progress         float64
+	CurrentPhase     string
+	Error            error
+	Warning          string
+	ShowHelp         bool
+	Width            int
+	Height           int
+	PingResults      []float64 // Used for jitter calculation
+	ServerList       speedtest.Servers
+	Backend          Backend
+	Config           *Config
+	Cursor           int
 	ServerListOffset int
 	HistoryOffset    int
 	User             *speedtest.User
