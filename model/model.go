@@ -119,14 +119,14 @@ type Model struct {
 	ShowHelp         bool
 	Width            int
 	Height           int
-	PingResults      []float64 // Used for jitter calculation
+	pingResults      []float64 // Used for jitter calculation
 	ServerList       speedtest.Servers
-	Backend          Backend
+	backend          Backend
 	Config           *Config
 	Cursor           int
 	ServerListOffset int
 	HistoryOffset    int
-	User             *speedtest.User
+	user             *speedtest.User
 	// ExportMessage is set after an export attempt (success path or error) and
 	// shown briefly in the TUI view.
 	ExportMessage string
@@ -139,7 +139,7 @@ func NewModel(backend Backend, cfg *Config) *Model {
 	return &Model{
 		TestHistory: make([]*SpeedTestResult, 0),
 		ShowHelp:    true,
-		Backend:     backend,
+		backend:     backend,
 		Config:      cfg,
 	}
 }
@@ -180,8 +180,8 @@ func (m *Model) pingCount() int {
 
 // userInfo extracts IP and ISP from the User field.
 func (m *Model) userInfo() (ip, isp string) {
-	if m.User != nil {
-		return m.User.IP, m.User.Isp
+	if m.user != nil {
+		return m.user.IP, m.user.Isp
 	}
 	return "", ""
 }
@@ -354,7 +354,7 @@ func (m *Model) SaveHistory() error {
 }
 
 func (m *Model) FetchServerList(ctx context.Context) error {
-	serverList, err := m.Backend.FetchServers()
+	serverList, err := m.backend.FetchServers()
 	if err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -417,14 +417,14 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	m.Error = nil
 	m.Warning = ""
 	m.Results = nil
-	m.PingResults = make([]float64, 0)
+	m.pingResults = make([]float64, 0)
 
 	sendUpdate(progressInit, "Initializing speed test...", updateChan)
 
 	sendUpdate(progressFetchNet, "Fetching network information...", updateChan)
-	user, userErr := m.Backend.FetchUserInfo()
+	user, userErr := m.backend.FetchUserInfo()
 	if userErr == nil {
-		m.User = user
+		m.user = user
 	} else {
 		m.Warning = fmt.Sprintf("could not fetch network info: %v", userErr)
 	}
@@ -439,7 +439,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	pingCount := m.pingCount()
 
 	sendUpdate(progressPingStart, "Measuring ping and jitter...", updateChan)
-	pr, err := measurePing(ctx, m.Backend, server, pingCount, func(i, total int, ping, jitter float64) {
+	pr, err := measurePing(ctx, m.backend, server, pingCount, func(i, total int, ping, jitter float64) {
 		pingProgress := min(progressPingStart+float64(i)*progressPingIncrement, progressDownloadStart)
 		if jitter > 0 {
 			sendUpdate(pingProgress,
@@ -453,7 +453,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		m.State = StateIdle
 		return err
 	}
-	m.PingResults = pr.pings
+	m.pingResults = pr.pings
 	if len(pr.pings) == 0 {
 		m.Warning = "all ping measurements failed; ping and jitter are reported as 0"
 	}
@@ -466,7 +466,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		label:   "download",
 		rateFn:  func() float64 { return server.Context.GetEWMADownloadRate() },
 	}, updateChan)
-	err = m.Backend.DownloadTest(server)
+	err = m.backend.DownloadTest(server)
 	close(dlDone)
 	<-dlAck
 	if ctx.Err() != nil {
@@ -488,7 +488,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		label:   "upload",
 		rateFn:  func() float64 { return server.Context.GetEWMAUploadRate() },
 	}, updateChan)
-	err = m.Backend.UploadTest(server)
+	err = m.backend.UploadTest(server)
 	close(ulDone)
 	<-ulAck
 	if ctx.Err() != nil {
@@ -572,8 +572,8 @@ func ExportResult(result *SpeedTestResult, format string, dir string) (path stri
 
 func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts RunOptions) (*SpeedTestResult, error) {
 	callProgressFn(opts.ProgressFn, "Fetching network information...")
-	if user, err := m.Backend.FetchUserInfo(); err == nil {
-		m.User = user
+	if user, err := m.backend.FetchUserInfo(); err == nil {
+		m.user = user
 	}
 	userIP, userISP := m.userInfo()
 
@@ -584,7 +584,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 	pingCount := m.pingCount()
 
 	callProgressFn(opts.ProgressFn, fmt.Sprintf("Measuring ping (0/%d)...", pingCount))
-	pr, err := measurePing(ctx, m.Backend, server, pingCount, func(i, total int, ping, _ float64) {
+	pr, err := measurePing(ctx, m.backend, server, pingCount, func(i, total int, ping, _ float64) {
 		callProgressFn(opts.ProgressFn, fmt.Sprintf("Measuring ping (%d/%d): %.1f ms", i, total, ping))
 	})
 	if err != nil {
@@ -598,7 +598,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 			return nil, ctx.Err()
 		}
 		callProgressFn(opts.ProgressFn, "Testing download...")
-		if err := m.Backend.DownloadTest(server); err != nil {
+		if err := m.backend.DownloadTest(server); err != nil {
 			return nil, fmt.Errorf("download test failed: %v", err)
 		}
 		dlSpeed = float64(server.DLSpeed) / bytesPerMbit
@@ -610,7 +610,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 			return nil, ctx.Err()
 		}
 		callProgressFn(opts.ProgressFn, "Testing upload...")
-		if err := m.Backend.UploadTest(server); err != nil {
+		if err := m.backend.UploadTest(server); err != nil {
 			return nil, fmt.Errorf("upload test failed: %v", err)
 		}
 		ulSpeed = float64(server.ULSpeed) / bytesPerMbit
