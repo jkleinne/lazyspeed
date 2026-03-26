@@ -67,7 +67,7 @@ func RenderSpinner(s spinner.Model, width int, phase string, progressAmount floa
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, sized)
 }
 
-func RenderResults(m *model.Model, width int) string {
+func RenderResults(m *model.Model, width int, historyOffset int) string {
 	if len(m.TestHistory) == 0 {
 		return ""
 	}
@@ -136,7 +136,7 @@ func RenderResults(m *model.Model, width int) string {
 	totalRows := len(allRows)
 	maxVisible := HistoryVisibleRows(m.Height, totalRows)
 
-	offset, end := clampViewport(totalRows, maxVisible, m.HistoryOffset)
+	offset, end := clampViewport(totalRows, maxVisible, historyOffset)
 
 	visibleRows := allRows[offset:end]
 
@@ -240,7 +240,7 @@ func ServerListVisibleLines(height, total int) int {
 }
 
 // RenderServerSelection renders the server list with viewport-based windowing.
-func RenderServerSelection(m *model.Model, width int) string {
+func RenderServerSelection(m *model.Model, width int, cursor int, serverListOffset int) string {
 	var b strings.Builder
 	b.WriteString("Select a server:\n\n")
 
@@ -251,7 +251,7 @@ func RenderServerSelection(m *model.Model, width int) string {
 	}
 
 	visible := ServerListVisibleLines(m.Height, total)
-	offset, end := clampViewport(total, visible, m.ServerListOffset)
+	offset, end := clampViewport(total, visible, serverListOffset)
 
 	if offset > 0 {
 		fmt.Fprintf(&b, "  ↑ %d more\n", offset)
@@ -260,7 +260,7 @@ func RenderServerSelection(m *model.Model, width int) string {
 	for i := offset; i < end; i++ {
 		server := m.ServerList[i]
 		prefix := "  "
-		if m.Cursor == i {
+		if cursor == i {
 			prefix = "> "
 		}
 		fmt.Fprintf(&b, "%s%s: %s (%s) - %.2f ms\n",

@@ -109,24 +109,20 @@ type RunOptions struct {
 
 // Model holds all application state for the TUI and speed test orchestration.
 type Model struct {
-	Results          *SpeedTestResult
-	TestHistory      []*SpeedTestResult
-	State            ModelState
-	Progress         float64
-	CurrentPhase     string
-	Error            error
-	Warning          string
-	ShowHelp         bool
-	Width            int
-	Height           int
-	pingResults      []float64 // Used for jitter calculation
-	ServerList       speedtest.Servers
-	backend          Backend
-	Config           *Config
-	Cursor           int
-	ServerListOffset int
-	HistoryOffset    int
-	user             *speedtest.User
+	Results      *SpeedTestResult
+	TestHistory  []*SpeedTestResult
+	State        ModelState
+	Progress     float64
+	CurrentPhase string
+	Error        error
+	Warning      string
+	Width        int
+	Height       int
+	pingResults  []float64 // Used for jitter calculation
+	ServerList   speedtest.Servers
+	backend      Backend
+	Config       *Config
+	user         *speedtest.User
 	// ExportMessage is set after an export attempt (success path or error) and
 	// shown briefly in the TUI view.
 	ExportMessage string
@@ -138,7 +134,6 @@ func NewModel(backend Backend, cfg *Config) *Model {
 	}
 	return &Model{
 		TestHistory: make([]*SpeedTestResult, 0),
-		ShowHelp:    true,
 		backend:     backend,
 		Config:      cfg,
 	}

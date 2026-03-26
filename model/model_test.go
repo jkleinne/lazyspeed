@@ -179,13 +179,6 @@ func TestNewModel(t *testing.T) {
 		t.Errorf("Expected CurrentPhase to be empty, got %s", m.CurrentPhase)
 	}
 
-	if m.ShowHelp != true {
-		t.Errorf("Expected ShowHelp to be true, got %t", m.ShowHelp)
-	}
-
-	if m.Cursor != 0 {
-		t.Errorf("Expected Cursor to be 0, got %d", m.Cursor)
-	}
 }
 
 func TestHistoryLoadSave(t *testing.T) {

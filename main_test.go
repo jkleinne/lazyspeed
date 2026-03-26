@@ -104,22 +104,22 @@ func TestUpdateKeyMsgNavigation(t *testing.T) {
 	// Initial cursor is 0. Move down.
 	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 	newS := newModel.(*speedTest)
-	if newS.model.Cursor != 1 {
-		t.Errorf("Expected cursor to move to 1, got %d", newS.model.Cursor)
+	if newS.cursor != 1 {
+		t.Errorf("Expected cursor to move to 1, got %d", newS.cursor)
 	}
 
 	// Move up
 	newModel, _ = newS.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
 	newS = newModel.(*speedTest)
-	if newS.model.Cursor != 0 {
-		t.Errorf("Expected cursor to move back to 0, got %d", newS.model.Cursor)
+	if newS.cursor != 0 {
+		t.Errorf("Expected cursor to move back to 0, got %d", newS.cursor)
 	}
 
 	// Move up at top boundary
 	newModel, _ = newS.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
 	newS = newModel.(*speedTest)
-	if newS.model.Cursor != 0 {
-		t.Errorf("Expected cursor to stay at 0, got %d", newS.model.Cursor)
+	if newS.cursor != 0 {
+		t.Errorf("Expected cursor to stay at 0, got %d", newS.cursor)
 	}
 
 	// Back to home
@@ -128,7 +128,7 @@ func TestUpdateKeyMsgNavigation(t *testing.T) {
 	if newS.model.State != model.StateIdle {
 		t.Errorf("Expected State to be StateIdle, got %d", newS.model.State)
 	}
-	if !newS.model.ShowHelp {
+	if !newS.showHelp {
 		t.Errorf("Expected ShowHelp to be true")
 	}
 }
@@ -259,18 +259,17 @@ func TestViewExportMessage(t *testing.T) {
 
 func TestUpdateHelpToggle(t *testing.T) {
 	m := model.NewDefaultModel()
-	m.ShowHelp = true
-	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+	s := speedTest{model: m, spinner: ui.DefaultSpinner, showHelp: true}
 
 	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
 	newS := newModel.(*speedTest)
-	if newS.model.ShowHelp {
+	if newS.showHelp {
 		t.Errorf("Expected ShowHelp to be false after first toggle")
 	}
 
 	newModel, _ = newS.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
 	newS = newModel.(*speedTest)
-	if !newS.model.ShowHelp {
+	if !newS.showHelp {
 		t.Errorf("Expected ShowHelp to be true after second toggle")
 	}
 }
@@ -278,58 +277,58 @@ func TestUpdateHelpToggle(t *testing.T) {
 func TestUpdateNewTestKey(t *testing.T) {
 	tests := []struct {
 		name  string
-		setup func(m *model.Model)
-		check func(t *testing.T, m *model.Model)
+		setup func(s *speedTest)
+		check func(t *testing.T, s *speedTest)
 	}{
 		{
 			name: "Opens server selection",
-			setup: func(m *model.Model) {
-				m.State = model.StateIdle
-				m.ShowHelp = true
-				m.ServerList = speedtest.Servers{
+			setup: func(s *speedTest) {
+				s.model.State = model.StateIdle
+				s.showHelp = true
+				s.model.ServerList = speedtest.Servers{
 					&speedtest.Server{Name: "Server 1"},
 				}
 			},
-			check: func(t *testing.T, m *model.Model) {
-				if m.State != model.StateSelectingServer {
-					t.Errorf("Expected State to be StateSelectingServer, got %d", m.State)
+			check: func(t *testing.T, s *speedTest) {
+				if s.model.State != model.StateSelectingServer {
+					t.Errorf("Expected State to be StateSelectingServer, got %d", s.model.State)
 				}
-				if m.ShowHelp {
+				if s.showHelp {
 					t.Errorf("Expected ShowHelp to be false")
 				}
 			},
 		},
 		{
 			name: "No-op during testing",
-			setup: func(m *model.Model) {
-				m.State = model.StateTesting
+			setup: func(s *speedTest) {
+				s.model.State = model.StateTesting
 			},
-			check: func(t *testing.T, m *model.Model) {
-				if m.State != model.StateTesting {
-					t.Errorf("Expected State to remain StateTesting, got %d", m.State)
+			check: func(t *testing.T, s *speedTest) {
+				if s.model.State != model.StateTesting {
+					t.Errorf("Expected State to remain StateTesting, got %d", s.model.State)
 				}
 			},
 		},
 		{
 			name: "No-op during server selection",
-			setup: func(m *model.Model) {
-				m.State = model.StateSelectingServer
+			setup: func(s *speedTest) {
+				s.model.State = model.StateSelectingServer
 			},
-			check: func(t *testing.T, m *model.Model) {
-				if m.State != model.StateSelectingServer {
-					t.Errorf("Expected State to remain StateSelectingServer, got %d", m.State)
+			check: func(t *testing.T, s *speedTest) {
+				if s.model.State != model.StateSelectingServer {
+					t.Errorf("Expected State to remain StateSelectingServer, got %d", s.model.State)
 				}
 			},
 		},
 		{
 			name: "Pending when servers loading",
-			setup: func(m *model.Model) {
-				m.State = model.StateIdle
-				m.ServerList = nil
+			setup: func(s *speedTest) {
+				s.model.State = model.StateIdle
+				s.model.ServerList = nil
 			},
-			check: func(t *testing.T, m *model.Model) {
-				if m.State != model.StateAwaitingServers {
-					t.Errorf("Expected State to be StateAwaitingServers, got %d", m.State)
+			check: func(t *testing.T, s *speedTest) {
+				if s.model.State != model.StateAwaitingServers {
+					t.Errorf("Expected State to be StateAwaitingServers, got %d", s.model.State)
 				}
 			},
 		},
@@ -338,12 +337,12 @@ func TestUpdateNewTestKey(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := model.NewDefaultModel()
-			tt.setup(m)
 			s := speedTest{model: m, spinner: ui.DefaultSpinner}
+			tt.setup(&s)
 
 			newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
 			newS := newModel.(*speedTest)
-			tt.check(t, newS.model)
+			tt.check(t, newS)
 		})
 	}
 }
@@ -688,13 +687,12 @@ func TestUpdateKeyMsgNavigationDownBoundary(t *testing.T) {
 		&speedtest.Server{Name: "Server 3"},
 	}
 	m.State = model.StateSelectingServer
-	m.Cursor = 2 // last position
-	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+	s := speedTest{model: m, spinner: ui.DefaultSpinner, cursor: 2}
 
 	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 	newS := newModel.(*speedTest)
-	if newS.model.Cursor != 2 {
-		t.Errorf("Expected cursor to stay at 2 (last position), got %d", newS.model.Cursor)
+	if newS.cursor != 2 {
+		t.Errorf("Expected cursor to stay at 2 (last position), got %d", newS.cursor)
 	}
 }
 
@@ -702,7 +700,6 @@ func TestUpdateEnterOnEmptyServerList(t *testing.T) {
 	m := model.NewDefaultModel()
 	m.State = model.StateSelectingServer
 	m.ServerList = speedtest.Servers{}
-	m.Cursor = 0
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
 	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -717,7 +714,7 @@ func TestUpdateEnterOnEmptyServerList(t *testing.T) {
 	if newS.model.State != model.StateIdle {
 		t.Errorf("Expected State to be StateIdle, got %d", newS.model.State)
 	}
-	if newS.model.ShowHelp {
+	if newS.showHelp {
 		t.Errorf("Expected ShowHelp to be false")
 	}
 }
@@ -754,8 +751,7 @@ func TestViewResultsDisplay(t *testing.T) {
 			Timestamp:     time.Now(),
 		}
 		m.TestHistory = []*model.SpeedTestResult{m.Results}
-		m.ShowHelp = true
-		s := speedTest{model: m, spinner: ui.DefaultSpinner}
+		s := speedTest{model: m, spinner: ui.DefaultSpinner, showHelp: true}
 
 		view := s.View()
 		if !strings.Contains(view, "Latest Test Results:") {
@@ -808,9 +804,7 @@ func TestNewTestKeyResetsCursorAndOffset(t *testing.T) {
 	for i := range m.ServerList {
 		m.ServerList[i] = &speedtest.Server{Name: "S"}
 	}
-	m.Cursor = 5
-	m.ServerListOffset = 3
-	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+	s := speedTest{model: m, spinner: ui.DefaultSpinner, cursor: 5, serverListOffset: 3}
 
 	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
 	newS := newModel.(*speedTest)
@@ -818,20 +812,18 @@ func TestNewTestKeyResetsCursorAndOffset(t *testing.T) {
 	if newS.model.State != model.StateSelectingServer {
 		t.Errorf("Expected State to be StateSelectingServer, got %d", newS.model.State)
 	}
-	if newS.model.Cursor != 0 {
-		t.Errorf("Expected Cursor reset to 0, got %d", newS.model.Cursor)
+	if newS.cursor != 0 {
+		t.Errorf("Expected Cursor reset to 0, got %d", newS.cursor)
 	}
-	if newS.model.ServerListOffset != 0 {
-		t.Errorf("Expected ServerListOffset reset to 0, got %d", newS.model.ServerListOffset)
+	if newS.serverListOffset != 0 {
+		t.Errorf("Expected ServerListOffset reset to 0, got %d", newS.serverListOffset)
 	}
 }
 
 func TestServerListMsgResetsCursorAndOffset(t *testing.T) {
 	m := model.NewDefaultModel()
 	m.State = model.StateAwaitingServers
-	m.Cursor = 5
-	m.ServerListOffset = 3
-	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+	s := speedTest{model: m, spinner: ui.DefaultSpinner, serverListOffset: 3}
 
 	newModel, _ := s.Update(serverListMsg{err: nil})
 	newS := newModel.(*speedTest)
@@ -839,11 +831,11 @@ func TestServerListMsgResetsCursorAndOffset(t *testing.T) {
 	if newS.model.State != model.StateSelectingServer {
 		t.Errorf("Expected State to be StateSelectingServer, got %d", newS.model.State)
 	}
-	if newS.model.Cursor != 0 {
-		t.Errorf("Expected Cursor reset to 0, got %d", newS.model.Cursor)
+	if newS.cursor != 0 {
+		t.Errorf("Expected Cursor reset to 0, got %d", newS.cursor)
 	}
-	if newS.model.ServerListOffset != 0 {
-		t.Errorf("Expected ServerListOffset reset to 0, got %d", newS.model.ServerListOffset)
+	if newS.serverListOffset != 0 {
+		t.Errorf("Expected ServerListOffset reset to 0, got %d", newS.serverListOffset)
 	}
 }
 
@@ -886,18 +878,16 @@ func TestAdjustServerListOffset(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := model.NewDefaultModel()
 			m.Height = tt.height
-			m.Cursor = tt.cursor
-			m.ServerListOffset = tt.offset
 			m.ServerList = make(speedtest.Servers, tt.serverCount)
 			for i := range m.ServerList {
 				m.ServerList[i] = &speedtest.Server{Name: "S"}
 			}
 
-			s := speedTest{model: m, spinner: ui.DefaultSpinner}
+			s := speedTest{model: m, spinner: ui.DefaultSpinner, cursor: tt.cursor, serverListOffset: tt.offset}
 			s.adjustServerListOffset()
 
-			if s.model.ServerListOffset != tt.expectedOffset {
-				t.Errorf("Expected offset %d, got %d", tt.expectedOffset, s.model.ServerListOffset)
+			if s.serverListOffset != tt.expectedOffset {
+				t.Errorf("Expected offset %d, got %d", tt.expectedOffset, s.serverListOffset)
 			}
 		})
 	}
@@ -919,10 +909,10 @@ func TestServerSelectionViewportNavigation(t *testing.T) {
 		s = *newModel.(*speedTest)
 	}
 
-	if s.model.Cursor != 10 {
-		t.Errorf("Expected cursor at 10, got %d", s.model.Cursor)
+	if s.cursor != 10 {
+		t.Errorf("Expected cursor at 10, got %d", s.cursor)
 	}
-	if s.model.ServerListOffset == 0 {
+	if s.serverListOffset == 0 {
 		t.Errorf("Expected ServerListOffset to have scrolled from 0")
 	}
 
@@ -932,11 +922,11 @@ func TestServerSelectionViewportNavigation(t *testing.T) {
 		s = *newModel.(*speedTest)
 	}
 
-	if s.model.Cursor != 0 {
-		t.Errorf("Expected cursor at 0, got %d", s.model.Cursor)
+	if s.cursor != 0 {
+		t.Errorf("Expected cursor at 0, got %d", s.cursor)
 	}
-	if s.model.ServerListOffset != 0 {
-		t.Errorf("Expected ServerListOffset back at 0, got %d", s.model.ServerListOffset)
+	if s.serverListOffset != 0 {
+		t.Errorf("Expected ServerListOffset back at 0, got %d", s.serverListOffset)
 	}
 }
 
@@ -956,22 +946,22 @@ func TestHistoryScrollKeys(t *testing.T) {
 	// Scroll down
 	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 	s = *newModel.(*speedTest)
-	if s.model.HistoryOffset != 1 {
-		t.Errorf("Expected HistoryOffset 1 after j, got %d", s.model.HistoryOffset)
+	if s.historyOffset != 1 {
+		t.Errorf("Expected HistoryOffset 1 after j, got %d", s.historyOffset)
 	}
 
 	// Scroll back up
 	newModel, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
 	s = *newModel.(*speedTest)
-	if s.model.HistoryOffset != 0 {
-		t.Errorf("Expected HistoryOffset 0 after k, got %d", s.model.HistoryOffset)
+	if s.historyOffset != 0 {
+		t.Errorf("Expected HistoryOffset 0 after k, got %d", s.historyOffset)
 	}
 
 	// Don't scroll past 0
 	newModel, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
 	s = *newModel.(*speedTest)
-	if s.model.HistoryOffset != 0 {
-		t.Errorf("Expected HistoryOffset to stay at 0, got %d", s.model.HistoryOffset)
+	if s.historyOffset != 0 {
+		t.Errorf("Expected HistoryOffset to stay at 0, got %d", s.historyOffset)
 	}
 
 	// Scroll down many times — should stop at max
@@ -983,22 +973,21 @@ func TestHistoryScrollKeys(t *testing.T) {
 	totalRows := len(m.TestHistory) - 1
 	maxVisible := ui.HistoryVisibleRows(m.Height, totalRows)
 	expectedMax := totalRows - maxVisible
-	if s.model.HistoryOffset != expectedMax {
-		t.Errorf("Expected HistoryOffset capped at %d, got %d", expectedMax, s.model.HistoryOffset)
+	if s.historyOffset != expectedMax {
+		t.Errorf("Expected HistoryOffset capped at %d, got %d", expectedMax, s.historyOffset)
 	}
 }
 
 func TestHistoryOffsetResetOnTestComplete(t *testing.T) {
 	m := model.NewDefaultModel()
-	m.HistoryOffset = 5
 	m.State = model.StateTesting
-	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+	s := speedTest{model: m, spinner: ui.DefaultSpinner, historyOffset: 5}
 
 	newModel, _ := s.Update(testComplete{err: nil})
 	newS := newModel.(*speedTest)
 
-	if newS.model.HistoryOffset != 0 {
-		t.Errorf("Expected HistoryOffset reset to 0 after testComplete, got %d", newS.model.HistoryOffset)
+	if newS.historyOffset != 0 {
+		t.Errorf("Expected HistoryOffset reset to 0 after testComplete, got %d", newS.historyOffset)
 	}
 	if newS.model.State != model.StateIdle {
 		t.Errorf("Expected State to be StateIdle after testComplete, got %d", newS.model.State)
@@ -1077,7 +1066,7 @@ func TestDiagCompactEscReturnsToMain(t *testing.T) {
 	if newS.diagResult != nil {
 		t.Errorf("Expected diagResult to be cleared")
 	}
-	if !newS.model.ShowHelp {
+	if !newS.showHelp {
 		t.Errorf("Expected ShowHelp to be true")
 	}
 }

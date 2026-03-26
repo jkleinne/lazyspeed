@@ -57,6 +57,12 @@ type speedTest struct {
 	diagResult *diag.DiagResult
 	viewState  ViewState
 	diagOffset int
+
+	// Viewport / UI navigation state (not part of Model's business logic)
+	showHelp         bool
+	cursor           int
+	serverListOffset int
+	historyOffset    int
 }
 
 type progressMsg struct {
@@ -131,11 +137,11 @@ func (s *speedTest) adjustServerListOffset() {
 	total := len(s.model.ServerList)
 	visible := ui.ServerListVisibleLines(s.model.Height, total)
 
-	if s.model.Cursor >= s.model.ServerListOffset+visible {
-		s.model.ServerListOffset = s.model.Cursor - visible + 1
+	if s.cursor >= s.serverListOffset+visible {
+		s.serverListOffset = s.cursor - visible + 1
 	}
-	if s.model.Cursor < s.model.ServerListOffset {
-		s.model.ServerListOffset = s.model.Cursor
+	if s.cursor < s.serverListOffset {
+		s.serverListOffset = s.cursor
 	}
 }
 
@@ -206,8 +212,8 @@ func (s *speedTest) handleServerListMsg(msg serverListMsg) (tea.Model, tea.Cmd) 
 		}
 	} else if s.model.State == model.StateAwaitingServers || len(s.model.TestHistory) == 0 {
 		s.model.State = model.StateSelectingServer
-		s.model.Cursor = 0
-		s.model.ServerListOffset = 0
+		s.cursor = 0
+		s.serverListOffset = 0
 	}
 	return s, nil
 }
@@ -227,7 +233,7 @@ func (s *speedTest) handleProgressMsg(msg progressMsg) (tea.Model, tea.Cmd) {
 func (s *speedTest) handleTestComplete(msg testComplete) (tea.Model, tea.Cmd) {
 	s.cancelTest = nil
 	s.model.State = model.StateIdle
-	s.model.HistoryOffset = 0
+	s.historyOffset = 0
 	if msg.err != nil {
 		s.model.Error = msg.err
 		s.model.Results = nil
@@ -281,22 +287,22 @@ func (s *speedTest) handleServerSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cm
 		return s, tea.Quit
 	case keyEsc:
 		s.model.State = model.StateIdle
-		s.model.ShowHelp = true
+		s.showHelp = true
 	case keyUp, keyK:
-		if s.model.Cursor > 0 {
-			s.model.Cursor--
+		if s.cursor > 0 {
+			s.cursor--
 			s.adjustServerListOffset()
 		}
 	case keyDown, keyJ:
-		if s.model.Cursor < len(s.model.ServerList)-1 {
-			s.model.Cursor++
+		if s.cursor < len(s.model.ServerList)-1 {
+			s.cursor++
 			s.adjustServerListOffset()
 		}
 	case "enter":
-		if s.model.Cursor < 0 || s.model.Cursor >= len(s.model.ServerList) {
+		if s.cursor < 0 || s.cursor >= len(s.model.ServerList) {
 			s.model.Error = fmt.Errorf("invalid server selection")
 			s.model.State = model.StateIdle
-			s.model.ShowHelp = false
+			s.showHelp = false
 			return s, nil
 		}
 		s.model.State = model.StateTesting
@@ -310,12 +316,12 @@ func (s *speedTest) handleServerSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cm
 		s.progressChan = make(chan model.ProgressUpdate)
 		s.errChan = make(chan error, 1)
 		go func() {
-			server := s.model.ServerList[s.model.Cursor]
+			server := s.model.ServerList[s.cursor]
 			err := s.model.PerformSpeedTest(ctx, server, s.progressChan)
 			s.errChan <- err
 			close(s.progressChan)
 		}()
-		s.model.ShowHelp = false
+		s.showHelp = false
 		return s, tea.Batch(
 			s.spinner.Tick,
 			waitForProgress(s.progressChan, s.errChan),
@@ -347,7 +353,7 @@ func (s *speedTest) startDiagnostics() (tea.Model, tea.Cmd) {
 	s.viewState = ViewDiagRunning
 	s.diagResult = nil
 	s.model.CurrentPhase = runningDiagnosticsPhase
-	s.model.ShowHelp = false
+	s.showHelp = false
 	cfg := diagConfigFromModel(s.model)
 	return s, tea.Batch(s.spinner.Tick, runDiagCmd(s.model, cfg))
 }
@@ -355,15 +361,15 @@ func (s *speedTest) startDiagnostics() (tea.Model, tea.Cmd) {
 func (s *speedTest) startNewTest() (tea.Model, tea.Cmd) {
 	s.viewState = ViewMain
 	s.diagResult = nil
-	s.model.ShowHelp = false
+	s.showHelp = false
 	if len(s.model.ServerList) == 0 {
 		s.model.State = model.StateAwaitingServers
 		s.model.CurrentPhase = fetchingServerListPhase
 		return s, s.spinner.Tick
 	}
 	s.model.State = model.StateSelectingServer
-	s.model.Cursor = 0
-	s.model.ServerListOffset = 0
+	s.cursor = 0
+	s.serverListOffset = 0
 	return s, nil
 }
 
@@ -396,7 +402,7 @@ func (s *speedTest) handleDiagCompactKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case keyEsc:
 		s.viewState = ViewMain
 		s.diagResult = nil
-		s.model.ShowHelp = true
+		s.showHelp = true
 	case "enter":
 		s.viewState = ViewDiagExpanded
 		s.diagOffset = 0
@@ -415,14 +421,14 @@ func (s *speedTest) handleIdleKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		s.quitting = true
 		return s, tea.Quit
 	case keyUp, keyK:
-		if s.model.HistoryOffset > 0 {
-			s.model.HistoryOffset--
+		if s.historyOffset > 0 {
+			s.historyOffset--
 		}
 	case keyDown, keyJ:
 		totalRows := len(s.model.TestHistory) - 1
 		maxVisible := ui.HistoryVisibleRows(s.model.Height, totalRows)
-		if totalRows > maxVisible && s.model.HistoryOffset < totalRows-maxVisible {
-			s.model.HistoryOffset++
+		if totalRows > maxVisible && s.historyOffset < totalRows-maxVisible {
+			s.historyOffset++
 		}
 	case "n":
 		return s.startNewTest()
@@ -434,7 +440,7 @@ func (s *speedTest) handleIdleKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			s.model.ExportMessage = ""
 		}
 	case "h":
-		s.model.ShowHelp = !s.model.ShowHelp
+		s.showHelp = !s.showHelp
 	}
 	return s, nil
 }
@@ -470,7 +476,7 @@ func (s *speedTest) View() string {
 			b.WriteString("\n\n")
 
 		case model.StateSelectingServer:
-			b.WriteString(ui.RenderServerSelection(s.model, s.model.Width))
+			b.WriteString(ui.RenderServerSelection(s.model, s.model.Width, s.cursor, s.serverListOffset))
 
 		case model.StateTesting:
 			b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, s.model.Progress))
@@ -478,7 +484,7 @@ func (s *speedTest) View() string {
 
 		case model.StateExporting, model.StateIdle:
 			if s.model.Results != nil || len(s.model.TestHistory) > 0 {
-				b.WriteString(ui.RenderResults(s.model, s.model.Width))
+				b.WriteString(ui.RenderResults(s.model, s.model.Width, s.historyOffset))
 				b.WriteString("\n")
 			}
 
@@ -500,7 +506,7 @@ func (s *speedTest) View() string {
 				b.WriteString(ui.RenderExportMessage(s.model.ExportMessage, s.model.Width))
 			}
 
-			if s.model.ShowHelp {
+			if s.showHelp {
 				b.WriteString(ui.RenderHelp(s.model.Width, s.model.Results != nil))
 			}
 		}
@@ -574,8 +580,9 @@ func runTUI() {
 	}
 
 	s := speedTest{
-		model:   m,
-		spinner: ui.DefaultSpinner,
+		model:    m,
+		spinner:  ui.DefaultSpinner,
+		showHelp: true,
 	}
 
 	if _, err := tea.NewProgram(&s, tea.WithAltScreen()).Run(); err != nil {
