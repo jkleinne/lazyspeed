@@ -21,48 +21,49 @@ type Binding struct {
 	Key         string
 	Description string
 	Context     BindingContext
+	ResultOnly  bool // only shown when a test result exists
 }
 
-// Bindings is the single source of truth for all user-facing keybinding labels.
+// bindings is the single source of truth for all user-facing keybinding labels.
 // The Update handler switch cases remain the authoritative dispatch logic;
 // this slice drives only the help/hint renderers.
-var Bindings = []Binding{
+var bindings = []Binding{
 	// Home
-	{"n", "New Test", ContextHome},
-	{"d", "Diagnostics", ContextHome},
-	{"e", "Export Result", ContextHome},
-	{"↑/↓, j/k", "Scroll History", ContextHome},
-	{"h", "Toggle Help", ContextHome},
-	{"q", "Quit", ContextHome},
+	{Key: "n", Description: "New Test", Context: ContextHome},
+	{Key: "d", Description: "Diagnostics", Context: ContextHome},
+	{Key: "e", Description: "Export Result", Context: ContextHome, ResultOnly: true},
+	{Key: "↑/↓", Description: "Scroll History", Context: ContextHome, ResultOnly: true},
+	{Key: "h", Description: "Toggle Help", Context: ContextHome},
+	{Key: "q", Description: "Quit", Context: ContextHome},
 
 	// Server Selection
-	{"↑/↓, j/k", "Navigate", ContextServerSelection},
-	{"Enter", "Select Server", ContextServerSelection},
-	{"Esc", "Back to Home", ContextServerSelection},
+	{Key: "↑/↓", Description: "Navigate", Context: ContextServerSelection},
+	{Key: "Enter", Description: "Select Server", Context: ContextServerSelection},
+	{Key: "Esc", Description: "Back to Home", Context: ContextServerSelection},
 
 	// Export
-	{"j", "JSON", ContextExport},
-	{"c", "CSV", ContextExport},
-	{"Esc", "Cancel", ContextExport},
+	{Key: "j", Description: "JSON", Context: ContextExport},
+	{Key: "c", Description: "CSV", Context: ContextExport},
+	{Key: "Esc", Description: "Cancel", Context: ContextExport},
 
 	// Diagnostics (compact)
-	{"Enter", "Expand Trace", ContextDiagCompact},
-	{"Esc", "Back", ContextDiagCompact},
-	{"d", "New Diagnostic", ContextDiagCompact},
-	{"n", "Speed Test", ContextDiagCompact},
-	{"q", "Quit", ContextDiagCompact},
+	{Key: "Enter", Description: "Expand Trace", Context: ContextDiagCompact},
+	{Key: "Esc", Description: "Back", Context: ContextDiagCompact},
+	{Key: "d", Description: "New Diagnostic", Context: ContextDiagCompact},
+	{Key: "n", Description: "Speed Test", Context: ContextDiagCompact},
+	{Key: "q", Description: "Quit", Context: ContextDiagCompact},
 
 	// Diagnostics (expanded)
-	{"Up/Down", "Scroll", ContextDiagExpanded},
-	{"Esc", "Compact View", ContextDiagExpanded},
-	{"d", "New Diagnostic", ContextDiagExpanded},
-	{"q", "Quit", ContextDiagExpanded},
+	{Key: "↑/↓", Description: "Scroll", Context: ContextDiagExpanded},
+	{Key: "Esc", Description: "Compact View", Context: ContextDiagExpanded},
+	{Key: "d", Description: "New Diagnostic", Context: ContextDiagExpanded},
+	{Key: "q", Description: "Quit", Context: ContextDiagExpanded},
 }
 
 // BindingsForContext returns all bindings matching the given context.
 func BindingsForContext(ctx BindingContext) []Binding {
 	var result []Binding
-	for _, b := range Bindings {
+	for _, b := range bindings {
 		if b.Context == ctx {
 			result = append(result, b)
 		}

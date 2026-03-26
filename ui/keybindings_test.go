@@ -61,7 +61,7 @@ func TestFormatHint(t *testing.T) {
 			name:     "DiagExpanded contains all bindings pipe-separated",
 			context:  ContextDiagExpanded,
 			wantSep:  " | ",
-			wantSubs: []string{"Up/Down: scroll", "Esc: compact view", "d: new diagnostic", "q: quit"},
+			wantSubs: []string{"↑/↓: scroll", "Esc: compact view", "d: new diagnostic", "q: quit"},
 		},
 		{
 			name:    "Unknown context returns empty string",

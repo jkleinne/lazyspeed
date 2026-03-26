@@ -19,6 +19,14 @@ const (
 	serverListMinVisible = 3
 )
 
+// Viewport groups the display dimensions shared by windowed render functions.
+type Viewport struct {
+	Width  int
+	Height int
+	Offset int
+	Cursor int
+}
+
 // clampViewport clamps offset into [0, total-maxVisible] and returns
 // the adjusted offset and the exclusive end index for slicing.
 func clampViewport(total, maxVisible, offset int) (clampedOffset, end int) {
@@ -68,7 +76,7 @@ func RenderSpinner(s spinner.Model, width int, phase string, progressAmount floa
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, sized)
 }
 
-func RenderResults(history []*model.SpeedTestResult, height, historyOffset, width int) string {
+func RenderResults(history []*model.SpeedTestResult, vp Viewport) string {
 	if len(history) == 0 {
 		return ""
 	}
@@ -101,7 +109,7 @@ func RenderResults(history []*model.SpeedTestResult, height, historyOffset, widt
 	latestContent := infoStyle.Render(latestBox.String())
 
 	if len(history) == 1 {
-		return lipgloss.PlaceHorizontal(width, lipgloss.Center, latestContent)
+		return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, latestContent)
 	}
 
 	headers := []string{"#", "Time", "Server", "Sponsor", "Dist (km)", "DL (Mbps)", "UL (Mbps)", "Ping (ms)", "Jitter (ms)"}
@@ -135,9 +143,9 @@ func RenderResults(history []*model.SpeedTestResult, height, historyOffset, widt
 	}
 
 	totalRows := len(allRows)
-	maxVisible := HistoryVisibleRows(height, totalRows)
+	maxVisible := HistoryVisibleRows(vp.Height, totalRows)
 
-	offset, end := clampViewport(totalRows, maxVisible, historyOffset)
+	offset, end := clampViewport(totalRows, maxVisible, vp.Offset)
 
 	visibleRows := allRows[offset:end]
 
@@ -170,7 +178,7 @@ func RenderResults(history []*model.SpeedTestResult, height, historyOffset, widt
 
 	content := lipgloss.JoinVertical(lipgloss.Center, latestContent, "\n", historyContent)
 
-	return lipgloss.PlaceHorizontal(width, lipgloss.Center, content)
+	return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, content)
 }
 
 func RenderError(err error, width int) string {
@@ -195,7 +203,7 @@ func RenderHelp(width int, hasResult bool) string {
 	help.WriteString("\n")
 	help.WriteString("Controls:\n")
 	for _, b := range BindingsForContext(ContextHome) {
-		if !hasResult && (b.Key == "e" || b.Description == "Scroll History") {
+		if b.ResultOnly && !hasResult {
 			continue
 		}
 		fmt.Fprintf(&help, "  %s: %s\n", b.Key, b.Description)
@@ -241,18 +249,18 @@ func ServerListVisibleLines(height, total int) int {
 }
 
 // RenderServerSelection renders the server list with viewport-based windowing.
-func RenderServerSelection(servers speedtest.Servers, height, cursor, serverListOffset, width int) string {
+func RenderServerSelection(servers speedtest.Servers, vp Viewport) string {
 	var b strings.Builder
 	b.WriteString("Select a server:\n\n")
 
 	total := len(servers)
 	if total == 0 {
 		b.WriteString("  No servers available.\n")
-		return lipgloss.PlaceHorizontal(width, lipgloss.Center, infoStyle.Render(b.String()))
+		return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, infoStyle.Render(b.String()))
 	}
 
-	visible := ServerListVisibleLines(height, total)
-	offset, end := clampViewport(total, visible, serverListOffset)
+	visible := ServerListVisibleLines(vp.Height, total)
+	offset, end := clampViewport(total, visible, vp.Offset)
 
 	if offset > 0 {
 		fmt.Fprintf(&b, "  ↑ %d more\n", offset)
@@ -261,7 +269,7 @@ func RenderServerSelection(servers speedtest.Servers, height, cursor, serverList
 	for i := offset; i < end; i++ {
 		server := servers[i]
 		prefix := "  "
-		if cursor == i {
+		if vp.Cursor == i {
 			prefix = "> "
 		}
 		fmt.Fprintf(&b, "%s%s: %s (%s) - %.2f ms\n",
@@ -274,5 +282,5 @@ func RenderServerSelection(servers speedtest.Servers, height, cursor, serverList
 		fmt.Fprintf(&b, "  ↓ %d more\n", remaining)
 	}
 
-	return lipgloss.PlaceHorizontal(width, lipgloss.Center, infoStyle.Render(b.String()))
+	return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, infoStyle.Render(b.String()))
 }

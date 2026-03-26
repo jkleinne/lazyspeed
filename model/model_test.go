@@ -178,7 +178,6 @@ func TestNewModel(t *testing.T) {
 	if m.CurrentPhase != "" {
 		t.Errorf("Expected CurrentPhase to be empty, got %s", m.CurrentPhase)
 	}
-
 }
 
 func TestHistoryLoadSave(t *testing.T) {
