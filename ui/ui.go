@@ -193,18 +193,16 @@ func RenderHelp(width int, hasResult bool) string {
 	help := strings.Builder{}
 	help.WriteString("\n")
 	help.WriteString("Controls:\n")
-	help.WriteString("  n: New Test\n")
-	help.WriteString("  d: Diagnostics\n")
-	if hasResult {
-		help.WriteString("  e: Export Result\n")
-		help.WriteString("  ↑/↓, j/k: Scroll History\n")
+	for _, b := range BindingsForContext(ContextHome) {
+		if !hasResult && (b.Key == "e" || b.Description == "Scroll History") {
+			continue
+		}
+		fmt.Fprintf(&help, "  %s: %s\n", b.Key, b.Description)
 	}
-	help.WriteString("  h: Toggle Help\n")
-	help.WriteString("  q: Quit\n")
 	help.WriteString("\nIn Server Selection:\n")
-	help.WriteString("  ↑/↓, j/k: Navigate\n")
-	help.WriteString("  Enter: Select Server\n")
-	help.WriteString("  Esc: Back to Home\n")
+	for _, b := range BindingsForContext(ContextServerSelection) {
+		fmt.Fprintf(&help, "  %s: %s\n", b.Key, b.Description)
+	}
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center,
 		helpStyle.Render(help.String()))
@@ -213,7 +211,12 @@ func RenderHelp(width int, hasResult bool) string {
 // RenderExportPrompt renders the inline format selection prompt shown when the
 // user presses 'e' after a test completes.
 func RenderExportPrompt(width int) string {
-	prompt := helpStyle.Render("Export result:  [j] JSON  [c] CSV  [Esc] cancel")
+	bindings := BindingsForContext(ContextExport)
+	parts := make([]string, 0, len(bindings))
+	for _, b := range bindings {
+		parts = append(parts, fmt.Sprintf("[%s] %s", b.Key, b.Description))
+	}
+	prompt := helpStyle.Render("Export result:  " + strings.Join(parts, "  "))
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, prompt)
 }
 

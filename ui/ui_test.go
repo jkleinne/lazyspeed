@@ -200,7 +200,7 @@ func TestRenderExportPrompt(t *testing.T) {
 	if !strings.Contains(res, "[c] CSV") {
 		t.Errorf("Expected CSV option in export prompt")
 	}
-	if !strings.Contains(res, "[Esc] cancel") {
+	if !strings.Contains(res, "[Esc] Cancel") {
 		t.Errorf("Expected cancel option in export prompt")
 	}
 

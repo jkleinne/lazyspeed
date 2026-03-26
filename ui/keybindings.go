@@ -1,5 +1,10 @@
 package ui
 
+import (
+	"fmt"
+	"strings"
+)
+
 // BindingContext identifies the TUI screen where a keybinding is active.
 type BindingContext string
 
@@ -63,4 +68,14 @@ func BindingsForContext(ctx BindingContext) []Binding {
 		}
 	}
 	return result
+}
+
+// formatHint builds a " | "-separated hint line from all bindings in a context.
+func formatHint(ctx BindingContext) string {
+	bindings := BindingsForContext(ctx)
+	parts := make([]string, 0, len(bindings))
+	for _, b := range bindings {
+		parts = append(parts, fmt.Sprintf("%s: %s", b.Key, strings.ToLower(b.Description)))
+	}
+	return strings.Join(parts, " | ")
 }
