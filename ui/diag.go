@@ -140,7 +140,7 @@ func RenderDiagCompact(result *diag.DiagResult, width int) string {
 	b.WriteString("\n")
 
 	// Hint
-	hint := "Enter: expand trace | Esc: back | d: new diagnostic | n: speed test | q: quit"
+	hint := formatHint(ContextDiagCompact)
 	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, helpStyle.Render(hint)))
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, b.String())
@@ -242,7 +242,7 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 	b.WriteString("\n")
 
 	// Hint
-	hint := "Up/Down: scroll | Esc: compact view | d: new diagnostic | q: quit"
+	hint := formatHint(ContextDiagExpanded)
 	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, helpStyle.Render(hint)))
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, b.String())

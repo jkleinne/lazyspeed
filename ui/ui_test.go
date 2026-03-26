@@ -92,7 +92,7 @@ func TestRenderResults(t *testing.T) {
 	m := model.NewDefaultModel()
 
 	// Case 1: Empty history
-	res := RenderResults(m, 100)
+	res := RenderResults(m.TestHistory, Viewport{Width: 100})
 	if res != "" {
 		t.Errorf("Expected empty string for empty history, got %q", res)
 	}
@@ -109,7 +109,7 @@ func TestRenderResults(t *testing.T) {
 			Timestamp:     time.Now(),
 		},
 	}
-	res = RenderResults(m, 100)
+	res = RenderResults(m.TestHistory, Viewport{Width: 100})
 	if !strings.Contains(res, "Latest Test Results:") {
 		t.Errorf("Expected Latest Test Results block")
 	}
@@ -129,7 +129,7 @@ func TestRenderResults(t *testing.T) {
 		UserISP:       "Cloudflare",
 		Timestamp:     time.Now(),
 	})
-	res = RenderResults(m, 100)
+	res = RenderResults(m.TestHistory, Viewport{Width: 100})
 	if !strings.Contains(res, "Latest Test Results:") {
 		t.Errorf("Expected Latest Test Results block")
 	}
@@ -200,7 +200,7 @@ func TestRenderExportPrompt(t *testing.T) {
 	if !strings.Contains(res, "[c] CSV") {
 		t.Errorf("Expected CSV option in export prompt")
 	}
-	if !strings.Contains(res, "[Esc] cancel") {
+	if !strings.Contains(res, "[Esc] Cancel") {
 		t.Errorf("Expected cancel option in export prompt")
 	}
 
@@ -229,7 +229,7 @@ func TestRenderServerSelection(t *testing.T) {
 	m.Height = 40
 
 	// Case 1: Empty list
-	res := RenderServerSelection(m, 100)
+	res := RenderServerSelection(m.ServerList, Viewport{Width: 100, Height: m.Height})
 	if !strings.Contains(res, "No servers available") {
 		t.Errorf("Expected 'No servers available' for empty list")
 	}
@@ -239,9 +239,8 @@ func TestRenderServerSelection(t *testing.T) {
 		&speedtest.Server{Name: "Server 1", Sponsor: "Sponsor 1", Country: "Country 1", Latency: 10 * time.Millisecond},
 		&speedtest.Server{Name: "Server 2", Sponsor: "Sponsor 2", Country: "Country 2", Latency: 20 * time.Millisecond},
 	}
-	m.Cursor = 1
 
-	res = RenderServerSelection(m, 100)
+	res = RenderServerSelection(m.ServerList, Viewport{Width: 100, Height: m.Height, Cursor: 1})
 	if !strings.Contains(res, "> Sponsor 2") {
 		t.Errorf("Expected cursor on Server 2")
 	}
@@ -295,10 +294,6 @@ func TestRenderServerSelectionViewport(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := model.NewDefaultModel()
-			m.Height = tt.height
-			m.Cursor = tt.cursor
-			m.ServerListOffset = tt.offset
 			servers := make(speedtest.Servers, tt.serverCount)
 			for i := range servers {
 				servers[i] = &speedtest.Server{
@@ -308,9 +303,8 @@ func TestRenderServerSelectionViewport(t *testing.T) {
 					Latency: time.Duration(10+i) * time.Millisecond,
 				}
 			}
-			m.ServerList = servers
 
-			res := RenderServerSelection(m, 100)
+			res := RenderServerSelection(servers, Viewport{Width: 100, Height: tt.height, Offset: tt.offset, Cursor: tt.cursor})
 
 			if tt.wantUpArrow && !strings.Contains(res, "↑") {
 				t.Errorf("Expected up arrow scroll indicator")
@@ -355,7 +349,7 @@ func TestRenderResultsMissingSponsorDistance(t *testing.T) {
 		},
 	}
 
-	res := RenderResults(m, 120)
+	res := RenderResults(m.TestHistory, Viewport{Width: 120, Height: m.Height})
 
 	if !strings.Contains(res, "Previous Tests") {
 		t.Errorf("Expected 'Previous Tests' label for 2 entries")
@@ -393,7 +387,7 @@ func TestRenderResultsManyEntries(t *testing.T) {
 		}
 	}
 
-	res := RenderResults(m, 120)
+	res := RenderResults(m.TestHistory, Viewport{Width: 120, Height: m.Height})
 	if !strings.Contains(res, "Previous Tests") {
 		t.Errorf("Expected 'Previous Tests' label in output")
 	}
@@ -415,7 +409,7 @@ func TestRenderResultsPagination(t *testing.T) {
 		}
 	}
 
-	res := RenderResults(m, 120)
+	res := RenderResults(m.TestHistory, Viewport{Width: 120, Height: m.Height})
 	if !strings.Contains(res, "Showing") {
 		t.Errorf("Expected pagination indicator for large history")
 	}
@@ -440,7 +434,7 @@ func TestRenderResultsNoPaginationSmallHistory(t *testing.T) {
 		}
 	}
 
-	res := RenderResults(m, 120)
+	res := RenderResults(m.TestHistory, Viewport{Width: 120, Height: m.Height})
 	if strings.Contains(res, "Showing") {
 		t.Errorf("Did not expect pagination indicator when all rows fit")
 	}
@@ -461,9 +455,7 @@ func TestRenderResultsWithHistoryOffset(t *testing.T) {
 			Timestamp:     time.Now(),
 		}
 	}
-	m.HistoryOffset = 3
-
-	res := RenderResults(m, 120)
+	res := RenderResults(m.TestHistory, Viewport{Width: 120, Height: m.Height, Offset: 3})
 	if !strings.Contains(res, "Showing 4-") {
 		t.Errorf("Expected pagination to start at 4 with offset 3, got: %s", res)
 	}
@@ -484,9 +476,7 @@ func TestRenderResultsHistoryOffsetClamped(t *testing.T) {
 			Timestamp:     time.Now(),
 		}
 	}
-	m.HistoryOffset = 999
-
-	res := RenderResults(m, 120)
+	res := RenderResults(m.TestHistory, Viewport{Width: 120, Height: m.Height, Offset: 999})
 	if !strings.Contains(res, "Showing") {
 		t.Errorf("Expected pagination indicator even with clamped offset")
 	}
