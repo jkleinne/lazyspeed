@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
 	"github.com/jkleinne/lazyspeed/model"
+	"github.com/showwin/speedtest-go/speedtest"
 )
 
 const (
@@ -67,12 +68,12 @@ func RenderSpinner(s spinner.Model, width int, phase string, progressAmount floa
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, sized)
 }
 
-func RenderResults(m *model.Model, width int, historyOffset int) string {
-	if len(m.TestHistory) == 0 {
+func RenderResults(history []*model.SpeedTestResult, height, historyOffset, width int) string {
+	if len(history) == 0 {
 		return ""
 	}
 
-	latest := m.TestHistory[len(m.TestHistory)-1]
+	latest := history[len(history)-1]
 
 	latestBox := strings.Builder{}
 	latestBox.WriteString("Latest Test Results:\n")
@@ -99,16 +100,16 @@ func RenderResults(m *model.Model, width int, historyOffset int) string {
 
 	latestContent := infoStyle.Render(latestBox.String())
 
-	if len(m.TestHistory) == 1 {
+	if len(history) == 1 {
 		return lipgloss.PlaceHorizontal(width, lipgloss.Center, latestContent)
 	}
 
 	headers := []string{"#", "Time", "Server", "Sponsor", "Dist (km)", "DL (Mbps)", "UL (Mbps)", "Ping (ms)", "Jitter (ms)"}
 
 	// Build rows newest-first (omitting the latest which is at index len-1)
-	allRows := make([][]string, 0, len(m.TestHistory)-1)
-	for i := len(m.TestHistory) - 2; i >= 0; i-- {
-		test := m.TestHistory[i]
+	allRows := make([][]string, 0, len(history)-1)
+	for i := len(history) - 2; i >= 0; i-- {
+		test := history[i]
 		rowNum := i + 1
 
 		sponsorStr := "-"
@@ -134,7 +135,7 @@ func RenderResults(m *model.Model, width int, historyOffset int) string {
 	}
 
 	totalRows := len(allRows)
-	maxVisible := HistoryVisibleRows(m.Height, totalRows)
+	maxVisible := HistoryVisibleRows(height, totalRows)
 
 	offset, end := clampViewport(totalRows, maxVisible, historyOffset)
 
@@ -240,17 +241,17 @@ func ServerListVisibleLines(height, total int) int {
 }
 
 // RenderServerSelection renders the server list with viewport-based windowing.
-func RenderServerSelection(m *model.Model, width int, cursor int, serverListOffset int) string {
+func RenderServerSelection(servers speedtest.Servers, height, cursor, serverListOffset, width int) string {
 	var b strings.Builder
 	b.WriteString("Select a server:\n\n")
 
-	total := len(m.ServerList)
+	total := len(servers)
 	if total == 0 {
 		b.WriteString("  No servers available.\n")
 		return lipgloss.PlaceHorizontal(width, lipgloss.Center, infoStyle.Render(b.String()))
 	}
 
-	visible := ServerListVisibleLines(m.Height, total)
+	visible := ServerListVisibleLines(height, total)
 	offset, end := clampViewport(total, visible, serverListOffset)
 
 	if offset > 0 {
@@ -258,7 +259,7 @@ func RenderServerSelection(m *model.Model, width int, cursor int, serverListOffs
 	}
 
 	for i := offset; i < end; i++ {
-		server := m.ServerList[i]
+		server := servers[i]
 		prefix := "  "
 		if cursor == i {
 			prefix = "> "

@@ -476,7 +476,7 @@ func (s *speedTest) View() string {
 			b.WriteString("\n\n")
 
 		case model.StateSelectingServer:
-			b.WriteString(ui.RenderServerSelection(s.model, s.model.Width, s.cursor, s.serverListOffset))
+			b.WriteString(ui.RenderServerSelection(s.model.ServerList, s.model.Height, s.cursor, s.serverListOffset, s.model.Width))
 
 		case model.StateTesting:
 			b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, s.model.Progress))
@@ -484,7 +484,7 @@ func (s *speedTest) View() string {
 
 		case model.StateExporting, model.StateIdle:
 			if s.model.Results != nil || len(s.model.TestHistory) > 0 {
-				b.WriteString(ui.RenderResults(s.model, s.model.Width, s.historyOffset))
+				b.WriteString(ui.RenderResults(s.model.TestHistory, s.model.Height, s.historyOffset, s.model.Width))
 				b.WriteString("\n")
 			}
 
