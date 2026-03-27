@@ -160,6 +160,10 @@ All settings are optional: sensible defaults are used when omitted.
 | Cross-platform | **macOS, Linux, Windows** | All | All | All |
 | Open source | **MIT** | Proprietary | MIT | MIT |
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, coding conventions, and PR guidelines.
+
 ## License
 
 [MIT](LICENSE)
