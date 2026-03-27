@@ -1,5 +1,7 @@
 # Contributing to LazySpeed
 
+Thanks for your interest in contributing. Here's what you need to know to get started.
+
 ## Prerequisites
 
 - Go 1.24+
@@ -23,55 +25,47 @@ make build
 | `make build` | Build binary |
 | `make cover` | Generate HTML coverage report |
 
-## Code Conventions
+## Code Style
 
-### Error Handling
+The codebase follows a few conventions worth knowing before you open a PR.
 
-- **Wrap with context:** `fmt.Errorf("failed to <action>: %v", err)`: use `%v`, not `%w`
-- **Non-critical failures:** set `model.Warning` string field instead of returning an error
-- **Context cancellation:** check `ctx.Err()` at phase boundaries; return the raw context error
-- **Missing files:** `os.IsNotExist(err)`: return nil gracefully
-- **No logging library.** Output through TUI model fields (`.Error`, `.Warning`) or `fmt.Fprintf(os.Stderr, ...)` for CLI errors
+### Error handling
+
+Wrap errors with context: `fmt.Errorf("failed to <action>: %v", err)` — always `%v`, not `%w`. For non-critical failures, set the `model.Warning` field instead of returning an error. There's no logging library; output goes through TUI model fields (`.Error`, `.Warning`) or `fmt.Fprintf(os.Stderr, ...)` for CLI mode.
 
 ### Testing
 
-- **stdlib `testing` only:** no testify, no third-party assertion libraries
-- **White-box testing:** test files use the same package name as the code under test
-- **Test naming:** `Test<Function>` or `Test<Function><Scenario>`
-- **Assertions:** `t.Errorf` for non-fatal, `t.Fatalf` for fatal preconditions. Message format: `"Expected <expectation>, got <actual>"`
-- **Table-driven:** slice named `tests`, iterator named `tt`, subtests via `t.Run(tt.name, ...)`
-- **Mock pattern:** function-field struct; nil field returns sensible default. Configure only the fields relevant to each test
-- **Filesystem tests:** `t.TempDir()` + `t.Setenv("HOME", tmpDir)`
+Tests use stdlib `testing` only — no testify or third-party assertion libraries. Test files live in the same package as the code they test (white-box).
 
-### Key Patterns
+Naming follows `Test<Function>` or `Test<Function><Scenario>`. Use `t.Errorf` for non-fatal checks and `t.Fatalf` when a precondition is broken. For anything with multiple cases, use table-driven tests with a `tests` slice, `tt` iterator, and `t.Run(tt.name, ...)`.
 
-- **State machine:** typed enums for state (`ModelState`, `ViewState`). `Update()`/`View()` dispatch via nested switches to focused handler functions. The [`exhaustive`](https://github.com/nishanths/exhaustive) linter enforces complete switch coverage, so add a case for every variant.
-- **Goroutine lifecycle:** `done`/`doneAck` channel pairs. Close `done` to signal, block on `<-doneAck` to confirm exit.
-- **Nil-safe guards:** optional channels and cancel functions are nil-checked before use.
-- **Model/UI separation:** `model/` owns business state with zero UI dependency. `ui/` has stateless render functions that take data and return styled strings. `main.go` bridges them.
+Mocks are function-field structs where a nil field returns a sensible default — only set the fields relevant to each test case. For filesystem tests, use `t.TempDir()` and `t.Setenv("HOME", tmpDir)`.
 
-### Other Conventions
+### Architecture
 
-- Named constants for all domain/configuration values: no magic numbers
+The project keeps a strict separation between model and UI. `model/` owns business state with no UI imports. `ui/` has stateless render functions that take data params and return styled strings. `main.go` bridges them.
+
+State transitions use typed enums (`ModelState`, `ViewState`) dispatched through nested switches. The [`exhaustive`](https://github.com/nishanths/exhaustive) linter enforces complete coverage, so adding a new state variant means adding a case everywhere it's switched on.
+
+A few other things to keep in mind:
+
+- Named constants for domain/config values, no magic numbers
 - File permissions: `0600` for history (contains PII), `0644` for exports
-- Interfaces defined in the consumer package, not the provider package
-- Pointer receivers for all stateful structs (`*Model`, `*speedTest`)
-- `strings.Builder` for all view and string composition
+- Interfaces live in the consumer package, not the provider
+- Pointer receivers on stateful structs (`*Model`, `*speedTest`)
+- `strings.Builder` for all string composition in views
 
 ## Branching
 
-- Branch off `main`: `type/short-description` (e.g., `feat/add-auth`, `fix/nav-crash`)
-- Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`, `perf`, `build`
+Branch off `main` with the format `type/short-description` (e.g., `feat/add-auth`, `fix/nav-crash`). Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`, `perf`, `build`.
 
 ## Commits
 
-Use [Conventional Commits](https://www.conventionalcommits.org/):
+Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
 type(scope): description
 ```
-
-Keep the subject under 72 characters, imperative mood ("add feature" not "added feature").
 
 ## Pull Requests
 
