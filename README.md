@@ -1,177 +1,165 @@
-# LazySpeed - Terminal Speed Test
+# LazySpeed
 
-A simple terminal-based internet speed test application built with Go and [Bubble Tea](https://github.com/charmbracelet/bubbletea).
+A terminal-based internet speed test with an interactive TUI and a headless CLI for scripting and CI.
+
+[![CI](https://github.com/jkleinne/lazyspeed/actions/workflows/ci.yml/badge.svg)](https://github.com/jkleinne/lazyspeed/actions/workflows/ci.yml)
+[![Go](https://img.shields.io/github/go-mod/go-version/jkleinne/lazyspeed)](https://go.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/jkleinne/lazyspeed)](https://github.com/jkleinne/lazyspeed/releases)
 
 <img width="480" alt="image" src="https://github.com/user-attachments/assets/2988d63e-3fcf-42de-83f2-9bce5e00106f" />
-<img width="346" alt="image"  alt="image" src="https://github.com/user-attachments/assets/d191a282-760e-4b96-b93b-595c1c409104" />
+<img width="346" alt="image" src="https://github.com/user-attachments/assets/d191a282-760e-4b96-b93b-595c1c409104" />
 
 ## Features
 
-- 📥 Download speed measurement
-- 📤 Upload speed measurement
-- 🔄 Ping/Latency testing
-- 📊 Jitter calculation (Mean Absolute Deviation)
-- 🖥️ Headless CLI mode (`lazyspeed run`) for scripting and CI
-- 📜 Test history tracking with persistent storage
-- 📁 JSON and CSV result export (CLI and TUI)
-- ⚙️ XDG-compliant YAML configuration
-- 🔁 Multi-test runs (`--count N`)
+- **Download & upload** speed measurement with live EWMA progress
+- **Ping & jitter:** configurable ping count, jitter as Mean Absolute Deviation
+- **Network diagnostics:** traceroute, DNS timing, quality scoring (`lazyspeed diag`)
+- **Interactive TUI:** server selection, results, history, export, help overlay
+- **Headless CLI:** JSON, CSV, and one-liner output for scripting and CI
+- **Persistent history:** XDG-compliant storage with configurable retention
+- **Multi-test runs:** `--count N` for sequential tests
+- **Shell completions:** bash, zsh, fish, powershell
+- **Single binary:** zero runtime dependencies, cross-platform (macOS, Linux, Windows)
 
 ## Installation
 
-### Using Homebrew
+### Homebrew (macOS / Linux)
 
-1. Add the tap:
 ```bash
 brew tap jkleinne/tools
-```
-
-2. Install LazySpeed:
-```bash
 brew install lazyspeed
 ```
 
-### Building from Source
+### GitHub Releases
 
-#### Prerequisites
+Download the latest binary from [Releases](https://github.com/jkleinne/lazyspeed/releases).
 
-- Go 1.24.2 or higher
+### Build from Source
 
-1. Clone the repository:
+Requires Go 1.24+.
+
 ```bash
 git clone https://github.com/jkleinne/lazyspeed.git
 cd lazyspeed
-```
-
-2. Install dependencies:
-```bash
-go mod download
-```
-
-3. Build the application (setting version and build date via `ldflags`):
-```bash
-go build
+make build
 ```
 
 ## Usage
 
-### TUI Mode
+### TUI (Interactive)
 
-Launch the interactive terminal UI:
 ```bash
 lazyspeed
 ```
 
-### `run` — Headless Speed Test
-
-Run a speed test non-interactively (useful for scripting and CI):
-```bash
-# Default output
-lazyspeed run
-
-# JSON output
-lazyspeed run --json
-
-# CSV output
-lazyspeed run --csv
-
-# Minimal one-line output (DL/UL/Ping)
-lazyspeed run --simple
-
-# Use a specific server
-lazyspeed run --server <server-id>
-
-# Skip upload or download
-lazyspeed run --no-upload
-lazyspeed run --no-download
-
-# Run multiple tests
-lazyspeed run --count 5 --json
-```
-
-### `history` — View Test History
-
-```bash
-# Display history as a table
-lazyspeed history
-
-# Export as JSON or CSV
-lazyspeed history --format json
-lazyspeed history --format csv
-
-# Limit to last N results
-lazyspeed history --last 10 --format json
-
-# Clear all history
-lazyspeed history --clear
-```
-
-### `version`
-
-```bash
-lazyspeed version
-```
-
-### TUI Controls
-
 | Key | Action |
 |-----|--------|
 | `n` | Start a new speed test |
-| `e` | Export latest result (after test completes) |
+| `d` | Run network diagnostics |
+| `e` | Export latest result (JSON or CSV) |
 | `h` | Toggle help overlay |
+| `↑`/`↓` or `k`/`j` | Navigate lists |
+| `Enter` | Select |
+| `Esc` | Back |
 | `q` / `Ctrl+C` | Quit |
 
-**Server selection:**
+### Speed Test
 
-| Key | Action |
-|-----|--------|
-| `↑`/`↓` or `k`/`j` | Navigate server list |
-| `Enter` | Select server |
-| `Esc` | Back to home |
-| `q` / `Ctrl+C` | Quit |
+```bash
+# Default (human-readable progress on stderr)
+lazyspeed run
 
-**Export prompt (after pressing `e`):**
+# Structured output
+lazyspeed run --json
+lazyspeed run --csv
+lazyspeed run --simple          # DL: X Mbps | UL: X Mbps | Ping: X ms
 
-| Key | Action |
-|-----|--------|
-| `j` | Export as JSON |
-| `c` | Export as CSV |
-| `Esc` / `q` / `Ctrl+C` | Cancel |
+# Options
+lazyspeed run --server <id>     # Use a specific server
+lazyspeed run --no-upload       # Skip upload phase
+lazyspeed run --no-download     # Skip download phase
+lazyspeed run --count 5 --json  # Run 5 sequential tests
+```
+
+### Network Diagnostics
+
+```bash
+# Interactive diagnostics in TUI
+lazyspeed diag
+
+# Headless with structured output
+lazyspeed diag --json
+lazyspeed diag --csv
+lazyspeed diag --simple
+
+# Specify target
+lazyspeed diag --server <host>
+
+# View diagnostics history
+lazyspeed diag --history
+lazyspeed diag --history --last 5
+```
+
+### History
+
+```bash
+lazyspeed history                    # Table view
+lazyspeed history --format json      # JSON output
+lazyspeed history --format csv       # CSV output
+lazyspeed history --last 10          # Last N entries
+lazyspeed history --clear            # Delete all history
+```
+
+### Server List
+
+```bash
+lazyspeed servers                    # Table of servers sorted by latency
+lazyspeed servers --format json
+lazyspeed servers --format csv
+```
+
+### Other Commands
+
+```bash
+lazyspeed version                    # Version, commit, build date
+lazyspeed completion bash            # Shell completions (bash/zsh/fish/powershell)
+```
 
 ## Configuration
 
-LazySpeed uses XDG-compliant paths for configuration and data storage.
-
-**Config file:** `~/.config/lazyspeed/config.yaml`
+Config file: `~/.config/lazyspeed/config.yaml` (respects `$XDG_CONFIG_HOME`)
 
 ```yaml
 history:
-  max_entries: 50    # Maximum history entries to keep (default: 50)
-  path: ""           # Override history file path (default: ~/.local/share/lazyspeed/history.json)
+  max_entries: 50          # Maximum history entries (default: 50)
+  path: ""                 # Override history path (default: ~/.local/share/lazyspeed/history.json)
 
 test:
-  ping_count: 10     # Number of ping measurements per test (default: 10)
+  ping_count: 10           # Ping iterations per test (default: 10)
+  fetch_timeout: 30        # Server list fetch timeout in seconds (default: 30)
+  test_timeout: 120        # Speed test timeout in seconds (default: 120)
+
+export:
+  directory: ""            # Default export directory (default: current directory)
 ```
 
-**History file:** `~/.local/share/lazyspeed/history.json`
+All settings are optional: sensible defaults are used when omitted.
 
-The config file is optional — all settings have sensible defaults. If migrating from an older version, history is automatically moved from the legacy path (`~/.lazyspeed_history.json`).
+## Comparison
 
-## How it Works
-
-LazySpeed uses the [speedtest-go](https://github.com/showwin/speedtest-go) library to perform internet speed tests. The application:
-
-1. Finds the closest speed test server
-2. Measures ping and calculates jitter
-3. Performs download speed test
-4. Performs upload speed test
-5. Displays the results
-
-UI is built using:
-- [Bubble Tea](https://github.com/charmbracelet/bubbletea) - Terminal UI framework
-- [Bubbles](https://github.com/charmbracelet/bubbles) - TUI components
-- [Lip Gloss](https://github.com/charmbracelet/lipgloss) - Style definitions
+| Feature | LazySpeed | Ookla CLI | fast-cli | speedtest-go CLI |
+|---------|-----------|-----------|----------|------------------|
+| Interactive TUI | **Yes** | No | No | No |
+| Headless CLI | **Yes** | Yes | Yes | Yes |
+| Persistent history | **Yes** | No | No | No |
+| JSON/CSV export | **Yes** | JSON only | No | JSON only |
+| Network diagnostics | **Yes** | No | No | No |
+| Configurable | **Yes** (YAML) | Limited | No | No |
+| Single binary | **Yes** | Yes | No (Node.js) | Yes |
+| Cross-platform | **macOS, Linux, Windows** | All | All | All |
+| Open source | **MIT** | Proprietary | MIT | MIT |
 
 ## License
 
-MIT License
+[MIT](LICENSE)
