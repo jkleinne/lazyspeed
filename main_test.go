@@ -1263,3 +1263,159 @@ func TestServerListMsgErrorDuringIdleKeepsState(t *testing.T) {
 		t.Errorf("Expected error to be set")
 	}
 }
+
+func TestHandleAwaitingServersKeys(t *testing.T) {
+	tests := []struct {
+		name         string
+		msg          tea.KeyMsg
+		wantQuitting bool
+	}{
+		{
+			name:         "q quits",
+			msg:          tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}},
+			wantQuitting: true,
+		},
+		{
+			name:         "ctrl+c quits",
+			msg:          tea.KeyMsg{Type: tea.KeyCtrlC},
+			wantQuitting: true,
+		},
+		{
+			name:         "esc is no-op",
+			msg:          tea.KeyMsg{Type: tea.KeyEsc},
+			wantQuitting: false,
+		},
+		{
+			name:         "j is no-op",
+			msg:          tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}},
+			wantQuitting: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := model.NewDefaultModel()
+			m.State = model.StateAwaitingServers
+			s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+			newModel, cmd := s.Update(tt.msg)
+			newS := newModel.(*speedTest)
+
+			if newS.quitting != tt.wantQuitting {
+				t.Errorf("Expected quitting=%v, got %v", tt.wantQuitting, newS.quitting)
+			}
+			if tt.wantQuitting && cmd == nil {
+				t.Errorf("Expected non-nil quit cmd")
+			}
+			if !tt.wantQuitting && cmd != nil {
+				t.Errorf("Expected nil cmd for no-op, got non-nil")
+			}
+		})
+	}
+}
+
+func TestHandleDiagRunningKeys(t *testing.T) {
+	tests := []struct {
+		name         string
+		msg          tea.KeyMsg
+		wantQuitting bool
+	}{
+		{
+			name:         "q quits",
+			msg:          tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}},
+			wantQuitting: true,
+		},
+		{
+			name:         "ctrl+c quits",
+			msg:          tea.KeyMsg{Type: tea.KeyCtrlC},
+			wantQuitting: true,
+		},
+		{
+			name:         "esc is no-op",
+			msg:          tea.KeyMsg{Type: tea.KeyEsc},
+			wantQuitting: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := model.NewDefaultModel()
+			s := speedTest{model: m, spinner: ui.DefaultSpinner, viewState: ViewDiagRunning}
+
+			newModel, cmd := s.Update(tt.msg)
+			newS := newModel.(*speedTest)
+
+			if newS.quitting != tt.wantQuitting {
+				t.Errorf("Expected quitting=%v, got %v", tt.wantQuitting, newS.quitting)
+			}
+			if tt.wantQuitting && cmd == nil {
+				t.Errorf("Expected non-nil quit cmd")
+			}
+			if !tt.wantQuitting && cmd != nil {
+				t.Errorf("Expected nil cmd for no-op, got non-nil")
+			}
+		})
+	}
+}
+
+func TestHandleTestingKeysQuit(t *testing.T) {
+	tests := []struct {
+		name string
+		msg  tea.KeyMsg
+	}{
+		{
+			name: "q cancels and quits",
+			msg:  tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}},
+		},
+		{
+			name: "ctrl+c cancels and quits",
+			msg:  tea.KeyMsg{Type: tea.KeyCtrlC},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := model.NewDefaultModel()
+			m.State = model.StateTesting
+
+			cancelled := false
+			s := speedTest{
+				model:      m,
+				spinner:    ui.DefaultSpinner,
+				cancelTest: func() { cancelled = true },
+			}
+
+			newModel, cmd := s.Update(tt.msg)
+			newS := newModel.(*speedTest)
+
+			if !newS.quitting {
+				t.Errorf("Expected quitting=true")
+			}
+			if cmd == nil {
+				t.Errorf("Expected non-nil quit cmd")
+			}
+			if !cancelled {
+				t.Errorf("Expected cancelTest to have been called")
+			}
+			if newS.cancelTest != nil {
+				t.Errorf("Expected cancelTest to be nil after cancellation")
+			}
+		})
+	}
+}
+
+func TestHandleTestingKeysNoOp(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.State = model.StateTesting
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	newModel, cmd := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	newS := newModel.(*speedTest)
+
+	if newS.quitting {
+		t.Errorf("Expected quitting=false for no-op key")
+	}
+	if cmd != nil {
+		t.Errorf("Expected nil cmd for no-op key, got non-nil")
+	}
+}
