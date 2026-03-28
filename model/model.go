@@ -77,7 +77,7 @@ func (r *SpeedTestResult) UnmarshalJSON(data []byte) error {
 		Alias: (*Alias)(r),
 	}
 	if err := json.Unmarshal(data, aux); err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal speed test result: %v", err)
 	}
 	// Prefer the canonical key; fall back to the legacy key.
 	if r.ServerCountry == "" && aux.ServerLoc != "" {
@@ -295,7 +295,7 @@ func (m *Model) historyPath() (string, error) {
 func (m *Model) LoadHistory() error {
 	historyPath, err := m.historyPath()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to resolve history path: %v", err)
 	}
 
 	data, err := os.ReadFile(historyPath)
@@ -320,7 +320,7 @@ func (m *Model) LoadHistory() error {
 func (m *Model) SaveHistory() error {
 	historyPath, err := m.historyPath()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to resolve history path: %v", err)
 	}
 
 	// Ensure the parent directory exists
@@ -447,7 +447,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	})
 	if err != nil {
 		m.State = StateIdle
-		return err
+		return fmt.Errorf("failed to measure ping: %v", err)
 	}
 	m.pingResults = pingResult.pings
 	if len(pingResult.pings) == 0 {
@@ -584,7 +584,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		callProgressFn(opts.ProgressFn, fmt.Sprintf("Measuring ping (%d/%d): %.1f ms", i, total, ping))
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to measure ping: %v", err)
 	}
 
 	var downloadSpeed, uploadSpeed float64
