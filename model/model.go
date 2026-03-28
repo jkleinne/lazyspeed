@@ -228,7 +228,7 @@ func measurePing(ctx context.Context, backend Backend, server *speedtest.Server,
 	var pings []float64
 	var sumPing float64
 
-	for i := 0; i < count; i++ {
+	for i := range count {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}

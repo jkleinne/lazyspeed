@@ -40,8 +40,7 @@ func findAnomalies(hops []diag.Hop) []diag.Hop {
 		return nil
 	}
 
-	sorted := make([]float64, len(latencies))
-	copy(sorted, latencies)
+	sorted := slices.Clone(latencies)
 	slices.Sort(sorted)
 
 	var median float64

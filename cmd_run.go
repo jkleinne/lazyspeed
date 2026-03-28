@@ -112,7 +112,7 @@ func runHeadlessTest() {
 	// (Printing one object per iteration produces invalid JSON when --count > 1.)
 	var jsonResults []*model.SpeedTestResult
 
-	for i := 0; i < runCount; i++ {
+	for i := range runCount {
 		if runCount > 1 && !runJSON && !runCSV {
 			fmt.Printf("\n--- Test %d of %d ---\n", i+1, runCount)
 		}
