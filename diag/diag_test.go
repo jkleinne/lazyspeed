@@ -2,6 +2,7 @@ package diag
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"testing"
@@ -153,6 +154,166 @@ func TestRunContextCancellationPartialResults(t *testing.T) {
 	}
 	if len(result.Hops) != 1 {
 		t.Errorf("expected 1 hop from partial result, got %d", len(result.Hops))
+	}
+}
+
+func TestDNSResultMarshalJSON(t *testing.T) {
+	dns := DNSResult{
+		Host:    "example.com",
+		IP:      testExampleIP,
+		Latency: 12500 * time.Microsecond,
+		Cached:  false,
+	}
+
+	data, err := json.Marshal(dns)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("unmarshal into map failed: %v", err)
+	}
+
+	latency, ok := raw["latency"].(float64)
+	if !ok {
+		t.Fatal("latency field missing or not a float64")
+	}
+	if latency != 12.5 {
+		t.Errorf("latency = %v, want 12.5", latency)
+	}
+}
+
+func TestDiagResultJSONRoundTrip(t *testing.T) {
+	original := DiagResult{
+		Target: "example.com",
+		Method: MethodICMP,
+		Hops: []Hop{
+			{Number: 1, IP: "192.168.1.1", Host: "router.local", Latency: 5 * time.Millisecond},
+			{Number: 2, Timeout: true},
+		},
+		DNS: &DNSResult{
+			Host:    "example.com",
+			IP:      testExampleIP,
+			Latency: 15 * time.Millisecond,
+			Cached:  false,
+		},
+		Quality:   QualityScore{Score: 72, Grade: "B", Label: "Good for most activities"},
+		Timestamp: time.Date(2026, 3, 26, 12, 0, 0, 0, time.UTC),
+	}
+
+	data, err := json.Marshal(original)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+
+	var decoded DiagResult
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+
+	if decoded.Target != original.Target {
+		t.Errorf("target = %q, want %q", decoded.Target, original.Target)
+	}
+	if len(decoded.Hops) != len(original.Hops) {
+		t.Fatalf("hop count = %d, want %d", len(decoded.Hops), len(original.Hops))
+	}
+	if decoded.Hops[0].Latency != original.Hops[0].Latency {
+		t.Errorf("hop[0] latency = %v, want %v", decoded.Hops[0].Latency, original.Hops[0].Latency)
+	}
+	if !decoded.Hops[1].Timeout {
+		t.Error("hop[1] should be a timeout")
+	}
+	if decoded.DNS == nil {
+		t.Fatal("DNS should not be nil")
+	}
+	if decoded.DNS.Latency != original.DNS.Latency {
+		t.Errorf("DNS latency = %v, want %v", decoded.DNS.Latency, original.DNS.Latency)
+	}
+	if decoded.Quality.Score != original.Quality.Score {
+		t.Errorf("quality score = %d, want %d", decoded.Quality.Score, original.Quality.Score)
+	}
+}
+
+func TestDiagResultUnmarshalPartialJSON(t *testing.T) {
+	partial := `{"target":"example.com","method":"icmp","hops":[],"dns":null,"timestamp":"2026-03-26T12:00:00Z"}`
+
+	var result DiagResult
+	if err := json.Unmarshal([]byte(partial), &result); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+
+	if result.Target != "example.com" {
+		t.Errorf("target = %q, want %q", result.Target, "example.com")
+	}
+	if result.Quality.Score != 0 {
+		t.Errorf("score = %d, want 0 for missing quality", result.Quality.Score)
+	}
+}
+
+func TestRunDNSFailureContinuesTraceroute(t *testing.T) {
+	backend := &MockDiagBackend{
+		TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
+			return []Hop{
+				{Number: 1, IP: "10.0.0.1", Host: "gw", Latency: 2 * time.Millisecond},
+			}, MethodICMP, nil
+		},
+		ResolveDNSFn: func(_ context.Context, _ string) (string, time.Duration, error) {
+			return "", 0, fmt.Errorf("dns resolution failed")
+		},
+	}
+
+	result, err := Run(context.Background(), backend, "example.com", DefaultDiagConfig())
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if result.DNS == nil {
+		t.Fatal("DNS should be non-nil even on resolution failure")
+	}
+	if len(result.Hops) != 1 {
+		t.Errorf("hop count = %d, want 1", len(result.Hops))
+	}
+}
+
+func TestComputeScoreZeroHops(t *testing.T) {
+	result := &DiagResult{
+		Target: "example.com",
+		Hops:   []Hop{},
+		DNS: &DNSResult{
+			Host:    "example.com",
+			IP:      testExampleIP,
+			Latency: 10 * time.Millisecond,
+		},
+	}
+
+	score := ComputeScore(result)
+	if score.Score < 0 || score.Score > 100 {
+		t.Errorf("score = %d, want 0-100 range", score.Score)
+	}
+	if score.Grade == "" {
+		t.Error("grade should not be empty")
+	}
+}
+
+func TestComputeScoreAllHopsTimeout(t *testing.T) {
+	var hops []Hop
+	for i := 1; i <= 10; i++ {
+		hops = append(hops, Hop{Number: i, Timeout: true})
+	}
+
+	result := &DiagResult{
+		Target: "example.com",
+		Hops:   hops,
+		DNS: &DNSResult{
+			Host:    "example.com",
+			IP:      testExampleIP,
+			Latency: 500 * time.Millisecond,
+		},
+	}
+
+	score := ComputeScore(result)
+	if score.Grade != "F" {
+		t.Errorf("grade = %q, want %q", score.Grade, "F")
 	}
 }
 

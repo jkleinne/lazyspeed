@@ -72,6 +72,39 @@ func TestSaveHistoryRetention(t *testing.T) {
 	}
 }
 
+func TestSaveHistoryMaxEntriesZero(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "diagnostics.json")
+	results := []*DiagResult{{Target: "example.com", Timestamp: time.Now()}}
+
+	if err := SaveHistory(path, results, 0); err != nil {
+		t.Fatalf("save failed: %v", err)
+	}
+
+	loaded, err := LoadHistory(path)
+	if err != nil {
+		t.Fatalf("load failed: %v", err)
+	}
+	if len(loaded) != 0 {
+		t.Errorf("expected 0 entries with maxEntries=0, got %d", len(loaded))
+	}
+}
+
+func TestSaveHistoryNilSlice(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "diagnostics.json")
+
+	if err := SaveHistory(path, nil, 20); err != nil {
+		t.Fatalf("save failed: %v", err)
+	}
+
+	loaded, err := LoadHistory(path)
+	if err != nil {
+		t.Fatalf("load failed: %v", err)
+	}
+	if len(loaded) != 0 {
+		t.Errorf("expected 0 entries for nil slice, got %d", len(loaded))
+	}
+}
+
 func TestSaveHistoryPermissions(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "diagnostics.json")
 	results := []*DiagResult{{Target: "test", Timestamp: time.Now()}}

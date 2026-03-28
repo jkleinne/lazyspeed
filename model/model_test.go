@@ -1875,3 +1875,194 @@ func TestMonitorTransferProgressContextCancel(t *testing.T) {
 	}
 	_ = done // done channel is still open, but goroutine exited via ctx
 }
+
+func TestHistoryJSONRoundTripFidelity(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.json")
+
+	original := &SpeedTestResult{
+		DownloadSpeed: 123.456789012345,
+		UploadSpeed:   67.890123456789,
+		Ping:          12.345678901234,
+		Jitter:        0.987654321098,
+		ServerName:    "Test Server",
+		ServerSponsor: "Test Sponsor",
+		ServerCountry: "Germany",
+		Distance:      1234.5678,
+		Timestamp:     time.Date(2026, 3, 26, 14, 30, 45, 123456789, time.UTC),
+		UserIP:        "192.168.1.1",
+		UserISP:       "Test ISP",
+	}
+
+	// First cycle: Save → Load
+	cfg := DefaultConfig()
+	cfg.History.Path = historyPath
+	m1 := NewModel(&mockBackend{}, cfg)
+	m1.TestHistory = []*SpeedTestResult{original}
+
+	if err := m1.SaveHistory(); err != nil {
+		t.Fatalf("First SaveHistory failed: %v", err)
+	}
+
+	m2 := NewModel(&mockBackend{}, cfg)
+	if err := m2.LoadHistory(); err != nil {
+		t.Fatalf("First LoadHistory failed: %v", err)
+	}
+
+	// Second cycle: Save → Load (on fresh model)
+	if err := m2.SaveHistory(); err != nil {
+		t.Fatalf("Second SaveHistory failed: %v", err)
+	}
+
+	m3 := NewModel(&mockBackend{}, cfg)
+	if err := m3.LoadHistory(); err != nil {
+		t.Fatalf("Second LoadHistory failed: %v", err)
+	}
+
+	if len(m3.TestHistory) != 1 {
+		t.Fatalf("Expected 1 history entry, got %d", len(m3.TestHistory))
+	}
+
+	final := m3.TestHistory[0]
+
+	if final.DownloadSpeed != original.DownloadSpeed {
+		t.Errorf("DownloadSpeed drift: got %v, want %v", final.DownloadSpeed, original.DownloadSpeed)
+	}
+	if final.Jitter != original.Jitter {
+		t.Errorf("Jitter drift: got %v, want %v", final.Jitter, original.Jitter)
+	}
+	if !final.Timestamp.Equal(original.Timestamp) {
+		t.Errorf("Timestamp drift: got %v, want %v", final.Timestamp, original.Timestamp)
+	}
+}
+
+func TestHistoryTruncationPreservesNewest(t *testing.T) {
+	tmpDir := t.TempDir()
+	historyPath := filepath.Join(tmpDir, "history.json")
+
+	cfg := DefaultConfig()
+	cfg.History.Path = historyPath
+	cfg.History.MaxEntries = 5
+
+	m := NewModel(&mockBackend{}, cfg)
+	baseTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	for i := 0; i < 10; i++ {
+		m.TestHistory = append(m.TestHistory, &SpeedTestResult{
+			DownloadSpeed: float64(i),
+			Timestamp:     baseTime.Add(time.Duration(i) * time.Hour),
+		})
+	}
+
+	if err := m.SaveHistory(); err != nil {
+		t.Fatalf("SaveHistory failed: %v", err)
+	}
+
+	m2 := NewModel(&mockBackend{}, cfg)
+	if err := m2.LoadHistory(); err != nil {
+		t.Fatalf("LoadHistory failed: %v", err)
+	}
+
+	if len(m2.TestHistory) != 5 {
+		t.Fatalf("Expected 5 history entries, got %d", len(m2.TestHistory))
+	}
+	if m2.TestHistory[0].DownloadSpeed != 5 {
+		t.Errorf("Oldest kept entry: got DownloadSpeed %v, want 5", m2.TestHistory[0].DownloadSpeed)
+	}
+	if m2.TestHistory[4].DownloadSpeed != 9 {
+		t.Errorf("Newest entry: got DownloadSpeed %v, want 9", m2.TestHistory[4].DownloadSpeed)
+	}
+}
+
+func TestLoadConfigZeroAndNegativeValues(t *testing.T) {
+	tests := []struct {
+		name       string
+		yaml       string
+		checkField string
+		wantValue  int
+	}{
+		{
+			name:       "zero fetch_timeout falls back to default",
+			yaml:       "test:\n  fetch_timeout: 0\n",
+			checkField: "FetchTimeout",
+			wantValue:  30,
+		},
+		{
+			name:       "zero test_timeout falls back to default",
+			yaml:       "test:\n  test_timeout: 0\n",
+			checkField: "TestTimeout",
+			wantValue:  120,
+		},
+		{
+			name:       "negative max_entries falls back to default",
+			yaml:       "history:\n  max_entries: -1\n",
+			checkField: "MaxEntries",
+			wantValue:  50,
+		},
+		{
+			name:       "zero ping_count falls back to default",
+			yaml:       "test:\n  ping_count: 0\n",
+			checkField: "PingCount",
+			wantValue:  10,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			t.Setenv("HOME", tmpDir)
+			t.Setenv("XDG_CONFIG_HOME", "")
+
+			configDir := filepath.Join(tmpDir, ".config", "lazyspeed")
+			if err := os.MkdirAll(configDir, 0755); err != nil {
+				t.Fatalf("Could not create config dir: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(tt.yaml), 0644); err != nil {
+				t.Fatalf("Could not write config file: %v", err)
+			}
+
+			cfg, err := LoadConfig()
+			if err != nil {
+				t.Fatalf("Expected no error, got %v", err)
+			}
+
+			var got int
+			switch tt.checkField {
+			case "FetchTimeout":
+				got = cfg.Test.FetchTimeout
+			case "TestTimeout":
+				got = cfg.Test.TestTimeout
+			case "MaxEntries":
+				got = cfg.History.MaxEntries
+			case "PingCount":
+				got = cfg.Test.PingCount
+			}
+
+			if got != tt.wantValue {
+				t.Errorf("Expected %s to be %d, got %d", tt.checkField, tt.wantValue, got)
+			}
+		})
+	}
+}
+
+func TestDiagnosticsConfigTildePath(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("XDG_CONFIG_HOME", "")
+
+	configDir := filepath.Join(tmpDir, ".config", "lazyspeed")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("Could not create config dir: %v", err)
+	}
+	configData := []byte("diagnostics:\n  path: ~/custom-diag/history.json\n")
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), configData, 0644); err != nil {
+		t.Fatalf("Could not write config file: %v", err)
+	}
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if cfg.Diagnostics.Path != "~/custom-diag/history.json" {
+		t.Errorf("Expected diagnostics path '~/custom-diag/history.json', got %q", cfg.Diagnostics.Path)
+	}
+}
