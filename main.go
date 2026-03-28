@@ -475,58 +475,66 @@ func (s *speedTest) View() string {
 		}
 
 	case ViewMain:
-		switch s.model.State {
-		case model.StateAwaitingServers:
-			b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, 0))
-			b.WriteString("\n\n")
-
-		case model.StateSelectingServer:
-			b.WriteString(ui.RenderServerSelection(s.model.ServerList, ui.Viewport{
-				Width:  s.model.Width,
-				Height: s.model.Height,
-				Offset: s.serverListOffset,
-				Cursor: s.cursor,
-			}))
-
-		case model.StateTesting:
-			b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, s.model.Progress))
-			b.WriteString("\n\n")
-
-		case model.StateExporting, model.StateIdle:
-			if s.model.Results != nil || len(s.model.TestHistory) > 0 {
-				b.WriteString(ui.RenderResults(s.model.TestHistory, ui.Viewport{
-					Width:  s.model.Width,
-					Height: s.model.Height,
-					Offset: s.historyOffset,
-				}))
-				b.WriteString("\n")
-			}
-
-			if s.model.Error != nil {
-				b.WriteString("\n")
-				b.WriteString(ui.RenderError(s.model.Error, s.model.Width))
-			}
-
-			if s.model.Warning != "" {
-				b.WriteString("\n")
-				b.WriteString(ui.RenderWarning(s.model.Warning, s.model.Width))
-			}
-
-			if s.model.State == model.StateExporting {
-				b.WriteString("\n")
-				b.WriteString(ui.RenderExportPrompt(s.model.Width))
-			} else if s.model.ExportMessage != "" {
-				b.WriteString("\n")
-				b.WriteString(ui.RenderExportMessage(s.model.ExportMessage, s.model.Width))
-			}
-
-			if s.showHelp {
-				b.WriteString(ui.RenderHelp(s.model.Width, s.model.Results != nil))
-			}
-		}
+		b.WriteString(s.renderMainView())
 	}
 
 	b.WriteString("\n")
+	return b.String()
+}
+
+func (s *speedTest) renderMainView() string {
+	var b strings.Builder
+
+	switch s.model.State {
+	case model.StateAwaitingServers:
+		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, 0))
+		b.WriteString("\n\n")
+
+	case model.StateSelectingServer:
+		b.WriteString(ui.RenderServerSelection(s.model.ServerList, ui.Viewport{
+			Width:  s.model.Width,
+			Height: s.model.Height,
+			Offset: s.serverListOffset,
+			Cursor: s.cursor,
+		}))
+
+	case model.StateTesting:
+		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, s.model.Progress))
+		b.WriteString("\n\n")
+
+	case model.StateExporting, model.StateIdle:
+		if s.model.Results != nil || len(s.model.TestHistory) > 0 {
+			b.WriteString(ui.RenderResults(s.model.TestHistory, ui.Viewport{
+				Width:  s.model.Width,
+				Height: s.model.Height,
+				Offset: s.historyOffset,
+			}))
+			b.WriteString("\n")
+		}
+
+		if s.model.Error != nil {
+			b.WriteString("\n")
+			b.WriteString(ui.RenderError(s.model.Error, s.model.Width))
+		}
+
+		if s.model.Warning != "" {
+			b.WriteString("\n")
+			b.WriteString(ui.RenderWarning(s.model.Warning, s.model.Width))
+		}
+
+		if s.model.State == model.StateExporting {
+			b.WriteString("\n")
+			b.WriteString(ui.RenderExportPrompt(s.model.Width))
+		} else if s.model.ExportMessage != "" {
+			b.WriteString("\n")
+			b.WriteString(ui.RenderExportMessage(s.model.ExportMessage, s.model.Width))
+		}
+
+		if s.showHelp {
+			b.WriteString(ui.RenderHelp(s.model.Width, s.model.Results != nil))
+		}
+	}
+
 	return b.String()
 }
 
