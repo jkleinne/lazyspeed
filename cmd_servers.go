@@ -72,7 +72,7 @@ func runServers() {
 				Name:     s.Name,
 				Sponsor:  s.Sponsor,
 				Country:  s.Country,
-				Latency:  float64(s.Latency.Milliseconds()),
+				Latency:  float64(s.Latency.Microseconds()) / 1000.0,
 				Distance: s.Distance,
 			}
 		}
@@ -92,7 +92,7 @@ func runServers() {
 				s.Name,
 				s.Sponsor,
 				s.Country,
-				fmt.Sprintf("%.2f", float64(s.Latency.Milliseconds())),
+				fmt.Sprintf("%.2f", float64(s.Latency.Microseconds())/1000.0),
 				fmt.Sprintf("%.1f", s.Distance),
 			})
 		}
@@ -106,7 +106,7 @@ func runServers() {
 			sponsor := ui.Truncate(s.Sponsor, serversSponsorMaxLen)
 			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%.2f\t%.1f\n",
 				s.ID, name, sponsor, s.Country,
-				float64(s.Latency.Milliseconds()), s.Distance)
+				float64(s.Latency.Microseconds())/1000.0, s.Distance)
 		}
 		_ = tw.Flush()
 	}

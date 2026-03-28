@@ -55,6 +55,20 @@ func TestComputeScore(t *testing.T) {
 			maxScore:      100,
 		},
 		{
+			name: "all hops timeout scores worst latency",
+			result: &DiagResult{
+				Hops: []Hop{
+					{Number: 1, Timeout: true},
+					{Number: 2, Timeout: true},
+					{Number: 3, Timeout: true},
+				},
+				DNS: nil,
+			},
+			expectedGrade: "F",
+			minScore:      0,
+			maxScore:      24,
+		},
+		{
 			name: "mediocre connection",
 			result: &DiagResult{
 				Hops: []Hop{

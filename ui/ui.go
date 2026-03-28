@@ -274,7 +274,7 @@ func RenderServerSelection(servers speedtest.Servers, vp Viewport) string {
 		}
 		fmt.Fprintf(&b, "%s%s: %s (%s) - %.2f ms\n",
 			prefix, server.Sponsor, server.Name, server.Country,
-			float64(server.Latency.Milliseconds()))
+			float64(server.Latency.Microseconds())/1000.0)
 	}
 
 	remaining := total - end
