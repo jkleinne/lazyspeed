@@ -304,33 +304,7 @@ func (s *speedTest) handleServerSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cm
 			s.adjustServerListOffset()
 		}
 	case "enter":
-		if s.cursor < 0 || s.cursor >= len(s.model.ServerList) {
-			s.model.Error = fmt.Errorf("invalid server selection")
-			s.model.State = model.StateIdle
-			s.showHelp = false
-			return s, nil
-		}
-		s.model.State = model.StateTesting
-		s.model.Progress = 0
-		s.model.CurrentPhase = "Starting speed test..."
-		s.model.Error = nil
-
-		ctx, cancel := context.WithTimeout(context.Background(), s.model.TestTimeoutDuration())
-		s.cancelTest = cancel
-
-		s.progressChan = make(chan model.ProgressUpdate)
-		s.errChan = make(chan error, 1)
-		go func() {
-			server := s.model.ServerList[s.cursor]
-			err := s.model.PerformSpeedTest(ctx, server, s.progressChan)
-			s.errChan <- err
-			close(s.progressChan)
-		}()
-		s.showHelp = false
-		return s, tea.Batch(
-			s.spinner.Tick,
-			waitForProgress(s.progressChan, s.errChan),
-		)
+		return s.startSpeedTest()
 	}
 	return s, nil
 }
@@ -480,6 +454,37 @@ func (s *speedTest) View() string {
 
 	b.WriteString("\n")
 	return b.String()
+}
+
+func (s *speedTest) startSpeedTest() (tea.Model, tea.Cmd) {
+	if s.cursor < 0 || s.cursor >= len(s.model.ServerList) {
+		s.model.Error = fmt.Errorf("invalid server selection")
+		s.model.State = model.StateIdle
+		s.showHelp = false
+		return s, nil
+	}
+
+	s.model.State = model.StateTesting
+	s.model.Progress = 0
+	s.model.CurrentPhase = "Starting speed test..."
+	s.model.Error = nil
+
+	ctx, cancel := context.WithTimeout(context.Background(), s.model.TestTimeoutDuration())
+	s.cancelTest = cancel
+
+	s.progressChan = make(chan model.ProgressUpdate)
+	s.errChan = make(chan error, 1)
+	go func() {
+		server := s.model.ServerList[s.cursor]
+		err := s.model.PerformSpeedTest(ctx, server, s.progressChan)
+		s.errChan <- err
+		close(s.progressChan)
+	}()
+	s.showHelp = false
+	return s, tea.Batch(
+		s.spinner.Tick,
+		waitForProgress(s.progressChan, s.errChan),
+	)
 }
 
 func (s *speedTest) renderMainView() string {
