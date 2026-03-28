@@ -327,4 +327,3 @@ func diagDefaultOutput(r *diag.DiagResult) string {
 	}
 	return b.String()
 }
-

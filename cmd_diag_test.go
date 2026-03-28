@@ -158,7 +158,6 @@ func TestStripPort(t *testing.T) {
 	}
 }
 
-
 func TestDiagCSVRow(t *testing.T) {
 	ts := time.Date(2026, 3, 26, 12, 0, 0, 0, time.UTC)
 
