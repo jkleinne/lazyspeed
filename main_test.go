@@ -1700,3 +1700,96 @@ func TestErrorDuringTestRecovery(t *testing.T) {
 		t.Errorf("Expected TestHistory length %d unchanged, got %d", originalHistoryLen, len(s.model.TestHistory))
 	}
 }
+
+func TestServerFetchFailureDuringIdle(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.TestHistory = makeHistoryEntries(3)
+
+	s := &speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	updated, _ := s.Update(serverListMsg{err: fmt.Errorf("network unreachable")})
+	s = updated.(*speedTest)
+
+	if s.model.State != model.StateIdle {
+		t.Errorf("Expected State to stay StateIdle, got %d", s.model.State)
+	}
+	if s.model.Error == nil {
+		t.Fatalf("Expected Error to be set")
+	}
+	if !strings.Contains(s.model.Error.Error(), "network unreachable") {
+		t.Errorf("Expected error to contain 'network unreachable', got %q", s.model.Error.Error())
+	}
+	if len(s.model.TestHistory) != 3 {
+		t.Errorf("Expected TestHistory length 3 (preserved), got %d", len(s.model.TestHistory))
+	}
+}
+
+func TestServerFetchFailureDuringAwait(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.State = model.StateAwaitingServers
+
+	s := &speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	updated, _ := s.Update(serverListMsg{err: fmt.Errorf("timeout")})
+	s = updated.(*speedTest)
+
+	if s.model.State != model.StateIdle {
+		t.Errorf("Expected State to return to StateIdle, got %d", s.model.State)
+	}
+	if s.model.Error == nil {
+		t.Fatalf("Expected Error to be set")
+	}
+	if !strings.Contains(s.model.Error.Error(), "timeout") {
+		t.Errorf("Expected error to contain 'timeout', got %q", s.model.Error.Error())
+	}
+}
+
+func TestDiagFailureNilResult(t *testing.T) {
+	m := model.NewDefaultModel()
+	s := &speedTest{model: m, spinner: ui.DefaultSpinner, viewState: ViewDiagRunning}
+
+	updated, _ := s.Update(diagCompleteMsg{result: nil, err: fmt.Errorf("permission denied")})
+	s = updated.(*speedTest)
+
+	if s.viewState != ViewMain {
+		t.Errorf("Expected viewState to return to ViewMain, got %d", s.viewState)
+	}
+	if s.model.Error == nil {
+		t.Fatalf("Expected Error to be set")
+	}
+	if !strings.Contains(s.model.Error.Error(), "permission denied") {
+		t.Errorf("Expected error to contain 'permission denied', got %q", s.model.Error.Error())
+	}
+}
+
+func TestExportFailureMessage(t *testing.T) {
+	m := model.NewDefaultModel()
+	s := &speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	updated, _ := s.Update(exportDoneMsg{path: "", err: fmt.Errorf("disk full")})
+	s = updated.(*speedTest)
+
+	if !strings.Contains(s.model.ExportMessage, "disk full") {
+		t.Errorf("Expected ExportMessage to contain 'disk full', got %q", s.model.ExportMessage)
+	}
+}
+
+func TestDoubleCancelNoPanic(t *testing.T) {
+	callCount := 0
+	s := &speedTest{
+		model: model.NewDefaultModel(),
+		cancelTest: func() {
+			callCount++
+		},
+	}
+
+	s.cancelTestIfRunning()
+	s.cancelTestIfRunning()
+
+	if callCount != 1 {
+		t.Errorf("Expected cancel called exactly once, got %d", callCount)
+	}
+	if s.cancelTest != nil {
+		t.Errorf("Expected cancelTest to be nil after calls")
+	}
+}
