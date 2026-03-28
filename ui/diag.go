@@ -208,8 +208,8 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 
 		row := fmt.Sprintf("%-6d %-18s %-30s %s",
 			hop.Number,
-			truncate(ipStr, ipColWidth-1),
-			truncate(hostStr, hostColWidth-1),
+			Truncate(ipStr, ipColWidth-1),
+			Truncate(hostStr, hostColWidth-1),
 			latStr,
 		)
 
@@ -248,8 +248,8 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, b.String())
 }
 
-// truncate shortens s to at most maxLen runes, appending "…" if trimmed.
-func truncate(s string, maxLen int) string {
+// Truncate shortens s to at most maxLen runes, appending "…" if trimmed.
+func Truncate(s string, maxLen int) string {
 	runes := []rune(s)
 	if len(runes) <= maxLen {
 		return s

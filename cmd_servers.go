@@ -9,6 +9,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/jkleinne/lazyspeed/model"
+	"github.com/jkleinne/lazyspeed/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -101,14 +102,8 @@ func runServers() {
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		_, _ = fmt.Fprintln(w, "ID\tNAME\tSPONSOR\tCOUNTRY\tLATENCY (ms)\tDISTANCE (km)")
 		for _, s := range m.ServerList {
-			name := s.Name
-			if len(name) > serversNameMaxLen {
-				name = name[:serversNameMaxLen-3] + "..."
-			}
-			sponsor := s.Sponsor
-			if len(sponsor) > serversSponsorMaxLen {
-				sponsor = sponsor[:serversSponsorMaxLen-3] + "..."
-			}
+			name := ui.Truncate(s.Name, serversNameMaxLen)
+			sponsor := ui.Truncate(s.Sponsor, serversSponsorMaxLen)
 			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%.2f\t%.1f\n",
 				s.ID, name, sponsor, s.Country,
 				s.Latency.Seconds()*1000, s.Distance)

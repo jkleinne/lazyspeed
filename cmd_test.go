@@ -602,9 +602,9 @@ func TestHistoryTableFormatTruncation(t *testing.T) {
 
 	out := captureStdout(runHistory)
 
-	// Truncation threshold at cmd_history.go:104 — serverStr[:17] + "..."
-	if !strings.Contains(out, "A Very Long Serve...") {
-		t.Errorf("Expected truncated server name 'A Very Long Serve...' in output, got %q", out)
+	// Truncation via ui.Truncate at historyServerMaxLen=20: 19 runes + "…"
+	if !strings.Contains(out, "A Very Long Server …") {
+		t.Errorf("Expected truncated server name 'A Very Long Server …' in output, got %q", out)
 	}
 	if strings.Contains(out, "A Very Long Server Name XY") {
 		t.Errorf("Expected full server name to be truncated, but found it in output")

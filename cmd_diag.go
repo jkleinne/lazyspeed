@@ -13,6 +13,7 @@ import (
 
 	"github.com/jkleinne/lazyspeed/diag"
 	"github.com/jkleinne/lazyspeed/model"
+	"github.com/jkleinne/lazyspeed/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -232,10 +233,7 @@ func runDiagHistory() {
 	_, _ = fmt.Fprintln(tw, "DATE\tTARGET\tSCORE\tGRADE\tHOPS\tDNS (ms)")
 	for _, r := range entries {
 		dateStr := r.Timestamp.Format("2006-01-02 15:04")
-		targetStr := r.Target
-		if len(targetStr) > diagTargetMaxLen {
-			targetStr = targetStr[:diagTargetMaxLen-3] + "..."
-		}
+		targetStr := ui.Truncate(r.Target, diagTargetMaxLen)
 		dnsMs := "-"
 		if r.DNS != nil {
 			dnsMs = fmt.Sprintf("%.1f", diag.DurationMs(r.DNS.Latency))

@@ -8,6 +8,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/jkleinne/lazyspeed/model"
+	"github.com/jkleinne/lazyspeed/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -91,10 +92,7 @@ func runHistory() {
 		_, _ = fmt.Fprintln(w, "DATE\tSERVER\tDL (Mbps)\tUL (Mbps)\tPING (ms)")
 		for _, res := range entries {
 			dateStr := res.Timestamp.Format("2006-01-02 15:04")
-			serverStr := res.ServerName
-			if len(serverStr) > historyServerMaxLen {
-				serverStr = serverStr[:historyServerMaxLen-3] + "..."
-			}
+			serverStr := ui.Truncate(res.ServerName, historyServerMaxLen)
 			_, _ = fmt.Fprintf(w, "%s\t%s\t%.2f\t%.2f\t%.2f\n", dateStr, serverStr, res.DownloadSpeed, res.UploadSpeed, res.Ping)
 		}
 		_ = w.Flush()
