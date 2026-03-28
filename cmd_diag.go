@@ -107,16 +107,16 @@ func fetchDiagServers(m *model.Model) {
 	}
 }
 
-func runDiag(args []string) {
-	m := model.NewDefaultModel()
-	cfg := diagConfigFromModel(m)
-
-	var target string
-
+// resolveDiagTarget determines the diagnostics target from CLI args, --server flag,
+// or the closest speedtest server. It may call os.Exit(1) on fatal errors.
+func resolveDiagTarget(m *model.Model, args []string) string {
 	if len(args) > 0 {
-		target = args[0]
-	} else if diagServer != "" {
-		fetchDiagServers(m)
+		return args[0]
+	}
+
+	fetchDiagServers(m)
+
+	if diagServer != "" {
 		idx := slices.IndexFunc(m.ServerList, func(s *speedtest.Server) bool {
 			return s.ID == diagServer
 		})
@@ -124,18 +124,23 @@ func runDiag(args []string) {
 			fmt.Fprintf(os.Stderr, "Error: server %s not found\n", diagServer)
 			os.Exit(1)
 		}
-		target = stripPort(m.ServerList[idx].Host)
-	} else {
-		fetchDiagServers(m)
-		if len(m.ServerList) == 0 {
-			fmt.Fprintf(os.Stderr, "Error: no servers found\n")
-			os.Exit(1)
-		}
-		target = stripPort(m.ServerList[0].Host)
-		if diagIsInteractive() {
-			fmt.Fprintf(os.Stderr, "Selected server: %s (%s)\n", m.ServerList[0].Name, m.ServerList[0].Country)
-		}
+		return stripPort(m.ServerList[idx].Host)
 	}
+
+	if len(m.ServerList) == 0 {
+		fmt.Fprintf(os.Stderr, "Error: no servers found\n")
+		os.Exit(1)
+	}
+	if diagIsInteractive() {
+		fmt.Fprintf(os.Stderr, "Selected server: %s (%s)\n", m.ServerList[0].Name, m.ServerList[0].Country)
+	}
+	return stripPort(m.ServerList[0].Host)
+}
+
+func runDiag(args []string) {
+	m := model.NewDefaultModel()
+	cfg := diagConfigFromModel(m)
+	target := resolveDiagTarget(m, args)
 
 	if diagIsInteractive() {
 		fmt.Fprintf(os.Stderr, "Running diagnostics against %s...\n", target)
