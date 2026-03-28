@@ -250,9 +250,14 @@ func (s *speedTest) handleDiagComplete(msg diagCompleteMsg) (tea.Model, tea.Cmd)
 		s.diagResult = msg.result
 		s.viewState = ViewDiagCompact
 		cfg := diagConfigFromModel(s.model)
-		history, _ := diag.LoadHistory(cfg.Path)
+		history, loadErr := diag.LoadHistory(cfg.Path)
+		if loadErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to load diagnostics history: %v\n", loadErr)
+		}
 		history = append(history, msg.result)
-		_ = diag.SaveHistory(cfg.Path, history, cfg.MaxEntries)
+		if saveErr := diag.SaveHistory(cfg.Path, history, cfg.MaxEntries); saveErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to save diagnostics history: %v\n", saveErr)
+		}
 	}
 	return s, nil
 }
@@ -568,12 +573,15 @@ func migrateHistoryIfNeeded() {
 	// Copy legacy → new path
 	data, err := os.ReadFile(legacy)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to read legacy history for migration: %v\n", err)
 		return
 	}
 	if err := os.MkdirAll(filepath.Dir(newPath), 0700); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to create directory for history migration: %v\n", err)
 		return
 	}
 	if err := os.WriteFile(newPath, data, 0600); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to write migrated history: %v\n", err)
 		return
 	}
 	// Remove the legacy file
