@@ -100,7 +100,9 @@ func runHeadlessTest() {
 	}
 
 	// Load history once before the loop so results accumulate correctly
-	_ = m.LoadHistory()
+	if err := m.LoadHistory(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to load history: %v\n", err)
+	}
 
 	var csvWriter *csv.Writer
 	if runCSV {
@@ -127,7 +129,9 @@ func runHeadlessTest() {
 
 		// Persist result to history
 		m.TestHistory = append(m.TestHistory, res)
-		_ = m.SaveHistory() // ignore headless save errors
+		if err := m.SaveHistory(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to save history: %v\n", err)
+		}
 
 		if runJSON {
 			jsonResults = append(jsonResults, res)
