@@ -168,7 +168,7 @@ func defaultConfigPath() (string, error) {
 	}
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to resolve home directory: %v", err)
 	}
 	return filepath.Join(homeDir, ".config", "lazyspeed", "config.yaml"), nil
 }

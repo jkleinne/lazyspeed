@@ -43,7 +43,7 @@ func (h *Hop) UnmarshalJSON(data []byte) error {
 		Latency float64 `json:"latency"`
 	}{Alias: (*Alias)(h)}
 	if err := json.Unmarshal(data, aux); err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal hop: %v", err)
 	}
 	h.Latency = time.Duration(aux.Latency * float64(time.Millisecond))
 	return nil
@@ -74,7 +74,7 @@ func (d *DNSResult) UnmarshalJSON(data []byte) error {
 		Latency float64 `json:"latency"`
 	}{Alias: (*Alias)(d)}
 	if err := json.Unmarshal(data, aux); err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal DNS result: %v", err)
 	}
 	d.Latency = time.Duration(aux.Latency * float64(time.Millisecond))
 	return nil

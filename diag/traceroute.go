@@ -144,7 +144,7 @@ func readICMPResponse(conn *icmp.PacketConn, start time.Time, hop *Hop, validTyp
 func icmpTraceroute(ctx context.Context, destIP string, maxHops int) ([]Hop, error) {
 	conn, err := icmp.ListenPacket("udp4", "")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open ICMP listener: %v", err)
 	}
 	defer func() { _ = conn.Close() }()
 
