@@ -16,6 +16,26 @@ import (
 	"github.com/showwin/speedtest-go/speedtest"
 )
 
+// noopBackend satisfies model.Backend with no-op methods for tests that
+// spawn goroutines calling PerformSpeedTest.
+type noopBackend struct{}
+
+func (b *noopBackend) FetchUserInfo() (*speedtest.User, error) {
+	return &speedtest.User{IP: "127.0.0.1", Isp: "Test ISP"}, nil
+}
+
+func (b *noopBackend) FetchServers() (speedtest.Servers, error) {
+	return speedtest.Servers{}, nil
+}
+
+func (b *noopBackend) PingTest(_ *speedtest.Server, fn func(time.Duration)) error {
+	fn(time.Millisecond)
+	return nil
+}
+
+func (b *noopBackend) DownloadTest(_ *speedtest.Server) error { return nil }
+func (b *noopBackend) UploadTest(_ *speedtest.Server) error   { return nil }
+
 func TestGetVersionInfo(t *testing.T) {
 	// Reset package vars after test
 	origVersion, origCommit, origDate := version, commit, date
@@ -1417,5 +1437,185 @@ func TestHandleTestingKeysNoOp(t *testing.T) {
 	}
 	if cmd != nil {
 		t.Errorf("Expected nil cmd for no-op key, got non-nil")
+	}
+}
+
+func TestHandleServerSelectionKeysEsc(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.State = model.StateSelectingServer
+	m.ServerList = speedtest.Servers{&speedtest.Server{ID: "1", Name: "Test"}}
+	s := speedTest{model: m, spinner: ui.DefaultSpinner, showHelp: false}
+
+	newModel, cmd := s.handleServerSelectionKeys(tea.KeyMsg{Type: tea.KeyEsc})
+	newS := newModel.(*speedTest)
+
+	if newS.model.State != model.StateIdle {
+		t.Errorf("Expected State to be StateIdle, got %d", newS.model.State)
+	}
+	if !newS.showHelp {
+		t.Errorf("Expected showHelp to be true after Esc")
+	}
+	if cmd != nil {
+		t.Errorf("Expected nil cmd, got non-nil")
+	}
+}
+
+func TestHandleServerSelectionKeysEnterValid(t *testing.T) {
+	m := model.NewModel(&noopBackend{}, model.DefaultConfig())
+	m.State = model.StateSelectingServer
+	m.ServerList = speedtest.Servers{&speedtest.Server{ID: "1", Name: "Test"}}
+	s := speedTest{model: m, spinner: ui.DefaultSpinner, cursor: 0}
+
+	newModel, cmd := s.handleServerSelectionKeys(tea.KeyMsg{Type: tea.KeyEnter})
+	newS := newModel.(*speedTest)
+
+	// Drain the unbuffered progressChan in a goroutine so the background
+	// goroutine's sendUpdate calls don't block, then wait for completion.
+	go func() {
+		for range newS.progressChan {
+		}
+	}()
+	<-newS.errChan
+
+	if newS.cancelTest == nil {
+		t.Errorf("Expected cancelTest to be non-nil")
+	}
+	if cmd == nil {
+		t.Errorf("Expected non-nil cmd")
+	}
+	if newS.showHelp {
+		t.Errorf("Expected showHelp to be false")
+	}
+
+	newS.cancelTest()
+}
+
+func TestHandleServerSelectionKeysEnterEmpty(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.State = model.StateSelectingServer
+	m.ServerList = speedtest.Servers{}
+	s := speedTest{model: m, spinner: ui.DefaultSpinner, cursor: 0}
+
+	newModel, cmd := s.handleServerSelectionKeys(tea.KeyMsg{Type: tea.KeyEnter})
+	newS := newModel.(*speedTest)
+
+	if newS.model.Error == nil {
+		t.Fatalf("Expected error for invalid server selection, got nil")
+	}
+	if newS.model.State != model.StateIdle {
+		t.Errorf("Expected State to be StateIdle, got %d", newS.model.State)
+	}
+	if cmd != nil {
+		t.Errorf("Expected nil cmd for invalid selection")
+	}
+}
+
+func TestHandleServerSelectionKeysBoundary(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.State = model.StateSelectingServer
+	m.ServerList = speedtest.Servers{
+		&speedtest.Server{ID: "1", Name: "First"},
+		&speedtest.Server{ID: "2", Name: "Second"},
+		&speedtest.Server{ID: "3", Name: "Third"},
+	}
+
+	t.Run("k at cursor 0 stays at 0", func(t *testing.T) {
+		s := speedTest{model: m, spinner: ui.DefaultSpinner, cursor: 0}
+
+		newModel, _ := s.handleServerSelectionKeys(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+		newS := newModel.(*speedTest)
+
+		if newS.cursor != 0 {
+			t.Errorf("Expected cursor to stay at 0, got %d", newS.cursor)
+		}
+	})
+
+	t.Run("j at last index stays at last", func(t *testing.T) {
+		lastIndex := len(m.ServerList) - 1
+		s := speedTest{model: m, spinner: ui.DefaultSpinner, cursor: lastIndex}
+
+		newModel, _ := s.handleServerSelectionKeys(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+		newS := newModel.(*speedTest)
+
+		if newS.cursor != lastIndex {
+			t.Errorf("Expected cursor to stay at %d, got %d", lastIndex, newS.cursor)
+		}
+	})
+}
+
+func TestStartDiagnostics(t *testing.T) {
+	m := model.NewDefaultModel()
+	s := speedTest{model: m, spinner: ui.DefaultSpinner, viewState: ViewMain, showHelp: true}
+
+	newModel, cmd := s.startDiagnostics()
+	newS := newModel.(*speedTest)
+
+	if newS.viewState != ViewDiagRunning {
+		t.Errorf("Expected viewState ViewDiagRunning, got %d", newS.viewState)
+	}
+	if newS.diagResult != nil {
+		t.Errorf("Expected diagResult to be nil")
+	}
+	if newS.model.CurrentPhase != runningDiagnosticsPhase {
+		t.Errorf("Expected CurrentPhase %q, got %q", runningDiagnosticsPhase, newS.model.CurrentPhase)
+	}
+	if newS.showHelp {
+		t.Errorf("Expected showHelp to be false")
+	}
+	if cmd == nil {
+		t.Errorf("Expected non-nil cmd")
+	}
+}
+
+func TestStartNewTestWithoutServers(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.ServerList = nil
+	s := speedTest{model: m, spinner: ui.DefaultSpinner, viewState: ViewDiagCompact}
+
+	newModel, cmd := s.startNewTest()
+	newS := newModel.(*speedTest)
+
+	if newS.model.State != model.StateAwaitingServers {
+		t.Errorf("Expected State to be StateAwaitingServers, got %d", newS.model.State)
+	}
+	if newS.viewState != ViewMain {
+		t.Errorf("Expected viewState ViewMain, got %d", newS.viewState)
+	}
+	if newS.model.CurrentPhase != fetchingServerListPhase {
+		t.Errorf("Expected CurrentPhase %q, got %q", fetchingServerListPhase, newS.model.CurrentPhase)
+	}
+	if cmd == nil {
+		t.Errorf("Expected non-nil cmd for spinner tick")
+	}
+}
+
+func TestStartNewTestWithServers(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.ServerList = speedtest.Servers{&speedtest.Server{ID: "1", Name: "Test"}}
+	s := speedTest{
+		model:            m,
+		spinner:          ui.DefaultSpinner,
+		viewState:        ViewDiagCompact,
+		cursor:           5,
+		serverListOffset: 3,
+	}
+
+	newModel, cmd := s.startNewTest()
+	newS := newModel.(*speedTest)
+
+	if newS.model.State != model.StateSelectingServer {
+		t.Errorf("Expected State to be StateSelectingServer, got %d", newS.model.State)
+	}
+	if newS.viewState != ViewMain {
+		t.Errorf("Expected viewState ViewMain, got %d", newS.viewState)
+	}
+	if newS.cursor != 0 {
+		t.Errorf("Expected cursor reset to 0, got %d", newS.cursor)
+	}
+	if newS.serverListOffset != 0 {
+		t.Errorf("Expected serverListOffset reset to 0, got %d", newS.serverListOffset)
+	}
+	if cmd != nil {
+		t.Errorf("Expected nil cmd when servers already loaded")
 	}
 }
