@@ -21,21 +21,21 @@ const shortHashLen = 7
 func GetVersionInfo() string {
 	// Prefer values injected by GoReleaser via ldflags
 	if version != "" {
-		infoStr := fmt.Sprintf("lazyspeed version %s", version)
+		versionLine := fmt.Sprintf("lazyspeed version %s", version)
 		if date != "" {
-			infoStr += fmt.Sprintf(" (built: %s)", date)
+			versionLine += fmt.Sprintf(" (built: %s)", date)
 		}
-		return infoStr
+		return versionLine
 	}
 
 	// Fallback: read embedded build information (local `go build`)
-	ver := "dev"
+	fallbackVersion := "dev"
 	buildDate := ""
 	commitHash := ""
 
 	if info, ok := debug.ReadBuildInfo(); ok {
 		if info.Main.Version != "" && info.Main.Version != "(devel)" {
-			ver = info.Main.Version
+			fallbackVersion = info.Main.Version
 		}
 
 		for _, setting := range info.Settings {
@@ -54,15 +54,15 @@ func GetVersionInfo() string {
 			}
 		}
 
-		if ver == "dev" && commitHash != "" {
-			ver = fmt.Sprintf("dev (%s)", commitHash)
+		if fallbackVersion == "dev" && commitHash != "" {
+			fallbackVersion = fmt.Sprintf("dev (%s)", commitHash)
 		}
 	}
 
-	infoStr := fmt.Sprintf("lazyspeed version %s", ver)
+	versionLine := fmt.Sprintf("lazyspeed version %s", fallbackVersion)
 
 	if buildDate != "" {
-		infoStr += fmt.Sprintf(" (built: %s)", buildDate)
+		versionLine += fmt.Sprintf(" (built: %s)", buildDate)
 	}
-	return infoStr
+	return versionLine
 }
