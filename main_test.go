@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1617,5 +1618,85 @@ func TestStartNewTestWithServers(t *testing.T) {
 	}
 	if cmd != nil {
 		t.Errorf("Expected nil cmd when servers already loaded")
+	}
+}
+
+func TestFullFlowFetchSelectTestResult(t *testing.T) {
+	// 1. Create model with noopBackend so PerformSpeedTest completes quickly.
+	m := model.NewModel(&noopBackend{}, model.DefaultConfig())
+	m.ServerList = speedtest.Servers{
+		&speedtest.Server{ID: "1", Name: "Test Server", Host: "test.example.com:8080"},
+	}
+	s := &speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	// 2. Start in StateAwaitingServers (servers being fetched).
+	m.State = model.StateAwaitingServers
+
+	// 3. Simulate server fetch completing — ServerList is already populated.
+	updated, _ := s.Update(serverListMsg{err: nil})
+	s = updated.(*speedTest)
+
+	// 4. Verify transition to server selection.
+	if s.model.State != model.StateSelectingServer {
+		t.Fatalf("Expected StateSelectingServer after serverListMsg, got %d", s.model.State)
+	}
+
+	// 5. Press Enter to select the first server and start the test.
+	updated, cmd := s.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	s = updated.(*speedTest)
+	if cmd == nil {
+		t.Fatalf("Expected non-nil cmd after starting test")
+	}
+
+	// 6. Wait for the background goroutine to finish: drain progress updates,
+	//    then read the error. After this, PerformSpeedTest has returned and
+	//    all model writes from the goroutine are complete.
+	go func() {
+		for range s.progressChan {
+		}
+	}()
+	testErr := <-s.errChan
+	if testErr != nil {
+		t.Fatalf("Expected nil error from PerformSpeedTest, got %v", testErr)
+	}
+
+	// 7. Simulate the testComplete message the TUI would receive.
+	updated, _ = s.Update(testComplete{err: testErr})
+	s = updated.(*speedTest)
+
+	// 8. Verify final state: idle with results populated.
+	if s.model.State != model.StateIdle {
+		t.Errorf("Expected StateIdle after testComplete, got %d", s.model.State)
+	}
+	if s.model.Results == nil {
+		t.Errorf("Expected Results to be non-nil after successful test")
+	}
+}
+
+func TestErrorDuringTestRecovery(t *testing.T) {
+	// 1. Create model in StateTesting with pre-populated history.
+	m := model.NewModel(&noopBackend{}, model.DefaultConfig())
+	m.State = model.StateTesting
+	m.TestHistory = makeHistoryEntries(2)
+	originalHistoryLen := len(m.TestHistory)
+
+	s := &speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	// 2. Simulate a test error.
+	updated, _ := s.Update(testComplete{err: fmt.Errorf("network timeout")})
+	s = updated.(*speedTest)
+
+	// 3. Verify recovery: back to idle, error is set, history unchanged.
+	if s.model.State != model.StateIdle {
+		t.Errorf("Expected StateIdle after error, got %d", s.model.State)
+	}
+	if s.model.Error == nil {
+		t.Fatalf("Expected Error to be set after test failure")
+	}
+	if !strings.Contains(s.model.Error.Error(), "network timeout") {
+		t.Errorf("Expected error to contain 'network timeout', got %q", s.model.Error.Error())
+	}
+	if len(s.model.TestHistory) != originalHistoryLen {
+		t.Errorf("Expected TestHistory length %d unchanged, got %d", originalHistoryLen, len(s.model.TestHistory))
 	}
 }
