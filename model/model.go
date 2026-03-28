@@ -434,7 +434,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	pingCount := m.pingCount()
 
 	sendUpdate(progressPingStart, "Measuring ping and jitter...", updateChan)
-	pr, err := measurePing(ctx, m.backend, server, pingCount, func(i, total int, ping, jitter float64) {
+	pingResult, err := measurePing(ctx, m.backend, server, pingCount, func(i, total int, ping, jitter float64) {
 		pingProgress := min(progressPingStart+float64(i)*progressPingIncrement, progressDownloadStart)
 		if jitter > 0 {
 			sendUpdate(pingProgress,
@@ -448,13 +448,13 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		m.State = StateIdle
 		return err
 	}
-	m.pingResults = pr.pings
-	if len(pr.pings) == 0 {
+	m.pingResults = pingResult.pings
+	if len(pingResult.pings) == 0 {
 		m.Warning = "all ping measurements failed; ping and jitter are reported as 0"
 	}
 
 	sendUpdate(progressDownloadStart, "Starting download test...", updateChan)
-	dlDone, dlAck := monitorTransferProgress(ctx, transferPhase{
+	downloadDone, downloadAck := monitorTransferProgress(ctx, transferPhase{
 		start:   progressDownloadStart,
 		span:    progressDownloadSpan,
 		maxProg: progressDownloadMax,
@@ -462,8 +462,8 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		rateFn:  func() float64 { return server.Context.GetEWMADownloadRate() },
 	}, updateChan)
 	err = m.backend.DownloadTest(server)
-	close(dlDone)
-	<-dlAck
+	close(downloadDone)
+	<-downloadAck
 	if ctx.Err() != nil {
 		m.State = StateIdle
 		return ctx.Err()
@@ -472,11 +472,11 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		m.State = StateIdle
 		return fmt.Errorf("download test failed: %v", err)
 	}
-	dlSpeed := float64(server.DLSpeed) / bytesPerMbit
-	sendUpdate(progressDownloadDone, fmt.Sprintf("Download complete: %.2f Mbps", dlSpeed), updateChan)
+	downloadSpeed := float64(server.DLSpeed) / bytesPerMbit
+	sendUpdate(progressDownloadDone, fmt.Sprintf("Download complete: %.2f Mbps", downloadSpeed), updateChan)
 
 	sendUpdate(progressUploadStart, "Starting upload test...", updateChan)
-	ulDone, ulAck := monitorTransferProgress(ctx, transferPhase{
+	uploadDone, uploadAck := monitorTransferProgress(ctx, transferPhase{
 		start:   progressUploadStart,
 		span:    progressUploadSpan,
 		maxProg: progressUploadMax,
@@ -484,8 +484,8 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		rateFn:  func() float64 { return server.Context.GetEWMAUploadRate() },
 	}, updateChan)
 	err = m.backend.UploadTest(server)
-	close(ulDone)
-	<-ulAck
+	close(uploadDone)
+	<-uploadAck
 	if ctx.Err() != nil {
 		m.State = StateIdle
 		return ctx.Err()
@@ -494,16 +494,16 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		m.State = StateIdle
 		return fmt.Errorf("upload test failed: %v", err)
 	}
-	ulSpeed := float64(server.ULSpeed) / bytesPerMbit
-	sendUpdate(progressUploadDone, fmt.Sprintf("Upload complete: %.2f Mbps", ulSpeed), updateChan)
+	uploadSpeed := float64(server.ULSpeed) / bytesPerMbit
+	sendUpdate(progressUploadDone, fmt.Sprintf("Upload complete: %.2f Mbps", uploadSpeed), updateChan)
 
 	userIP, userISP := m.userInfo()
 
 	result := &SpeedTestResult{
-		DownloadSpeed: dlSpeed,
-		UploadSpeed:   ulSpeed,
-		Ping:          pr.avgPing,
-		Jitter:        pr.jitter,
+		DownloadSpeed: downloadSpeed,
+		UploadSpeed:   uploadSpeed,
+		Ping:          pingResult.avgPing,
+		Jitter:        pingResult.jitter,
 		ServerName:    server.Name,
 		ServerSponsor: server.Sponsor,
 		ServerCountry: server.Country,
@@ -527,10 +527,10 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 // ExportResult writes result to a file named lazyspeed_<timestamp>.<ext> in dir.
 // format must be "json" or "csv". It returns the full path of the written file.
 func ExportResult(result *SpeedTestResult, format string, dir string) (path string, err error) {
-	ts := result.Timestamp.Format(exportTimestampFormat)
+	timestampStr := result.Timestamp.Format(exportTimestampFormat)
 	switch format {
 	case "json":
-		path = filepath.Join(dir, fmt.Sprintf("lazyspeed_%s.json", ts))
+		path = filepath.Join(dir, fmt.Sprintf("lazyspeed_%s.json", timestampStr))
 		data, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
 			return "", fmt.Errorf("failed to serialise result: %v", err)
@@ -541,7 +541,7 @@ func ExportResult(result *SpeedTestResult, format string, dir string) (path stri
 		return path, nil
 
 	case "csv":
-		path = filepath.Join(dir, fmt.Sprintf("lazyspeed_%s.csv", ts))
+		path = filepath.Join(dir, fmt.Sprintf("lazyspeed_%s.csv", timestampStr))
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
 			return "", fmt.Errorf("failed to create file: %v", err)
@@ -551,11 +551,11 @@ func ExportResult(result *SpeedTestResult, format string, dir string) (path stri
 				err = fmt.Errorf("failed to close export file: %v", cerr)
 			}
 		}()
-		w := csv.NewWriter(f)
-		_ = w.Write(SpeedTestCSVHeader)
-		_ = w.Write(result.CSVRow())
-		w.Flush()
-		if err = w.Error(); err != nil {
+		csvWriter := csv.NewWriter(f)
+		_ = csvWriter.Write(SpeedTestCSVHeader)
+		_ = csvWriter.Write(result.CSVRow())
+		csvWriter.Flush()
+		if err = csvWriter.Error(); err != nil {
 			return "", fmt.Errorf("failed to flush CSV writer: %v", err)
 		}
 		return path, nil
@@ -579,14 +579,14 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 	pingCount := m.pingCount()
 
 	callProgressFn(opts.ProgressFn, fmt.Sprintf("Measuring ping (0/%d)...", pingCount))
-	pr, err := measurePing(ctx, m.backend, server, pingCount, func(i, total int, ping, _ float64) {
+	pingResult, err := measurePing(ctx, m.backend, server, pingCount, func(i, total int, ping, _ float64) {
 		callProgressFn(opts.ProgressFn, fmt.Sprintf("Measuring ping (%d/%d): %.1f ms", i, total, ping))
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	var dlSpeed, ulSpeed float64
+	var downloadSpeed, uploadSpeed float64
 
 	if !opts.SkipDownload {
 		if ctx.Err() != nil {
@@ -596,8 +596,8 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		if err := m.backend.DownloadTest(server); err != nil {
 			return nil, fmt.Errorf("download test failed: %v", err)
 		}
-		dlSpeed = float64(server.DLSpeed) / bytesPerMbit
-		callProgressFn(opts.ProgressFn, fmt.Sprintf("Download: %.2f Mbps", dlSpeed))
+		downloadSpeed = float64(server.DLSpeed) / bytesPerMbit
+		callProgressFn(opts.ProgressFn, fmt.Sprintf("Download: %.2f Mbps", downloadSpeed))
 	}
 
 	if !opts.SkipUpload {
@@ -608,15 +608,15 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		if err := m.backend.UploadTest(server); err != nil {
 			return nil, fmt.Errorf("upload test failed: %v", err)
 		}
-		ulSpeed = float64(server.ULSpeed) / bytesPerMbit
-		callProgressFn(opts.ProgressFn, fmt.Sprintf("Upload: %.2f Mbps", ulSpeed))
+		uploadSpeed = float64(server.ULSpeed) / bytesPerMbit
+		callProgressFn(opts.ProgressFn, fmt.Sprintf("Upload: %.2f Mbps", uploadSpeed))
 	}
 
 	return &SpeedTestResult{
-		DownloadSpeed: dlSpeed,
-		UploadSpeed:   ulSpeed,
-		Ping:          pr.avgPing,
-		Jitter:        pr.jitter,
+		DownloadSpeed: downloadSpeed,
+		UploadSpeed:   uploadSpeed,
+		Ping:          pingResult.avgPing,
+		Jitter:        pingResult.jitter,
 		ServerName:    server.Name,
 		ServerSponsor: server.Sponsor,
 		ServerCountry: server.Country,
