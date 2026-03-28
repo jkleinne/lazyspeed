@@ -16,7 +16,6 @@ const (
 	anomalyMultiplier    = 2  // latency must exceed this factor of the median
 	anomalyAbsoluteMinMs = 50 // latency must also exceed this absolute floor (ms)
 
-	hopColWidth   = 6
 	ipColWidth    = 18
 	hostColWidth  = 30
 	hopTableWidth = 76

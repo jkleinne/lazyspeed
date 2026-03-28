@@ -56,7 +56,7 @@ func (b *RealDiagBackend) Traceroute(ctx context.Context, target string, maxHops
 	}
 
 	// Fall back to UDP on permission error
-	if os.IsPermission(err) || isPermissionError(err) {
+	if isPermissionError(err) {
 		hops, udpErr := udpTraceroute(ctx, destIP, maxHops)
 		if udpErr != nil {
 			return nil, "", fmt.Errorf("failed to run traceroute: %v", udpErr)
