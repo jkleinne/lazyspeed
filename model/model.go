@@ -406,8 +406,29 @@ func monitorTransferProgress(
 	return done, doneAck
 }
 
+// runTransferPhase executes one transfer phase (download or upload), monitoring
+// progress via monitorTransferProgress. It returns the measured speed in Mbps.
+func runTransferPhase(
+	ctx context.Context,
+	phase transferPhase,
+	testFn func() error,
+	rawSpeed func() float64,
+	updateChan chan<- ProgressUpdate,
+) (float64, error) {
+	done, doneAck := monitorTransferProgress(ctx, phase, updateChan)
+	err := testFn()
+	close(done)
+	<-doneAck
+	if ctx.Err() != nil {
+		return 0, ctx.Err()
+	}
+	if err != nil {
+		return 0, fmt.Errorf("%s test failed: %v", phase.label, err)
+	}
+	return rawSpeed() / bytesPerMbit, nil
+}
+
 func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, updateChan chan<- ProgressUpdate) error {
-	var err error
 	m.State = StateTesting
 	m.Progress = 0
 	m.Error = nil
@@ -455,47 +476,35 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	}
 
 	sendUpdate(progressDownloadStart, "Starting download test...", updateChan)
-	downloadDone, downloadAck := monitorTransferProgress(ctx, transferPhase{
+	downloadSpeed, err := runTransferPhase(ctx, transferPhase{
 		start:   progressDownloadStart,
 		span:    progressDownloadSpan,
 		maxProg: progressDownloadMax,
 		label:   "download",
 		rateFn:  func() float64 { return server.Context.GetEWMADownloadRate() },
-	}, updateChan)
-	err = m.backend.DownloadTest(server)
-	close(downloadDone)
-	<-downloadAck
-	if ctx.Err() != nil {
-		m.State = StateIdle
-		return ctx.Err()
-	}
+	}, func() error { return m.backend.DownloadTest(server) },
+		func() float64 { return float64(server.DLSpeed) },
+		updateChan)
 	if err != nil {
 		m.State = StateIdle
-		return fmt.Errorf("download test failed: %v", err)
+		return err
 	}
-	downloadSpeed := float64(server.DLSpeed) / bytesPerMbit
 	sendUpdate(progressDownloadDone, fmt.Sprintf("Download complete: %.2f Mbps", downloadSpeed), updateChan)
 
 	sendUpdate(progressUploadStart, "Starting upload test...", updateChan)
-	uploadDone, uploadAck := monitorTransferProgress(ctx, transferPhase{
+	uploadSpeed, err := runTransferPhase(ctx, transferPhase{
 		start:   progressUploadStart,
 		span:    progressUploadSpan,
 		maxProg: progressUploadMax,
 		label:   "upload",
 		rateFn:  func() float64 { return server.Context.GetEWMAUploadRate() },
-	}, updateChan)
-	err = m.backend.UploadTest(server)
-	close(uploadDone)
-	<-uploadAck
-	if ctx.Err() != nil {
-		m.State = StateIdle
-		return ctx.Err()
-	}
+	}, func() error { return m.backend.UploadTest(server) },
+		func() float64 { return float64(server.ULSpeed) },
+		updateChan)
 	if err != nil {
 		m.State = StateIdle
-		return fmt.Errorf("upload test failed: %v", err)
+		return err
 	}
-	uploadSpeed := float64(server.ULSpeed) / bytesPerMbit
 	sendUpdate(progressUploadDone, fmt.Sprintf("Upload complete: %.2f Mbps", uploadSpeed), updateChan)
 
 	userIP, userISP := m.userInfo()
