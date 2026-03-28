@@ -1972,3 +1972,97 @@ func TestHistoryTruncationPreservesNewest(t *testing.T) {
 		t.Errorf("Newest entry: got DownloadSpeed %v, want 9", m2.TestHistory[4].DownloadSpeed)
 	}
 }
+
+func TestLoadConfigZeroAndNegativeValues(t *testing.T) {
+	tests := []struct {
+		name       string
+		yaml       string
+		checkField string
+		wantValue  int
+	}{
+		{
+			name:       "zero fetch_timeout falls back to default",
+			yaml:       "test:\n  fetch_timeout: 0\n",
+			checkField: "FetchTimeout",
+			wantValue:  30,
+		},
+		{
+			name:       "zero test_timeout falls back to default",
+			yaml:       "test:\n  test_timeout: 0\n",
+			checkField: "TestTimeout",
+			wantValue:  120,
+		},
+		{
+			name:       "negative max_entries falls back to default",
+			yaml:       "history:\n  max_entries: -1\n",
+			checkField: "MaxEntries",
+			wantValue:  50,
+		},
+		{
+			name:       "zero ping_count falls back to default",
+			yaml:       "test:\n  ping_count: 0\n",
+			checkField: "PingCount",
+			wantValue:  10,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			t.Setenv("HOME", tmpDir)
+			t.Setenv("XDG_CONFIG_HOME", "")
+
+			configDir := filepath.Join(tmpDir, ".config", "lazyspeed")
+			if err := os.MkdirAll(configDir, 0755); err != nil {
+				t.Fatalf("Could not create config dir: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(tt.yaml), 0644); err != nil {
+				t.Fatalf("Could not write config file: %v", err)
+			}
+
+			cfg, err := LoadConfig()
+			if err != nil {
+				t.Fatalf("Expected no error, got %v", err)
+			}
+
+			var got int
+			switch tt.checkField {
+			case "FetchTimeout":
+				got = cfg.Test.FetchTimeout
+			case "TestTimeout":
+				got = cfg.Test.TestTimeout
+			case "MaxEntries":
+				got = cfg.History.MaxEntries
+			case "PingCount":
+				got = cfg.Test.PingCount
+			}
+
+			if got != tt.wantValue {
+				t.Errorf("Expected %s to be %d, got %d", tt.checkField, tt.wantValue, got)
+			}
+		})
+	}
+}
+
+func TestDiagnosticsConfigTildePath(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("XDG_CONFIG_HOME", "")
+
+	configDir := filepath.Join(tmpDir, ".config", "lazyspeed")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("Could not create config dir: %v", err)
+	}
+	configData := []byte("diagnostics:\n  path: ~/custom-diag/history.json\n")
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), configData, 0644); err != nil {
+		t.Fatalf("Could not write config file: %v", err)
+	}
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if cfg.Diagnostics.Path != "~/custom-diag/history.json" {
+		t.Errorf("Expected diagnostics path '~/custom-diag/history.json', got %q", cfg.Diagnostics.Path)
+	}
+}
