@@ -124,3 +124,67 @@ func TestLabelFromGrade(t *testing.T) {
 		}
 	}
 }
+
+func TestHopPacketLoss(t *testing.T) {
+	tests := []struct {
+		name string
+		hops []Hop
+		want float64
+	}{
+		{"nil hops", nil, 0},
+		{"no timeouts", []Hop{
+			{Number: 1, Timeout: false},
+			{Number: 2, Timeout: false},
+		}, 0},
+		{"all timeout", []Hop{
+			{Number: 1, Timeout: true},
+			{Number: 2, Timeout: true},
+		}, 100},
+		{"one of three timeout", []Hop{
+			{Number: 1, Timeout: false},
+			{Number: 2, Timeout: true},
+			{Number: 3, Timeout: false},
+		}, 100.0 / 3.0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := HopPacketLoss(tt.hops)
+			if got < tt.want-0.0001 || got > tt.want+0.0001 {
+				t.Errorf("HopPacketLoss() = %f, want %f", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFinalHopLatencyMs(t *testing.T) {
+	tests := []struct {
+		name string
+		hops []Hop
+		want float64
+	}{
+		{"nil hops", nil, 0},
+		{"all timeout", []Hop{
+			{Number: 1, Timeout: true},
+			{Number: 2, Timeout: true},
+		}, 0},
+		{"last hop valid", []Hop{
+			{Number: 1, Latency: 5 * time.Millisecond},
+			{Number: 2, Latency: 10 * time.Millisecond},
+		}, 10},
+		{"last timeout skips to previous", []Hop{
+			{Number: 1, Latency: 5 * time.Millisecond},
+			{Number: 2, Latency: 12 * time.Millisecond},
+			{Number: 3, Timeout: true},
+		}, 12},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := FinalHopLatencyMs(tt.hops)
+			if got < tt.want-0.0001 || got > tt.want+0.0001 {
+				t.Errorf("FinalHopLatencyMs() = %f, want %f", got, tt.want)
+			}
+		})
+	}
+}

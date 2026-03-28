@@ -257,8 +257,8 @@ func diagCSVRow(r *diag.DiagResult) []string {
 		dnsCached = fmt.Sprintf("%v", r.DNS.Cached)
 	}
 
-	packetLossPct := diagPacketLossPct(r.Hops)
-	finalLatencyMs := diagFinalHopLatencyMs(r.Hops)
+	packetLossPct := diag.HopPacketLoss(r.Hops)
+	finalLatencyMs := diag.FinalHopLatencyMs(r.Hops)
 
 	return []string{
 		r.Timestamp.Format(time.RFC3339),
@@ -321,26 +321,3 @@ func diagDefaultOutput(r *diag.DiagResult) string {
 	return b.String()
 }
 
-// diagPacketLossPct computes the packet loss percentage across hops.
-func diagPacketLossPct(hops []diag.Hop) float64 {
-	if len(hops) == 0 {
-		return 0
-	}
-	var timeouts int
-	for _, h := range hops {
-		if h.Timeout {
-			timeouts++
-		}
-	}
-	return float64(timeouts) / float64(len(hops)) * 100
-}
-
-// diagFinalHopLatencyMs returns the latency of the last non-timeout hop in ms.
-func diagFinalHopLatencyMs(hops []diag.Hop) float64 {
-	for i := len(hops) - 1; i >= 0; i-- {
-		if !hops[i].Timeout {
-			return diag.DurationMs(hops[i].Latency)
-		}
-	}
-	return 0
-}

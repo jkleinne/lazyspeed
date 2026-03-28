@@ -29,9 +29,12 @@ const (
 )
 
 func ComputeScore(result *DiagResult) QualityScore {
-	latencyMs := finalHopLatency(result.Hops)
+	latencyMs := FinalHopLatencyMs(result.Hops)
+	if latencyMs == 0 && len(result.Hops) > 0 {
+		latencyMs = latencyTerrible
+	}
 	jitterMs := hopJitter(result.Hops)
-	packetLossPct := hopPacketLoss(result.Hops)
+	packetLossPct := HopPacketLoss(result.Hops)
 
 	latencyScore := normalizeMetric(latencyMs, latencyExcellent, latencyTerrible)
 	jitterScore := normalizeMetric(jitterMs, jitterExcellent, jitterTerrible)
@@ -72,13 +75,15 @@ func normalizeMetric(value, excellent, terrible float64) float64 {
 	return 1.0 - (value-excellent)/(terrible-excellent)
 }
 
-func finalHopLatency(hops []Hop) float64 {
+// FinalHopLatencyMs returns the latency of the last non-timeout hop in milliseconds.
+// Returns 0 if all hops timed out or the slice is empty.
+func FinalHopLatencyMs(hops []Hop) float64 {
 	for i := len(hops) - 1; i >= 0; i-- {
 		if !hops[i].Timeout {
 			return DurationMs(hops[i].Latency)
 		}
 	}
-	return latencyTerrible
+	return 0
 }
 
 func hopJitter(hops []Hop) float64 {
@@ -105,7 +110,8 @@ func hopJitter(hops []Hop) float64 {
 	return math.Sqrt(variance / float64(len(latencies)))
 }
 
-func hopPacketLoss(hops []Hop) float64 {
+// HopPacketLoss returns the packet loss percentage across hops.
+func HopPacketLoss(hops []Hop) float64 {
 	if len(hops) == 0 {
 		return 0
 	}

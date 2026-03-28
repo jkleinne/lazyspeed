@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -159,69 +158,6 @@ func TestStripPort(t *testing.T) {
 	}
 }
 
-func TestDiagPacketLossPct(t *testing.T) {
-	tests := []struct {
-		name string
-		hops []diag.Hop
-		want float64
-	}{
-		{"nil hops", nil, 0},
-		{"no timeouts", []diag.Hop{
-			{Number: 1, Timeout: false},
-			{Number: 2, Timeout: false},
-		}, 0},
-		{"all timeout", []diag.Hop{
-			{Number: 1, Timeout: true},
-			{Number: 2, Timeout: true},
-		}, 100},
-		{"one of three timeout", []diag.Hop{
-			{Number: 1, Timeout: false},
-			{Number: 2, Timeout: true},
-			{Number: 3, Timeout: false},
-		}, 100.0 / 3.0},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := diagPacketLossPct(tt.hops)
-			if math.Abs(got-tt.want) > 0.0001 {
-				t.Errorf("diagPacketLossPct() = %f, want %f", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestDiagFinalHopLatencyMs(t *testing.T) {
-	tests := []struct {
-		name string
-		hops []diag.Hop
-		want float64
-	}{
-		{"nil hops", nil, 0},
-		{"all timeout", []diag.Hop{
-			{Number: 1, Timeout: true},
-			{Number: 2, Timeout: true},
-		}, 0},
-		{"last hop valid", []diag.Hop{
-			{Number: 1, Latency: 5 * time.Millisecond},
-			{Number: 2, Latency: 10 * time.Millisecond},
-		}, 10},
-		{"last timeout skips to previous", []diag.Hop{
-			{Number: 1, Latency: 5 * time.Millisecond},
-			{Number: 2, Latency: 12 * time.Millisecond},
-			{Number: 3, Timeout: true},
-		}, 12},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := diagFinalHopLatencyMs(tt.hops)
-			if math.Abs(got-tt.want) > 0.0001 {
-				t.Errorf("diagFinalHopLatencyMs() = %f, want %f", got, tt.want)
-			}
-		})
-	}
-}
 
 func TestDiagCSVRow(t *testing.T) {
 	ts := time.Date(2026, 3, 26, 12, 0, 0, 0, time.UTC)
