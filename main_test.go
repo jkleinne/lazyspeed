@@ -1793,3 +1793,103 @@ func TestDoubleCancelNoPanic(t *testing.T) {
 		t.Errorf("Expected cancelTest to be nil after calls")
 	}
 }
+
+func TestServerSelectionLargeListViewport(t *testing.T) {
+	servers := make(speedtest.Servers, 100)
+	for i := range servers {
+		servers[i] = &speedtest.Server{Name: fmt.Sprintf("Server %d", i)}
+	}
+
+	m := model.NewDefaultModel()
+	m.Height = 15
+	m.State = model.StateSelectingServer
+	m.ServerList = servers
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	// Navigate down 20 times
+	for i := 0; i < 20; i++ {
+		newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+		s = *newModel.(*speedTest)
+	}
+
+	if s.cursor != 20 {
+		t.Errorf("Expected cursor at 20, got %d", s.cursor)
+	}
+
+	visibleLines := ui.ServerListVisibleLines(m.Height, len(servers))
+	if s.cursor < s.serverListOffset || s.cursor >= s.serverListOffset+visibleLines {
+		t.Errorf("Cursor %d outside visible viewport [%d, %d)",
+			s.cursor, s.serverListOffset, s.serverListOffset+visibleLines)
+	}
+}
+
+func TestWindowResizeDuringTest(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.State = model.StateTesting
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	newModel, _ := s.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	newS := newModel.(*speedTest)
+
+	if newS.model.Width != 120 {
+		t.Errorf("Expected Width 120, got %d", newS.model.Width)
+	}
+	if newS.model.Height != 40 {
+		t.Errorf("Expected Height 40, got %d", newS.model.Height)
+	}
+	if newS.model.State != model.StateTesting {
+		t.Errorf("Expected State to remain StateTesting, got %d", newS.model.State)
+	}
+}
+
+func TestWindowResizeTiny(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: time.Now()}
+	m.TestHistory = []*model.SpeedTestResult{m.Results}
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	newModel, _ := s.Update(tea.WindowSizeMsg{Width: 20, Height: 5})
+	newS := newModel.(*speedTest)
+
+	// The test passes if View() does not panic on a tiny window
+	_ = newS.View()
+}
+
+func TestDiagExpandedScrollClamping(t *testing.T) {
+	hops := make([]diag.Hop, 30)
+	for i := range hops {
+		hops[i] = diag.Hop{Number: i + 1, IP: fmt.Sprintf("10.0.0.%d", i+1)}
+	}
+
+	m := model.NewDefaultModel()
+	s := speedTest{
+		model:     m,
+		spinner:   ui.DefaultSpinner,
+		viewState: ViewDiagExpanded,
+		diagResult: &diag.DiagResult{
+			Target: "8.8.8.8",
+			Hops:   hops,
+		},
+		diagOffset: 0,
+	}
+
+	// Navigate down 50 times — should clamp below hop count
+	for i := 0; i < 50; i++ {
+		newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+		s = *newModel.(*speedTest)
+	}
+
+	if s.diagOffset >= 30 {
+		t.Errorf("Expected diagOffset clamped below 30, got %d", s.diagOffset)
+	}
+
+	// Navigate up 50 times — should clamp at 0
+	for i := 0; i < 50; i++ {
+		newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+		s = *newModel.(*speedTest)
+	}
+
+	if s.diagOffset != 0 {
+		t.Errorf("Expected diagOffset clamped at 0, got %d", s.diagOffset)
+	}
+}
