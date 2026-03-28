@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 
 	"github.com/jkleinne/lazyspeed/model"
+	"github.com/showwin/speedtest-go/speedtest"
 	"github.com/spf13/cobra"
 )
 
@@ -73,18 +75,14 @@ func runHeadlessTest() {
 
 	server := m.ServerList[0] // Auto-select fastest by default
 	if runServerID != "" {
-		found := false
-		for _, s := range m.ServerList {
-			if s.ID == runServerID {
-				server = s
-				found = true
-				break
-			}
-		}
-		if !found {
+		idx := slices.IndexFunc(m.ServerList, func(s *speedtest.Server) bool {
+			return s.ID == runServerID
+		})
+		if idx < 0 {
 			fmt.Fprintf(os.Stderr, "Error: server %s not found\n", runServerID)
 			os.Exit(1)
 		}
+		server = m.ServerList[idx]
 	}
 
 	if runIsInteractive() {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -15,6 +16,7 @@ import (
 	"github.com/jkleinne/lazyspeed/diag"
 	"github.com/jkleinne/lazyspeed/model"
 	"github.com/jkleinne/lazyspeed/ui"
+	"github.com/showwin/speedtest-go/speedtest"
 	"github.com/spf13/cobra"
 )
 
@@ -115,18 +117,14 @@ func runDiag(args []string) {
 		target = args[0]
 	} else if diagServer != "" {
 		fetchDiagServers(m)
-		found := false
-		for _, s := range m.ServerList {
-			if s.ID == diagServer {
-				target = stripPort(s.Host)
-				found = true
-				break
-			}
-		}
-		if !found {
+		idx := slices.IndexFunc(m.ServerList, func(s *speedtest.Server) bool {
+			return s.ID == diagServer
+		})
+		if idx < 0 {
 			fmt.Fprintf(os.Stderr, "Error: server %s not found\n", diagServer)
 			os.Exit(1)
 		}
+		target = stripPort(m.ServerList[idx].Host)
 	} else {
 		fetchDiagServers(m)
 		if len(m.ServerList) == 0 {
