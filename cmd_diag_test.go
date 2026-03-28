@@ -1,7 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"math"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -355,5 +358,116 @@ func TestDiagDefaultOutput(t *testing.T) {
 		if !strings.Contains(got, c.contains) {
 			t.Errorf("expected output to contain %s (%q), got:\n%s", c.label, c.contains, got)
 		}
+	}
+}
+
+// saveDiagFlags saves and defers restoration of all diag-related package globals.
+func saveDiagFlags(t *testing.T) {
+	t.Helper()
+	origJSON := diagJSON
+	origCSV := diagCSV
+	origSimple := diagSimple
+	origHistory := diagHistory
+	origLast := diagLast
+	t.Cleanup(func() {
+		diagJSON = origJSON
+		diagCSV = origCSV
+		diagSimple = origSimple
+		diagHistory = origHistory
+		diagLast = origLast
+	})
+}
+
+// makeDiagHistory builds a slice of DiagResult values for use in tests.
+func makeDiagHistory(n int) []*diag.DiagResult {
+	results := make([]*diag.DiagResult, n)
+	for i := range n {
+		results[i] = &diag.DiagResult{
+			Target: "8.8.8.8",
+			Method: diag.MethodICMP,
+			Hops: []diag.Hop{
+				{Number: 1, IP: "10.0.0.1", Latency: 5 * time.Millisecond},
+			},
+			Quality:   diag.QualityScore{Score: 90, Grade: "A", Label: "Great"},
+			Timestamp: time.Date(2026, 1, i+1, 12, 0, 0, 0, time.UTC),
+		}
+	}
+	return results
+}
+
+// populateDiagHistory writes diag history entries to the XDG-compliant path under tmpDir.
+func populateDiagHistory(t *testing.T, tmpDir string, entries []*diag.DiagResult) {
+	t.Helper()
+	histDir := filepath.Join(tmpDir, ".local", "share", "lazyspeed")
+	if err := os.MkdirAll(histDir, 0700); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+	if err := diag.SaveHistory(filepath.Join(histDir, "diagnostics.json"), entries, 20); err != nil {
+		t.Fatalf("SaveHistory failed: %v", err)
+	}
+}
+
+func TestRunDiagHistoryEmpty(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	saveDiagFlags(t)
+
+	diagJSON = false
+	diagCSV = false
+	diagSimple = false
+	diagHistory = false
+	diagLast = 0
+
+	out := captureStdout(runDiagHistory)
+
+	if !strings.Contains(out, "No diagnostics history found.") {
+		t.Errorf("expected 'No diagnostics history found.' in output, got %q", out)
+	}
+}
+
+func TestRunDiagHistoryJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	saveDiagFlags(t)
+
+	populateDiagHistory(t, tmpDir, makeDiagHistory(1))
+
+	diagJSON = true
+	diagCSV = false
+	diagSimple = false
+	diagHistory = false
+	diagLast = 0
+
+	out := captureStdout(runDiagHistory)
+
+	var arr []*diag.DiagResult
+	if err := json.Unmarshal([]byte(out), &arr); err != nil {
+		t.Fatalf("expected valid JSON array, got parse error: %v\noutput: %s", err, out)
+	}
+	if len(arr) != 1 {
+		t.Errorf("expected 1 entry, got %d", len(arr))
+	}
+}
+
+func TestRunDiagHistoryLastSlice(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	saveDiagFlags(t)
+
+	populateDiagHistory(t, tmpDir, makeDiagHistory(3))
+
+	diagJSON = true
+	diagCSV = false
+	diagSimple = false
+	diagHistory = false
+	diagLast = 2
+
+	out := captureStdout(runDiagHistory)
+
+	var arr []*diag.DiagResult
+	if err := json.Unmarshal([]byte(out), &arr); err != nil {
+		t.Fatalf("expected valid JSON array, got parse error: %v\noutput: %s", err, out)
+	}
+	if len(arr) != 2 {
+		t.Errorf("expected 2 entries with --last 2, got %d", len(arr))
 	}
 }
