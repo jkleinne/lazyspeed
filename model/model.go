@@ -22,6 +22,7 @@ const (
 	progressInterval        = 200 * time.Millisecond
 	pingDelay               = 100 * time.Millisecond
 	estimatedTestDurationMs = 15_000
+	minPingsForJitter       = 2
 )
 
 const (
@@ -236,7 +237,7 @@ func measurePing(ctx context.Context, backend Backend, server *speedtest.Server,
 			pings = append(pings, ping)
 			sumPing += ping
 			var currentJitter float64
-			if len(pings) > 1 {
+			if len(pings) >= minPingsForJitter {
 				currentJitter = math.Abs(pings[len(pings)-1] - pings[len(pings)-2])
 			}
 			if observe != nil {
@@ -258,7 +259,7 @@ func measurePing(ctx context.Context, backend Backend, server *speedtest.Server,
 	if len(pings) > 0 {
 		result.avgPing = sumPing / float64(len(pings))
 	}
-	if len(pings) > 1 {
+	if len(pings) >= minPingsForJitter {
 		var sum float64
 		for i := 1; i < len(pings); i++ {
 			sum += math.Abs(pings[i] - pings[i-1])

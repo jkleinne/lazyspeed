@@ -11,6 +11,10 @@ import (
 const (
 	MethodICMP = "icmp"
 	MethodUDP  = "udp"
+
+	// dnsCacheThresholdDivisor is the factor by which warm DNS latency must be lower
+	// than cold latency to be considered a cached result.
+	dnsCacheThresholdDivisor = 2
 )
 
 type Hop struct {
@@ -137,7 +141,7 @@ func Run(ctx context.Context, backend DiagBackend, target string, cfg *DiagConfi
 			}
 		} else {
 			_, warmLatency, _ := backend.ResolveDNS(ctx, target)
-			cached := warmLatency < coldLatency/2
+			cached := warmLatency < coldLatency/dnsCacheThresholdDivisor
 			result.DNS = &DNSResult{
 				Host:    target,
 				IP:      coldIP,
