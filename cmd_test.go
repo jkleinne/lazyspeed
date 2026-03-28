@@ -611,6 +611,37 @@ func TestHistoryTableFormatTruncation(t *testing.T) {
 	}
 }
 
+func TestRunIsInteractive(t *testing.T) {
+	origJSON := runJSON
+	origCSV := runCSV
+	origSimple := runSimple
+	defer func() { runJSON = origJSON; runCSV = origCSV; runSimple = origSimple }()
+
+	tests := []struct {
+		name   string
+		json   bool
+		csv    bool
+		simple bool
+		want   bool
+	}{
+		{"all false is interactive", false, false, false, true},
+		{"json disables interactive", true, false, false, false},
+		{"csv disables interactive", false, true, false, false},
+		{"simple disables interactive", false, false, true, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runJSON = tt.json
+			runCSV = tt.csv
+			runSimple = tt.simple
+			if got := runIsInteractive(); got != tt.want {
+				t.Errorf("runIsInteractive() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestRunCommandValidation(t *testing.T) {
 	origCount := runCount
 	defer func() { runCount = origCount }()

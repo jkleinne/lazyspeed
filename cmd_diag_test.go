@@ -7,7 +7,90 @@ import (
 	"time"
 
 	"github.com/jkleinne/lazyspeed/diag"
+	"github.com/jkleinne/lazyspeed/model"
 )
+
+func TestDiagIsInteractive(t *testing.T) {
+	origJSON := diagJSON
+	origCSV := diagCSV
+	origSimple := diagSimple
+	defer func() { diagJSON = origJSON; diagCSV = origCSV; diagSimple = origSimple }()
+
+	tests := []struct {
+		name   string
+		json   bool
+		csv    bool
+		simple bool
+		want   bool
+	}{
+		{"all false is interactive", false, false, false, true},
+		{"json disables interactive", true, false, false, false},
+		{"csv disables interactive", false, true, false, false},
+		{"simple disables interactive", false, false, true, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			diagJSON = tt.json
+			diagCSV = tt.csv
+			diagSimple = tt.simple
+			if got := diagIsInteractive(); got != tt.want {
+				t.Errorf("diagIsInteractive() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDiagConfigFromModel(t *testing.T) {
+	t.Run("custom values", func(t *testing.T) {
+		cfg := model.DefaultConfig()
+		cfg.Diagnostics.MaxHops = 15
+		cfg.Diagnostics.Timeout = 30
+		cfg.Diagnostics.MaxEntries = 10
+		cfg.Diagnostics.Path = "/custom/path"
+		m := model.NewModel(nil, cfg)
+
+		got := diagConfigFromModel(m)
+
+		if got.MaxHops != 15 {
+			t.Errorf("MaxHops = %d, want 15", got.MaxHops)
+		}
+		if got.Timeout != 30 {
+			t.Errorf("Timeout = %d, want 30", got.Timeout)
+		}
+		if got.MaxEntries != 10 {
+			t.Errorf("MaxEntries = %d, want 10", got.MaxEntries)
+		}
+		if got.Path != "/custom/path" {
+			t.Errorf("Path = %q, want %q", got.Path, "/custom/path")
+		}
+	})
+
+	t.Run("zero values fall back to defaults", func(t *testing.T) {
+		cfg := model.DefaultConfig()
+		cfg.Diagnostics.MaxHops = 0
+		cfg.Diagnostics.Timeout = 0
+		cfg.Diagnostics.MaxEntries = 0
+		cfg.Diagnostics.Path = ""
+		m := model.NewModel(nil, cfg)
+
+		got := diagConfigFromModel(m)
+		defaults := diag.DefaultDiagConfig()
+
+		if got.MaxHops != defaults.MaxHops {
+			t.Errorf("MaxHops = %d, want default %d", got.MaxHops, defaults.MaxHops)
+		}
+		if got.Timeout != defaults.Timeout {
+			t.Errorf("Timeout = %d, want default %d", got.Timeout, defaults.Timeout)
+		}
+		if got.MaxEntries != defaults.MaxEntries {
+			t.Errorf("MaxEntries = %d, want default %d", got.MaxEntries, defaults.MaxEntries)
+		}
+		if got.Path != defaults.Path {
+			t.Errorf("Path = %q, want default %q", got.Path, defaults.Path)
+		}
+	})
+}
 
 func TestDiagCmdFlagDefaults(t *testing.T) {
 	tests := []struct {
