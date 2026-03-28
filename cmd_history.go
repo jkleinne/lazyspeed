@@ -88,14 +88,14 @@ func runHistory() {
 
 	default:
 		// Default: table view
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		_, _ = fmt.Fprintln(w, "DATE\tSERVER\tDL (Mbps)\tUL (Mbps)\tPING (ms)")
+		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		_, _ = fmt.Fprintln(tw, "DATE\tSERVER\tDL (Mbps)\tUL (Mbps)\tPING (ms)")
 		for _, res := range entries {
 			dateStr := res.Timestamp.Format("2006-01-02 15:04")
 			serverStr := ui.Truncate(res.ServerName, historyServerMaxLen)
-			_, _ = fmt.Fprintf(w, "%s\t%s\t%.2f\t%.2f\t%.2f\n", dateStr, serverStr, res.DownloadSpeed, res.UploadSpeed, res.Ping)
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t%.2f\t%.2f\t%.2f\n", dateStr, serverStr, res.DownloadSpeed, res.UploadSpeed, res.Ping)
 		}
-		_ = w.Flush()
+		_ = tw.Flush()
 	}
 }
 

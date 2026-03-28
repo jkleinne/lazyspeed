@@ -99,16 +99,16 @@ func runServers() {
 		flushCSV(w)
 
 	default:
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		_, _ = fmt.Fprintln(w, "ID\tNAME\tSPONSOR\tCOUNTRY\tLATENCY (ms)\tDISTANCE (km)")
+		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		_, _ = fmt.Fprintln(tw, "ID\tNAME\tSPONSOR\tCOUNTRY\tLATENCY (ms)\tDISTANCE (km)")
 		for _, s := range m.ServerList {
 			name := ui.Truncate(s.Name, serversNameMaxLen)
 			sponsor := ui.Truncate(s.Sponsor, serversSponsorMaxLen)
-			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%.2f\t%.1f\n",
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%.2f\t%.1f\n",
 				s.ID, name, sponsor, s.Country,
 				s.Latency.Seconds()*1000, s.Distance)
 		}
-		_ = w.Flush()
+		_ = tw.Flush()
 	}
 }
 

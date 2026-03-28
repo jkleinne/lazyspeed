@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -252,7 +253,7 @@ func diagCSVRow(r *diag.DiagResult) []string {
 	dnsCached := ""
 	if r.DNS != nil {
 		dnsMs = fmt.Sprintf("%.3f", diag.DurationMs(r.DNS.Latency))
-		dnsCached = fmt.Sprintf("%v", r.DNS.Cached)
+		dnsCached = strconv.FormatBool(r.DNS.Cached)
 	}
 
 	packetLossPct := diag.HopPacketLoss(r.Hops)
