@@ -9,6 +9,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/jkleinne/lazyspeed/model"
+	"github.com/jkleinne/lazyspeed/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -71,7 +72,7 @@ func runServers() {
 				Name:     s.Name,
 				Sponsor:  s.Sponsor,
 				Country:  s.Country,
-				Latency:  s.Latency.Seconds() * 1000,
+				Latency:  float64(s.Latency.Microseconds()) / 1000.0,
 				Distance: s.Distance,
 			}
 		}
@@ -91,29 +92,23 @@ func runServers() {
 				s.Name,
 				s.Sponsor,
 				s.Country,
-				fmt.Sprintf("%.2f", s.Latency.Seconds()*1000),
+				fmt.Sprintf("%.2f", float64(s.Latency.Microseconds())/1000.0),
 				fmt.Sprintf("%.1f", s.Distance),
 			})
 		}
 		flushCSV(w)
 
 	default:
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		_, _ = fmt.Fprintln(w, "ID\tNAME\tSPONSOR\tCOUNTRY\tLATENCY (ms)\tDISTANCE (km)")
+		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		_, _ = fmt.Fprintln(tw, "ID\tNAME\tSPONSOR\tCOUNTRY\tLATENCY (ms)\tDISTANCE (km)")
 		for _, s := range m.ServerList {
-			name := s.Name
-			if len(name) > serversNameMaxLen {
-				name = name[:serversNameMaxLen-3] + "..."
-			}
-			sponsor := s.Sponsor
-			if len(sponsor) > serversSponsorMaxLen {
-				sponsor = sponsor[:serversSponsorMaxLen-3] + "..."
-			}
-			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%.2f\t%.1f\n",
+			name := ui.Truncate(s.Name, serversNameMaxLen)
+			sponsor := ui.Truncate(s.Sponsor, serversSponsorMaxLen)
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%.2f\t%.1f\n",
 				s.ID, name, sponsor, s.Country,
-				s.Latency.Seconds()*1000, s.Distance)
+				float64(s.Latency.Microseconds())/1000.0, s.Distance)
 		}
-		_ = w.Flush()
+		_ = tw.Flush()
 	}
 }
 

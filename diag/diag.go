@@ -11,6 +11,10 @@ import (
 const (
 	MethodICMP = "icmp"
 	MethodUDP  = "udp"
+
+	// dnsCacheThresholdDivisor is the factor by which warm DNS latency must be lower
+	// than cold latency to be considered a cached result.
+	dnsCacheThresholdDivisor = 2
 )
 
 type Hop struct {
@@ -39,7 +43,7 @@ func (h *Hop) UnmarshalJSON(data []byte) error {
 		Latency float64 `json:"latency"`
 	}{Alias: (*Alias)(h)}
 	if err := json.Unmarshal(data, aux); err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal hop: %v", err)
 	}
 	h.Latency = time.Duration(aux.Latency * float64(time.Millisecond))
 	return nil
@@ -70,7 +74,7 @@ func (d *DNSResult) UnmarshalJSON(data []byte) error {
 		Latency float64 `json:"latency"`
 	}{Alias: (*Alias)(d)}
 	if err := json.Unmarshal(data, aux); err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal DNS result: %v", err)
 	}
 	d.Latency = time.Duration(aux.Latency * float64(time.Millisecond))
 	return nil
@@ -137,7 +141,7 @@ func Run(ctx context.Context, backend DiagBackend, target string, cfg *DiagConfi
 			}
 		} else {
 			_, warmLatency, _ := backend.ResolveDNS(ctx, target)
-			cached := warmLatency < coldLatency/2
+			cached := warmLatency < coldLatency/dnsCacheThresholdDivisor
 			result.DNS = &DNSResult{
 				Host:    target,
 				IP:      coldIP,

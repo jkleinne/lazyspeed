@@ -7,12 +7,16 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"slices"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
 
 	"github.com/jkleinne/lazyspeed/diag"
 	"github.com/jkleinne/lazyspeed/model"
+	"github.com/jkleinne/lazyspeed/ui"
+	"github.com/showwin/speedtest-go/speedtest"
 	"github.com/spf13/cobra"
 )
 
@@ -103,39 +107,40 @@ func fetchDiagServers(m *model.Model) {
 	}
 }
 
-func runDiag(args []string) {
-	m := model.NewDefaultModel()
-	cfg := diagConfigFromModel(m)
-
-	var target string
-
+// resolveDiagTarget determines the diagnostics target from CLI args, --server flag,
+// or the closest speedtest server. It may call os.Exit(1) on fatal errors.
+func resolveDiagTarget(m *model.Model, args []string) string {
 	if len(args) > 0 {
-		target = args[0]
-	} else if diagServer != "" {
-		fetchDiagServers(m)
-		found := false
-		for _, s := range m.ServerList {
-			if s.ID == diagServer {
-				target = stripPort(s.Host)
-				found = true
-				break
-			}
-		}
-		if !found {
+		return args[0]
+	}
+
+	fetchDiagServers(m)
+
+	if diagServer != "" {
+		idx := slices.IndexFunc(m.ServerList, func(s *speedtest.Server) bool {
+			return s.ID == diagServer
+		})
+		if idx < 0 {
 			fmt.Fprintf(os.Stderr, "Error: server %s not found\n", diagServer)
 			os.Exit(1)
 		}
-	} else {
-		fetchDiagServers(m)
-		if len(m.ServerList) == 0 {
-			fmt.Fprintf(os.Stderr, "Error: no servers found\n")
-			os.Exit(1)
-		}
-		target = stripPort(m.ServerList[0].Host)
-		if diagIsInteractive() {
-			fmt.Fprintf(os.Stderr, "Selected server: %s (%s)\n", m.ServerList[0].Name, m.ServerList[0].Country)
-		}
+		return stripPort(m.ServerList[idx].Host)
 	}
+
+	if len(m.ServerList) == 0 {
+		fmt.Fprintf(os.Stderr, "Error: no servers found\n")
+		os.Exit(1)
+	}
+	if diagIsInteractive() {
+		fmt.Fprintf(os.Stderr, "Selected server: %s (%s)\n", m.ServerList[0].Name, m.ServerList[0].Country)
+	}
+	return stripPort(m.ServerList[0].Host)
+}
+
+func runDiag(args []string) {
+	m := model.NewDefaultModel()
+	cfg := diagConfigFromModel(m)
+	target := resolveDiagTarget(m, args)
 
 	if diagIsInteractive() {
 		fmt.Fprintf(os.Stderr, "Running diagnostics against %s...\n", target)
@@ -154,9 +159,14 @@ func runDiag(args []string) {
 
 	// Persist to history
 	histPath := cfg.Path
-	history, _ := diag.LoadHistory(histPath)
+	history, loadErr := diag.LoadHistory(histPath)
+	if loadErr != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to load diagnostics history: %v\n", loadErr)
+	}
 	history = append(history, result)
-	_ = diag.SaveHistory(histPath, history, cfg.MaxEntries)
+	if saveErr := diag.SaveHistory(histPath, history, cfg.MaxEntries); saveErr != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to save diagnostics history: %v\n", saveErr)
+	}
 
 	// Output
 	if diagJSON {
@@ -232,10 +242,7 @@ func runDiagHistory() {
 	_, _ = fmt.Fprintln(tw, "DATE\tTARGET\tSCORE\tGRADE\tHOPS\tDNS (ms)")
 	for _, r := range entries {
 		dateStr := r.Timestamp.Format("2006-01-02 15:04")
-		targetStr := r.Target
-		if len(targetStr) > diagTargetMaxLen {
-			targetStr = targetStr[:diagTargetMaxLen-3] + "..."
-		}
+		targetStr := ui.Truncate(r.Target, diagTargetMaxLen)
 		dnsMs := "-"
 		if r.DNS != nil {
 			dnsMs = fmt.Sprintf("%.1f", diag.DurationMs(r.DNS.Latency))
@@ -254,11 +261,11 @@ func diagCSVRow(r *diag.DiagResult) []string {
 	dnsCached := ""
 	if r.DNS != nil {
 		dnsMs = fmt.Sprintf("%.3f", diag.DurationMs(r.DNS.Latency))
-		dnsCached = fmt.Sprintf("%v", r.DNS.Cached)
+		dnsCached = strconv.FormatBool(r.DNS.Cached)
 	}
 
-	packetLossPct := diagPacketLossPct(r.Hops)
-	finalLatencyMs := diagFinalHopLatencyMs(r.Hops)
+	packetLossPct := diag.HopPacketLoss(r.Hops)
+	finalLatencyMs := diag.FinalHopLatencyMs(r.Hops)
 
 	return []string{
 		r.Timestamp.Format(time.RFC3339),
@@ -319,28 +326,4 @@ func diagDefaultOutput(r *diag.DiagResult) string {
 		}
 	}
 	return b.String()
-}
-
-// diagPacketLossPct computes the packet loss percentage across hops.
-func diagPacketLossPct(hops []diag.Hop) float64 {
-	if len(hops) == 0 {
-		return 0
-	}
-	var timeouts int
-	for _, h := range hops {
-		if h.Timeout {
-			timeouts++
-		}
-	}
-	return float64(timeouts) / float64(len(hops)) * 100
-}
-
-// diagFinalHopLatencyMs returns the latency of the last non-timeout hop in ms.
-func diagFinalHopLatencyMs(hops []diag.Hop) float64 {
-	for i := len(hops) - 1; i >= 0; i-- {
-		if !hops[i].Timeout {
-			return diag.DurationMs(hops[i].Latency)
-		}
-	}
-	return 0
 }

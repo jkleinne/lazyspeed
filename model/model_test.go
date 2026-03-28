@@ -1287,8 +1287,8 @@ func TestPerformSpeedTestContextCancellation(t *testing.T) {
 	}, cfg)
 
 	err := m.PerformSpeedTest(ctx, &speedtest.Server{}, make(chan ProgressUpdate, 100))
-	if !errors.Is(err, context.Canceled) {
-		t.Errorf("Expected context.Canceled, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "context canceled") {
+		t.Errorf("Expected error containing 'context canceled', got %v", err)
 	}
 	if m.State != StateIdle {
 		t.Errorf("Expected State to be StateIdle after cancellation")

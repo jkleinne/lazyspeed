@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 
 	"github.com/jkleinne/lazyspeed/model"
+	"github.com/showwin/speedtest-go/speedtest"
 	"github.com/spf13/cobra"
 )
 
@@ -73,18 +75,14 @@ func runHeadlessTest() {
 
 	server := m.ServerList[0] // Auto-select fastest by default
 	if runServerID != "" {
-		found := false
-		for _, s := range m.ServerList {
-			if s.ID == runServerID {
-				server = s
-				found = true
-				break
-			}
-		}
-		if !found {
+		idx := slices.IndexFunc(m.ServerList, func(s *speedtest.Server) bool {
+			return s.ID == runServerID
+		})
+		if idx < 0 {
 			fmt.Fprintf(os.Stderr, "Error: server %s not found\n", runServerID)
 			os.Exit(1)
 		}
+		server = m.ServerList[idx]
 	}
 
 	if runIsInteractive() {
@@ -102,7 +100,9 @@ func runHeadlessTest() {
 	}
 
 	// Load history once before the loop so results accumulate correctly
-	_ = m.LoadHistory()
+	if err := m.LoadHistory(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to load history: %v\n", err)
+	}
 
 	var csvWriter *csv.Writer
 	if runCSV {
@@ -114,7 +114,7 @@ func runHeadlessTest() {
 	// (Printing one object per iteration produces invalid JSON when --count > 1.)
 	var jsonResults []*model.SpeedTestResult
 
-	for i := 0; i < runCount; i++ {
+	for i := range runCount {
 		if runCount > 1 && !runJSON && !runCSV {
 			fmt.Printf("\n--- Test %d of %d ---\n", i+1, runCount)
 		}
@@ -129,7 +129,9 @@ func runHeadlessTest() {
 
 		// Persist result to history
 		m.TestHistory = append(m.TestHistory, res)
-		_ = m.SaveHistory() // ignore headless save errors
+		if err := m.SaveHistory(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to save history: %v\n", err)
+		}
 
 		if runJSON {
 			jsonResults = append(jsonResults, res)

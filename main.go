@@ -250,9 +250,14 @@ func (s *speedTest) handleDiagComplete(msg diagCompleteMsg) (tea.Model, tea.Cmd)
 		s.diagResult = msg.result
 		s.viewState = ViewDiagCompact
 		cfg := diagConfigFromModel(s.model)
-		history, _ := diag.LoadHistory(cfg.Path)
+		history, loadErr := diag.LoadHistory(cfg.Path)
+		if loadErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to load diagnostics history: %v\n", loadErr)
+		}
 		history = append(history, msg.result)
-		_ = diag.SaveHistory(cfg.Path, history, cfg.MaxEntries)
+		if saveErr := diag.SaveHistory(cfg.Path, history, cfg.MaxEntries); saveErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to save diagnostics history: %v\n", saveErr)
+		}
 	}
 	return s, nil
 }
@@ -299,33 +304,7 @@ func (s *speedTest) handleServerSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cm
 			s.adjustServerListOffset()
 		}
 	case "enter":
-		if s.cursor < 0 || s.cursor >= len(s.model.ServerList) {
-			s.model.Error = fmt.Errorf("invalid server selection")
-			s.model.State = model.StateIdle
-			s.showHelp = false
-			return s, nil
-		}
-		s.model.State = model.StateTesting
-		s.model.Progress = 0
-		s.model.CurrentPhase = "Starting speed test..."
-		s.model.Error = nil
-
-		ctx, cancel := context.WithTimeout(context.Background(), s.model.TestTimeoutDuration())
-		s.cancelTest = cancel
-
-		s.progressChan = make(chan model.ProgressUpdate)
-		s.errChan = make(chan error, 1)
-		go func() {
-			server := s.model.ServerList[s.cursor]
-			err := s.model.PerformSpeedTest(ctx, server, s.progressChan)
-			s.errChan <- err
-			close(s.progressChan)
-		}()
-		s.showHelp = false
-		return s, tea.Batch(
-			s.spinner.Tick,
-			waitForProgress(s.progressChan, s.errChan),
-		)
+		return s.startSpeedTest()
 	}
 	return s, nil
 }
@@ -470,58 +449,97 @@ func (s *speedTest) View() string {
 		}
 
 	case ViewMain:
-		switch s.model.State {
-		case model.StateAwaitingServers:
-			b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, 0))
-			b.WriteString("\n\n")
-
-		case model.StateSelectingServer:
-			b.WriteString(ui.RenderServerSelection(s.model.ServerList, ui.Viewport{
-				Width:  s.model.Width,
-				Height: s.model.Height,
-				Offset: s.serverListOffset,
-				Cursor: s.cursor,
-			}))
-
-		case model.StateTesting:
-			b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, s.model.Progress))
-			b.WriteString("\n\n")
-
-		case model.StateExporting, model.StateIdle:
-			if s.model.Results != nil || len(s.model.TestHistory) > 0 {
-				b.WriteString(ui.RenderResults(s.model.TestHistory, ui.Viewport{
-					Width:  s.model.Width,
-					Height: s.model.Height,
-					Offset: s.historyOffset,
-				}))
-				b.WriteString("\n")
-			}
-
-			if s.model.Error != nil {
-				b.WriteString("\n")
-				b.WriteString(ui.RenderError(s.model.Error, s.model.Width))
-			}
-
-			if s.model.Warning != "" {
-				b.WriteString("\n")
-				b.WriteString(ui.RenderWarning(s.model.Warning, s.model.Width))
-			}
-
-			if s.model.State == model.StateExporting {
-				b.WriteString("\n")
-				b.WriteString(ui.RenderExportPrompt(s.model.Width))
-			} else if s.model.ExportMessage != "" {
-				b.WriteString("\n")
-				b.WriteString(ui.RenderExportMessage(s.model.ExportMessage, s.model.Width))
-			}
-
-			if s.showHelp {
-				b.WriteString(ui.RenderHelp(s.model.Width, s.model.Results != nil))
-			}
-		}
+		b.WriteString(s.renderMainView())
 	}
 
 	b.WriteString("\n")
+	return b.String()
+}
+
+func (s *speedTest) startSpeedTest() (tea.Model, tea.Cmd) {
+	if s.cursor < 0 || s.cursor >= len(s.model.ServerList) {
+		s.model.Error = fmt.Errorf("invalid server selection")
+		s.model.State = model.StateIdle
+		s.showHelp = false
+		return s, nil
+	}
+
+	s.model.State = model.StateTesting
+	s.model.Progress = 0
+	s.model.CurrentPhase = "Starting speed test..."
+	s.model.Error = nil
+
+	ctx, cancel := context.WithTimeout(context.Background(), s.model.TestTimeoutDuration())
+	s.cancelTest = cancel
+
+	s.progressChan = make(chan model.ProgressUpdate)
+	s.errChan = make(chan error, 1)
+	go func() {
+		server := s.model.ServerList[s.cursor]
+		err := s.model.PerformSpeedTest(ctx, server, s.progressChan)
+		s.errChan <- err
+		close(s.progressChan)
+	}()
+	s.showHelp = false
+	return s, tea.Batch(
+		s.spinner.Tick,
+		waitForProgress(s.progressChan, s.errChan),
+	)
+}
+
+func (s *speedTest) renderMainView() string {
+	var b strings.Builder
+
+	switch s.model.State {
+	case model.StateAwaitingServers:
+		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, 0))
+		b.WriteString("\n\n")
+
+	case model.StateSelectingServer:
+		b.WriteString(ui.RenderServerSelection(s.model.ServerList, ui.Viewport{
+			Width:  s.model.Width,
+			Height: s.model.Height,
+			Offset: s.serverListOffset,
+			Cursor: s.cursor,
+		}))
+
+	case model.StateTesting:
+		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, s.model.Progress))
+		b.WriteString("\n\n")
+
+	case model.StateExporting, model.StateIdle:
+		if s.model.Results != nil || len(s.model.TestHistory) > 0 {
+			b.WriteString(ui.RenderResults(s.model.TestHistory, ui.Viewport{
+				Width:  s.model.Width,
+				Height: s.model.Height,
+				Offset: s.historyOffset,
+			}))
+			b.WriteString("\n")
+		}
+
+		if s.model.Error != nil {
+			b.WriteString("\n")
+			b.WriteString(ui.RenderError(s.model.Error, s.model.Width))
+		}
+
+		if s.model.Warning != "" {
+			b.WriteString("\n")
+			b.WriteString(ui.RenderWarning(s.model.Warning, s.model.Width))
+		}
+
+		if s.model.State == model.StateExporting {
+			b.WriteString("\n")
+			b.WriteString(ui.RenderExportPrompt(s.model.Width))
+		} else if s.model.ExportMessage != "" {
+			b.WriteString("\n")
+			b.WriteString(ui.RenderExportMessage(s.model.ExportMessage, s.model.Width))
+		}
+
+		if s.showHelp {
+			b.WriteString(ui.RenderHelp(s.model.Width, s.model.Results != nil))
+		}
+	}
+
 	return b.String()
 }
 
@@ -568,12 +586,15 @@ func migrateHistoryIfNeeded() {
 	// Copy legacy → new path
 	data, err := os.ReadFile(legacy)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to read legacy history for migration: %v\n", err)
 		return
 	}
 	if err := os.MkdirAll(filepath.Dir(newPath), 0700); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to create directory for history migration: %v\n", err)
 		return
 	}
 	if err := os.WriteFile(newPath, data, 0600); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to write migrated history: %v\n", err)
 		return
 	}
 	// Remove the legacy file

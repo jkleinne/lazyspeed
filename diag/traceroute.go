@@ -56,7 +56,7 @@ func (b *RealDiagBackend) Traceroute(ctx context.Context, target string, maxHops
 	}
 
 	// Fall back to UDP on permission error
-	if os.IsPermission(err) || isPermissionError(err) {
+	if isPermissionError(err) {
 		hops, udpErr := udpTraceroute(ctx, destIP, maxHops)
 		if udpErr != nil {
 			return nil, "", fmt.Errorf("failed to run traceroute: %v", udpErr)
@@ -144,7 +144,7 @@ func readICMPResponse(conn *icmp.PacketConn, start time.Time, hop *Hop, validTyp
 func icmpTraceroute(ctx context.Context, destIP string, maxHops int) ([]Hop, error) {
 	conn, err := icmp.ListenPacket("udp4", "")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open ICMP listener: %v", err)
 	}
 	defer func() { _ = conn.Close() }()
 
