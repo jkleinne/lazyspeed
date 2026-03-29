@@ -1977,7 +1977,7 @@ func TestDiagnosticsConfigTildePath(t *testing.T) {
 
 func TestServersList(t *testing.T) {
 	m := NewDefaultModel()
-	m.Servers.servers = speedtest.Servers{
+	m.Servers.SetRaw(speedtest.Servers{
 		&speedtest.Server{
 			ID: "1", Name: "Server A", Sponsor: "Sponsor A",
 			Country: "US", Host: "a.example.com:8080",
@@ -1988,7 +1988,7 @@ func TestServersList(t *testing.T) {
 			Country: "DE", Host: "b.example.com",
 			Latency: 25 * time.Millisecond, Distance: 500.0,
 		},
-	}
+	})
 
 	servers := m.Servers.List()
 	if len(servers) != 2 {
@@ -2017,11 +2017,11 @@ func TestServersListEmpty(t *testing.T) {
 
 func TestFindServerIndex(t *testing.T) {
 	m := NewDefaultModel()
-	m.Servers.servers = speedtest.Servers{
+	m.Servers.SetRaw(speedtest.Servers{
 		&speedtest.Server{ID: "10"},
 		&speedtest.Server{ID: "20"},
 		&speedtest.Server{ID: "30"},
-	}
+	})
 
 	idx, found := m.Servers.FindIndex("20")
 	if !found || idx != 1 {
