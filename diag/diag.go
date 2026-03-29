@@ -160,8 +160,8 @@ func Run(ctx context.Context, backend DiagBackend, target string, cfg *DiagConfi
 				Cached:  false,
 			}
 		} else {
-			_, warmLatency, _ := backend.ResolveDNS(ctx, target)
-			cached := warmLatency < coldLatency/dnsCacheThresholdDivisor
+			_, warmLatency, warmErr := backend.ResolveDNS(ctx, target)
+			cached := warmErr == nil && warmLatency < coldLatency/dnsCacheThresholdDivisor
 			result.DNS = &DNSResult{
 				Host:    target,
 				IP:      coldIP,

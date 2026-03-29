@@ -373,6 +373,35 @@ func TestConfigFromModel(t *testing.T) {
 	}
 }
 
+func TestRunWarmDNSFailureSetsCachedFalse(t *testing.T) {
+	callCount := 0
+	backend := &mockDiagBackend{
+		TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
+			return []Hop{
+				{Number: 1, IP: "10.0.0.1", Host: "gw", Latency: 1 * time.Millisecond},
+			}, MethodICMP, nil
+		},
+		ResolveDNSFn: func(_ context.Context, _ string) (string, time.Duration, error) {
+			callCount++
+			if callCount == 1 {
+				return testExampleIP, 15 * time.Millisecond, nil
+			}
+			return "", 0, fmt.Errorf("warm DNS lookup failed")
+		},
+	}
+
+	result, err := Run(context.Background(), backend, "example.com", DefaultDiagConfig())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.DNS == nil {
+		t.Fatal("expected DNS result")
+	}
+	if result.DNS.Cached {
+		t.Error("expected cached=false when warm DNS resolution fails, got true")
+	}
+}
+
 func TestIsIP(t *testing.T) {
 	tests := []struct {
 		input string
