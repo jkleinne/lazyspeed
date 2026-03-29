@@ -177,7 +177,7 @@ func defaultConfigPath() (string, error) {
 func LegacyHistoryPath() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to resolve legacy history path: %v", err)
 	}
 	return filepath.Join(homeDir, ".lazyspeed_history.json"), nil
 }
