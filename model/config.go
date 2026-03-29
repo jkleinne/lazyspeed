@@ -102,8 +102,8 @@ func (c *Config) PingCount() int {
 	return defaultPingCount
 }
 
-// ExportDir returns the configured export directory, falling back to the
-// current working directory if none is configured.
+// ExportDir resolves the configured export directory, creating it if it does
+// not exist. Falls back to the current working directory if none is configured.
 func (c *Config) ExportDir() (string, error) {
 	if c.Export.Directory != "" {
 		dir := c.Export.Directory

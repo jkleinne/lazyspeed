@@ -68,12 +68,11 @@ func TestPingCount(t *testing.T) {
 
 func TestExportDir(t *testing.T) {
 	tests := []struct {
-		name      string
-		directory string
-		wantCWD   bool
+		name    string
+		wantCWD bool
 	}{
-		{"empty config uses CWD", "", true},
-		{"configured directory", "", false}, // uses tmpDir, set below
+		{"empty config uses CWD", true},
+		{"configured directory", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
