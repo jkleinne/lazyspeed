@@ -157,15 +157,8 @@ func runDiag(args []string) {
 		os.Exit(1)
 	}
 
-	// Persist to history
-	histPath := cfg.Path
-	history, loadErr := diag.LoadHistory(histPath)
-	if loadErr != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to load diagnostics history: %v\n", loadErr)
-	}
-	history = append(history, result)
-	if saveErr := diag.SaveHistory(histPath, history, cfg.MaxEntries); saveErr != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to save diagnostics history: %v\n", saveErr)
+	if err := diag.AppendHistory(cfg.Path, result, cfg.MaxEntries); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to persist diagnostics history: %v\n", err)
 	}
 
 	// Output

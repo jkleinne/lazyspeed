@@ -1,6 +1,7 @@
 package diag
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -102,6 +103,47 @@ func TestSaveHistoryNilSlice(t *testing.T) {
 	}
 	if len(loaded) != 0 {
 		t.Errorf("expected 0 entries for nil slice, got %d", len(loaded))
+	}
+}
+
+func TestAppendHistory(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "diag_history.json")
+
+	// Append to non-existent file creates it
+	result := &DiagResult{Target: "example.com", Method: MethodICMP}
+	if err := AppendHistory(path, result, 5); err != nil {
+		t.Fatalf("AppendHistory on new file: %v", err)
+	}
+
+	history, err := LoadHistory(path)
+	if err != nil {
+		t.Fatalf("LoadHistory: %v", err)
+	}
+	if len(history) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(history))
+	}
+	if history[0].Target != "example.com" {
+		t.Errorf("target = %q, want %q", history[0].Target, "example.com")
+	}
+
+	// Append respects maxEntries
+	for i := range 6 {
+		r := &DiagResult{Target: fmt.Sprintf("host-%d", i), Method: MethodUDP}
+		if err := AppendHistory(path, r, 5); err != nil {
+			t.Fatalf("AppendHistory iteration %d: %v", i, err)
+		}
+	}
+
+	history, err = LoadHistory(path)
+	if err != nil {
+		t.Fatalf("LoadHistory: %v", err)
+	}
+	if len(history) != 5 {
+		t.Errorf("expected 5 entries (maxEntries), got %d", len(history))
+	}
+	if history[4].Target != "host-5" {
+		t.Errorf("last entry target = %q, want %q", history[4].Target, "host-5")
 	}
 }
 

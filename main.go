@@ -250,13 +250,8 @@ func (s *speedTest) handleDiagComplete(msg diagCompleteMsg) (tea.Model, tea.Cmd)
 		s.diagResult = msg.result
 		s.viewState = ViewDiagCompact
 		cfg := diagConfigFromModel(s.model)
-		history, loadErr := diag.LoadHistory(cfg.Path)
-		if loadErr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to load diagnostics history: %v\n", loadErr)
-		}
-		history = append(history, msg.result)
-		if saveErr := diag.SaveHistory(cfg.Path, history, cfg.MaxEntries); saveErr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to save diagnostics history: %v\n", saveErr)
+		if err := diag.AppendHistory(cfg.Path, msg.result, cfg.MaxEntries); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to persist diagnostics history: %v\n", err)
 		}
 	}
 	return s, nil

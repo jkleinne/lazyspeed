@@ -23,6 +23,16 @@ func LoadHistory(path string) ([]*DiagResult, error) {
 	return results, nil
 }
 
+// AppendHistory loads existing history, appends the result, and saves back.
+func AppendHistory(path string, result *DiagResult, maxEntries int) error {
+	history, err := LoadHistory(path)
+	if err != nil {
+		return fmt.Errorf("failed to load history for append: %v", err)
+	}
+	history = append(history, result)
+	return SaveHistory(path, history, maxEntries)
+}
+
 func SaveHistory(path string, results []*DiagResult, maxEntries int) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return fmt.Errorf("failed to create diagnostics directory: %v", err)
