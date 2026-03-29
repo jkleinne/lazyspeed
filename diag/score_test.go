@@ -84,6 +84,22 @@ func TestComputeScore(t *testing.T) {
 			minScore:      50,
 			maxScore:      74,
 		},
+		{
+			name: "DNS error excludes DNS from score like nil DNS",
+			result: &DiagResult{
+				Hops: []Hop{
+					{Number: 1, Latency: 10 * time.Millisecond},
+					{Number: 2, Latency: 15 * time.Millisecond},
+				},
+				DNS: &DNSResult{
+					Host:  "example.com",
+					Error: "dns resolution failed",
+				},
+			},
+			expectedGrade: "A",
+			minScore:      90,
+			maxScore:      100,
+		},
 	}
 
 	for _, tt := range tests {

@@ -41,7 +41,7 @@ func ComputeScore(result *DiagResult) QualityScore {
 	packetLossScore := normalizeMetric(packetLossPct, packetLossExcellent, packetLossTerrible)
 
 	var composite float64
-	if result.DNS != nil {
+	if result.DNS != nil && result.DNS.Error == "" {
 		dnsMs := DurationMs(result.DNS.Latency)
 		dnsScore := normalizeMetric(dnsMs, dnsExcellent, dnsTerrible)
 		composite = latencyScore*weightLatency +
