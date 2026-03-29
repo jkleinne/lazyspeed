@@ -567,6 +567,7 @@ func exportCmd(result *model.SpeedTestResult, format string, m *model.Model) tea
 func migrateHistoryIfNeeded() {
 	legacy, err := model.LegacyHistoryPath()
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to resolve legacy history path: %v\n", err)
 		return
 	}
 	// Check if the legacy file exists
@@ -593,7 +594,9 @@ func migrateHistoryIfNeeded() {
 		return
 	}
 	// Remove the legacy file
-	_ = os.Remove(legacy)
+	if err := os.Remove(legacy); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to remove legacy history file: %v\n", err)
+	}
 	fmt.Fprintf(os.Stderr, "Info: migrated history from %s to %s\n", legacy, newPath)
 }
 
