@@ -12,7 +12,7 @@ import (
 
 const (
 	defaultMaxEntries   = 50
-	defaultPingCount    = 10
+	defaultPingCount    = 1
 	defaultFetchTimeout = 30  // seconds
 	defaultTestTimeout  = 120 // seconds
 

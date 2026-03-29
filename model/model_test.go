@@ -385,8 +385,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.History.MaxEntries != 50 {
 		t.Errorf("Expected default max entries 50, got %d", cfg.History.MaxEntries)
 	}
-	if cfg.Test.PingCount != 10 {
-		t.Errorf("Expected default ping count 10, got %d", cfg.Test.PingCount)
+	if cfg.Test.PingCount != 1 {
+		t.Errorf("Expected default ping count 1, got %d", cfg.Test.PingCount)
 	}
 	if cfg.History.Path == "" {
 		t.Errorf("Expected non-empty default history path")
@@ -479,8 +479,8 @@ func TestLoadConfigTimeouts(t *testing.T) {
 	if cfg.Test.TestTimeout != 60 {
 		t.Errorf("Expected test_timeout 60, got %d", cfg.Test.TestTimeout)
 	}
-	if cfg.Test.PingCount != 10 {
-		t.Errorf("Expected default ping_count 10, got %d", cfg.Test.PingCount)
+	if cfg.Test.PingCount != 1 {
+		t.Errorf("Expected default ping_count 1, got %d", cfg.Test.PingCount)
 	}
 }
 
@@ -1693,14 +1693,13 @@ func TestMeasurePingObserverCalled(t *testing.T) {
 	}
 
 	type observation struct {
-		iteration int
-		total     int
-		ping      float64
-		jitter    float64
+		pingNum int
+		ping    float64
+		jitter  float64
 	}
 	var observations []observation
-	observer := func(i, total int, ping, jitter float64) {
-		observations = append(observations, observation{i, total, ping, jitter})
+	observer := func(pingNum int, ping, jitter float64) {
+		observations = append(observations, observation{pingNum, ping, jitter})
 	}
 
 	ctx := context.Background()
@@ -1711,13 +1710,13 @@ func TestMeasurePingObserverCalled(t *testing.T) {
 	if len(observations) != 2 {
 		t.Fatalf("observer called %d times, want 2", len(observations))
 	}
-	// First ping: iteration=1, jitter=0 (only one sample)
-	if observations[0].iteration != 1 || observations[0].jitter != 0 {
-		t.Errorf("obs[0] = %+v, want iteration=1 jitter=0", observations[0])
+	// First ping: pingNum=1, jitter=0 (only one sample)
+	if observations[0].pingNum != 1 || observations[0].jitter != 0 {
+		t.Errorf("obs[0] = %+v, want pingNum=1 jitter=0", observations[0])
 	}
-	// Second ping: iteration=2, jitter=|14-10|=4
-	if observations[1].iteration != 2 || observations[1].jitter != 4 {
-		t.Errorf("obs[1] = %+v, want iteration=2 jitter=4", observations[1])
+	// Second ping: pingNum=2, jitter=|14-10|=4
+	if observations[1].pingNum != 2 || observations[1].jitter != 4 {
+		t.Errorf("obs[1] = %+v, want pingNum=2 jitter=4", observations[1])
 	}
 }
 
@@ -1910,7 +1909,7 @@ func TestLoadConfigZeroAndNegativeValues(t *testing.T) {
 			name:       "zero ping_count falls back to default",
 			yaml:       "test:\n  ping_count: 0\n",
 			checkField: "PingCount",
-			wantValue:  10,
+			wantValue:  1,
 		},
 	}
 
