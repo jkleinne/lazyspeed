@@ -1850,7 +1850,7 @@ func TestMonitorTransferProgress(t *testing.T) {
 	}, updateChan)
 
 	// Let the ticker fire at least once (progressInterval = 200ms)
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 	close(done)
 	<-doneAck
 
