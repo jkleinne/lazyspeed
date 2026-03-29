@@ -544,7 +544,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		updateChan)
 	if err != nil {
 		m.State = StateIdle
-		return err
+		return fmt.Errorf("failed to measure download speed: %v", err)
 	}
 	sendUpdate(progressDownloadDone, fmt.Sprintf("Download complete: %.2f Mbps", downloadSpeed), updateChan)
 
@@ -560,7 +560,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		updateChan)
 	if err != nil {
 		m.State = StateIdle
-		return err
+		return fmt.Errorf("failed to measure upload speed: %v", err)
 	}
 	sendUpdate(progressUploadDone, fmt.Sprintf("Upload complete: %.2f Mbps", uploadSpeed), updateChan)
 
@@ -649,7 +649,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		}
 		callProgressFn(opts.ProgressFn, "Testing download...")
 		if err := m.backend.DownloadTest(server); err != nil {
-			return nil, fmt.Errorf("download test failed: %v", err)
+			return nil, fmt.Errorf("failed to measure download speed: %v", err)
 		}
 		downloadSpeed = float64(server.DLSpeed) / bytesPerMbit
 		callProgressFn(opts.ProgressFn, fmt.Sprintf("Download: %.2f Mbps", downloadSpeed))
@@ -661,7 +661,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		}
 		callProgressFn(opts.ProgressFn, "Testing upload...")
 		if err := m.backend.UploadTest(server); err != nil {
-			return nil, fmt.Errorf("upload test failed: %v", err)
+			return nil, fmt.Errorf("failed to measure upload speed: %v", err)
 		}
 		uploadSpeed = float64(server.ULSpeed) / bytesPerMbit
 		callProgressFn(opts.ProgressFn, fmt.Sprintf("Upload: %.2f Mbps", uploadSpeed))
