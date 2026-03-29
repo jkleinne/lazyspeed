@@ -12,6 +12,8 @@ import (
 	"github.com/muesli/termenv"
 )
 
+var testTimestamp = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+
 func TestMain(m *testing.M) {
 	// Ensure deterministic rendering for tests regardless of terminal
 	lipgloss.SetHasDarkBackground(true)
@@ -105,7 +107,7 @@ func TestRenderResults(t *testing.T) {
 			Jitter:        2.1,
 			ServerName:    "Test Server",
 			ServerCountry: "US",
-			Timestamp:     time.Now(),
+			Timestamp:     testTimestamp,
 		},
 	}
 	res = RenderResults(m.TestHistory, Viewport{Width: 100})
@@ -126,7 +128,7 @@ func TestRenderResults(t *testing.T) {
 		Distance:      42.5,
 		UserIP:        "1.1.1.1",
 		UserISP:       "Cloudflare",
-		Timestamp:     time.Now(),
+		Timestamp:     testTimestamp,
 	})
 	res = RenderResults(m.TestHistory, Viewport{Width: 100})
 	if !strings.Contains(res, "Latest Test Results:") {
@@ -382,7 +384,7 @@ func TestRenderResultsManyEntries(t *testing.T) {
 			Jitter:        1.0,
 			ServerName:    "TestServer",
 			ServerCountry: "US",
-			Timestamp:     time.Now(),
+			Timestamp:     testTimestamp,
 		}
 	}
 
@@ -404,7 +406,7 @@ func TestRenderResultsPagination(t *testing.T) {
 			Jitter:        1.0,
 			ServerName:    "TestServer",
 			ServerCountry: "US",
-			Timestamp:     time.Now(),
+			Timestamp:     testTimestamp,
 		}
 	}
 
@@ -429,7 +431,7 @@ func TestRenderResultsNoPaginationSmallHistory(t *testing.T) {
 			Jitter:        1.0,
 			ServerName:    "TestServer",
 			ServerCountry: "US",
-			Timestamp:     time.Now(),
+			Timestamp:     testTimestamp,
 		}
 	}
 
@@ -451,7 +453,7 @@ func TestRenderResultsWithHistoryOffset(t *testing.T) {
 			Jitter:        1.0,
 			ServerName:    fmt.Sprintf("Server%d", i),
 			ServerCountry: "US",
-			Timestamp:     time.Now(),
+			Timestamp:     testTimestamp,
 		}
 	}
 	res := RenderResults(m.TestHistory, Viewport{Width: 120, Height: m.Height, Offset: 3})
@@ -472,7 +474,7 @@ func TestRenderResultsHistoryOffsetClamped(t *testing.T) {
 			Jitter:        1.0,
 			ServerName:    "TestServer",
 			ServerCountry: "US",
-			Timestamp:     time.Now(),
+			Timestamp:     testTimestamp,
 		}
 	}
 	res := RenderResults(m.TestHistory, Viewport{Width: 120, Height: m.Height, Offset: 999})

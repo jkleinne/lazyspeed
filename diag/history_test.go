@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+var testTimestamp = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+
 func TestLoadHistoryMissingFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nonexistent.json")
 	results, err := LoadHistory(path)
@@ -29,7 +31,7 @@ func TestSaveAndLoadHistory(t *testing.T) {
 			Method:    MethodUDP,
 			Hops:      []Hop{{Number: 1, IP: "10.0.0.1", Host: "gw", Latency: 5 * time.Millisecond}},
 			Quality:   QualityScore{Score: 85, Grade: "B", Label: "Good for most activities"},
-			Timestamp: time.Now(),
+			Timestamp: testTimestamp,
 		},
 	}
 
@@ -56,7 +58,7 @@ func TestSaveHistoryRetention(t *testing.T) {
 	for i := 0; i < 25; i++ {
 		results = append(results, &DiagResult{
 			Target:    "target",
-			Timestamp: time.Now().Add(time.Duration(i) * time.Minute),
+			Timestamp: testTimestamp.Add(time.Duration(i) * time.Minute),
 		})
 	}
 
@@ -75,7 +77,7 @@ func TestSaveHistoryRetention(t *testing.T) {
 
 func TestSaveHistoryMaxEntriesZero(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "diagnostics.json")
-	results := []*DiagResult{{Target: "example.com", Timestamp: time.Now()}}
+	results := []*DiagResult{{Target: "example.com", Timestamp: testTimestamp}}
 
 	if err := SaveHistory(path, results, 0); err != nil {
 		t.Fatalf("save failed: %v", err)
@@ -149,7 +151,7 @@ func TestAppendHistory(t *testing.T) {
 
 func TestSaveHistoryPermissions(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "diagnostics.json")
-	results := []*DiagResult{{Target: "test", Timestamp: time.Now()}}
+	results := []*DiagResult{{Target: "test", Timestamp: testTimestamp}}
 
 	if err := SaveHistory(path, results, 20); err != nil {
 		t.Fatalf("save failed: %v", err)

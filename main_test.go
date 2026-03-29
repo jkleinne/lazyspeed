@@ -17,6 +17,8 @@ import (
 	"github.com/showwin/speedtest-go/speedtest"
 )
 
+var testTimestamp = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+
 // noopBackend satisfies model.Backend with no-op methods for tests that
 // spawn goroutines calling PerformSpeedTest.
 type noopBackend struct{}
@@ -188,7 +190,7 @@ func TestView(t *testing.T) {
 
 func TestUpdateExportKeyOpensPrompt(t *testing.T) {
 	m := model.NewDefaultModel()
-	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: time.Now()}
+	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
 	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
@@ -214,7 +216,7 @@ func TestUpdateExportKeyNoOpWithoutResult(t *testing.T) {
 
 func TestUpdateExportEscCancels(t *testing.T) {
 	m := model.NewDefaultModel()
-	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: time.Now()}
+	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
 	m.State = model.StateExporting
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
@@ -252,7 +254,7 @@ func TestUpdateExportDoneMsgError(t *testing.T) {
 
 func TestViewExportPrompt(t *testing.T) {
 	m := model.NewDefaultModel()
-	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: time.Now()}
+	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
 	m.TestHistory = []*model.SpeedTestResult{m.Results}
 	m.State = model.StateExporting
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
@@ -265,7 +267,7 @@ func TestViewExportPrompt(t *testing.T) {
 
 func TestViewExportMessage(t *testing.T) {
 	m := model.NewDefaultModel()
-	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: time.Now()}
+	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
 	m.TestHistory = []*model.SpeedTestResult{m.Results}
 	m.ExportMessage = "Saved to /tmp/lazyspeed_result.json"
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
@@ -642,7 +644,7 @@ func TestCancelTestIfRunning(t *testing.T) {
 
 func TestUpdateExportJKey(t *testing.T) {
 	m := model.NewDefaultModel()
-	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: time.Now()}
+	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
 	m.State = model.StateExporting
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
@@ -659,7 +661,7 @@ func TestUpdateExportJKey(t *testing.T) {
 
 func TestUpdateExportCKey(t *testing.T) {
 	m := model.NewDefaultModel()
-	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: time.Now()}
+	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
 	m.State = model.StateExporting
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
@@ -677,7 +679,7 @@ func TestUpdateExportCKey(t *testing.T) {
 func TestViewWarning(t *testing.T) {
 	m := model.NewDefaultModel()
 	m.Warning = "some warning"
-	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: time.Now()}
+	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
 	m.TestHistory = []*model.SpeedTestResult{m.Results}
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
@@ -746,7 +748,7 @@ func TestViewResultsDisplay(t *testing.T) {
 			UploadSpeed:   45.00,
 			Ping:          10.0,
 			ServerName:    "Test Server",
-			Timestamp:     time.Now(),
+			Timestamp:     testTimestamp,
 		}
 		m.TestHistory = []*model.SpeedTestResult{m.Results}
 		s := speedTest{model: m, spinner: ui.DefaultSpinner}
@@ -767,7 +769,7 @@ func TestViewResultsDisplay(t *testing.T) {
 			UploadSpeed:   45.00,
 			Ping:          10.0,
 			ServerName:    "Test Server",
-			Timestamp:     time.Now(),
+			Timestamp:     testTimestamp,
 		}
 		m.TestHistory = []*model.SpeedTestResult{m.Results}
 		s := speedTest{model: m, spinner: ui.DefaultSpinner, showHelp: true}
@@ -956,7 +958,7 @@ func TestHistoryScrollKeys(t *testing.T) {
 	for i := range m.TestHistory {
 		m.TestHistory[i] = &model.SpeedTestResult{
 			DownloadSpeed: float64(100 + i),
-			Timestamp:     time.Now(),
+			Timestamp:     testTimestamp,
 		}
 	}
 	m.Results = m.TestHistory[len(m.TestHistory)-1]
@@ -1842,7 +1844,7 @@ func TestWindowResizeDuringTest(t *testing.T) {
 
 func TestWindowResizeTiny(t *testing.T) {
 	m := model.NewDefaultModel()
-	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: time.Now()}
+	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
 	m.TestHistory = []*model.SpeedTestResult{m.Results}
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
