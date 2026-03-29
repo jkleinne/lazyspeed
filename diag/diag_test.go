@@ -7,6 +7,8 @@ import (
 	"net"
 	"testing"
 	"time"
+
+	"github.com/jkleinne/lazyspeed/model"
 )
 
 const testExampleIP = "93.184.216.34"
@@ -314,6 +316,60 @@ func TestComputeScoreAllHopsTimeout(t *testing.T) {
 	score := ComputeScore(result)
 	if score.Grade != "F" {
 		t.Errorf("grade = %q, want %q", score.Grade, "F")
+	}
+}
+
+func TestConfigFromModel(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    model.DiagnosticsConfig
+		wantHops int
+		wantTime int
+		wantMax  int
+		wantPath string
+	}{
+		{
+			name:     "all zeros returns defaults",
+			input:    model.DiagnosticsConfig{},
+			wantHops: 30,
+			wantTime: 60,
+			wantMax:  20,
+			wantPath: "",
+		},
+		{
+			name:     "non-zero values override defaults",
+			input:    model.DiagnosticsConfig{MaxHops: 15, Timeout: 45, MaxEntries: 10, Path: "/custom/path.json"},
+			wantHops: 15,
+			wantTime: 45,
+			wantMax:  10,
+			wantPath: "/custom/path.json",
+		},
+		{
+			name:     "partial override",
+			input:    model.DiagnosticsConfig{MaxHops: 20},
+			wantHops: 20,
+			wantTime: 60,
+			wantMax:  20,
+			wantPath: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := ConfigFromModel(tt.input)
+			if cfg.MaxHops != tt.wantHops {
+				t.Errorf("MaxHops = %d, want %d", cfg.MaxHops, tt.wantHops)
+			}
+			if cfg.Timeout != tt.wantTime {
+				t.Errorf("Timeout = %d, want %d", cfg.Timeout, tt.wantTime)
+			}
+			if cfg.MaxEntries != tt.wantMax {
+				t.Errorf("MaxEntries = %d, want %d", cfg.MaxEntries, tt.wantMax)
+			}
+			if cfg.Path != tt.wantPath {
+				t.Errorf("Path = %q, want %q", cfg.Path, tt.wantPath)
+			}
+		})
 	}
 }
 

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net"
 	"time"
+
+	"github.com/jkleinne/lazyspeed/model"
 )
 
 const (
@@ -108,6 +110,24 @@ func DefaultDiagConfig() *DiagConfig {
 		Timeout:    60,
 		MaxEntries: 20,
 	}
+}
+
+// ConfigFromModel creates a DiagConfig by overlaying model diagnostics settings onto defaults.
+func ConfigFromModel(dcfg model.DiagnosticsConfig) *DiagConfig {
+	cfg := DefaultDiagConfig()
+	if dcfg.MaxHops > 0 {
+		cfg.MaxHops = dcfg.MaxHops
+	}
+	if dcfg.Timeout > 0 {
+		cfg.Timeout = dcfg.Timeout
+	}
+	if dcfg.MaxEntries > 0 {
+		cfg.MaxEntries = dcfg.MaxEntries
+	}
+	if dcfg.Path != "" {
+		cfg.Path = dcfg.Path
+	}
+	return cfg
 }
 
 // DurationMs converts a time.Duration to fractional milliseconds.

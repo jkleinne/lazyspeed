@@ -76,24 +76,6 @@ func stripPort(hostPort string) string {
 	return host
 }
 
-// diagConfigFromModel maps model.Config.Diagnostics to diag.DiagConfig.
-func diagConfigFromModel(m *model.Model) *diag.DiagConfig {
-	cfg := diag.DefaultDiagConfig()
-	if m.Config.Diagnostics.MaxHops > 0 {
-		cfg.MaxHops = m.Config.Diagnostics.MaxHops
-	}
-	if m.Config.Diagnostics.Timeout > 0 {
-		cfg.Timeout = m.Config.Diagnostics.Timeout
-	}
-	if m.Config.Diagnostics.MaxEntries > 0 {
-		cfg.MaxEntries = m.Config.Diagnostics.MaxEntries
-	}
-	if m.Config.Diagnostics.Path != "" {
-		cfg.Path = m.Config.Diagnostics.Path
-	}
-	return cfg
-}
-
 // fetchDiagServers fetches the server list, printing status if interactive.
 func fetchDiagServers(m *model.Model) {
 	if diagIsInteractive() {
@@ -139,7 +121,7 @@ func resolveDiagTarget(m *model.Model, args []string) string {
 
 func runDiag(args []string) {
 	m := model.NewDefaultModel()
-	cfg := diagConfigFromModel(m)
+	cfg := diag.ConfigFromModel(m.Config.Diagnostics)
 	target := resolveDiagTarget(m, args)
 
 	if diagIsInteractive() {
@@ -191,7 +173,7 @@ func runDiag(args []string) {
 
 func runDiagHistory() {
 	m := model.NewDefaultModel()
-	cfg := diagConfigFromModel(m)
+	cfg := diag.ConfigFromModel(m.Config.Diagnostics)
 
 	history, err := diag.LoadHistory(cfg.Path)
 	if err != nil {
