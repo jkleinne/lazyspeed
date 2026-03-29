@@ -81,8 +81,7 @@ func LoadConfig() (*Config, error) {
 
 	configPath, err := defaultConfigPath()
 	if err != nil {
-		// Cannot resolve config dir — use defaults silently
-		return cfg, nil
+		return cfg, fmt.Errorf("failed to resolve config path: %v", err)
 	}
 
 	data, err := os.ReadFile(configPath)
