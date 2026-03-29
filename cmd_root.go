@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/csv"
 	"fmt"
 	"os"
 
@@ -16,15 +15,6 @@ var rootCmd = &cobra.Command{
 		// Default behavior is to launch the TUI
 		runTUI()
 	},
-}
-
-// flushCSV flushes the CSV writer and exits on error.
-func flushCSV(w *csv.Writer) {
-	w.Flush()
-	if err := w.Error(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error writing CSV: %v\n", err)
-		os.Exit(1)
-	}
 }
 
 func Execute() {

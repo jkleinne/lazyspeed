@@ -1,13 +1,11 @@
 package main
 
 import (
-	"context"
-	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"os"
 	"text/tabwriter"
 
+	"github.com/jkleinne/lazyspeed/diag"
 	"github.com/jkleinne/lazyspeed/model"
 	"github.com/jkleinne/lazyspeed/ui"
 	"github.com/spf13/cobra"
@@ -49,64 +47,53 @@ func runServers() {
 	m := model.NewDefaultModel()
 
 	fmt.Println("Fetching server list...")
+	fetchServersOrExit(m)
 
-	fetchCtx, fetchCancel := context.WithTimeout(context.Background(), m.FetchTimeoutDuration())
-	defer fetchCancel()
-
-	if err := m.FetchServerList(fetchCtx); err != nil {
-		fmt.Fprintf(os.Stderr, "Error fetching servers: %v\n", err)
-		os.Exit(1)
-	}
-
-	if len(m.ServerList) == 0 {
+	servers := m.Servers()
+	if len(servers) == 0 {
 		fmt.Println("No servers found.")
 		return
 	}
 
 	switch serversFormat {
 	case serversFormatJSON:
-		entries := make([]serverEntry, len(m.ServerList))
-		for i, s := range m.ServerList {
+		entries := make([]serverEntry, len(servers))
+		for i, s := range servers {
 			entries[i] = serverEntry{
 				ID:       s.ID,
 				Name:     s.Name,
 				Sponsor:  s.Sponsor,
 				Country:  s.Country,
-				Latency:  float64(s.Latency.Microseconds()) / 1000.0,
+				Latency:  diag.DurationMs(s.Latency),
 				Distance: s.Distance,
 			}
 		}
-		data, err := json.MarshalIndent(entries, "", "  ")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error serialising servers: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Println(string(data))
+		printJSON(entries)
 
 	case serversFormatCSV:
-		w := csv.NewWriter(os.Stdout)
-		_ = w.Write([]string{"id", "name", "sponsor", "country", "latency_ms", "distance_km"})
-		for _, s := range m.ServerList {
-			_ = w.Write([]string{
+		header := []string{"id", "name", "sponsor", "country", "latency_ms", "distance_km"}
+		rows := make([][]string, len(servers))
+		for i, s := range servers {
+			rows[i] = []string{
 				s.ID,
 				s.Name,
 				s.Sponsor,
 				s.Country,
-				fmt.Sprintf("%.2f", float64(s.Latency.Microseconds())/1000.0),
+				fmt.Sprintf("%.2f", diag.DurationMs(s.Latency)),
 				fmt.Sprintf("%.1f", s.Distance),
-			})
+			}
 		}
-		flushCSV(w)
+		writeCSVRows(header, rows)
 
 	default:
 		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		_, _ = fmt.Fprintln(tw, "ID\tNAME\tSPONSOR\tCOUNTRY\tLATENCY (ms)\tDISTANCE (km)")
-		for _, s := range m.ServerList {
+		for _, s := range servers {
 			name := ui.Truncate(s.Name, serversNameMaxLen)
 			sponsor := ui.Truncate(s.Sponsor, serversSponsorMaxLen)
 			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%.2f\t%.1f\n",
 				s.ID, name, sponsor, s.Country,
-				float64(s.Latency.Microseconds())/1000.0, s.Distance)
+				diag.DurationMs(s.Latency), s.Distance)
 		}
 		_ = tw.Flush()
 	}

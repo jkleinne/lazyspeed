@@ -2,14 +2,11 @@ package main
 
 import (
 	"context"
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"os"
-	"slices"
 
 	"github.com/jkleinne/lazyspeed/model"
-	"github.com/showwin/speedtest-go/speedtest"
 	"github.com/spf13/cobra"
 )
 
@@ -56,34 +53,26 @@ func runIsInteractive() bool {
 func runHeadlessTest() {
 	m := model.NewDefaultModel()
 
-	fetchCtx, fetchCancel := context.WithTimeout(context.Background(), m.FetchTimeoutDuration())
-	defer fetchCancel()
-
 	if runIsInteractive() {
 		fmt.Println("Fetching server list...")
 	}
-
-	if err := m.FetchServerList(fetchCtx); err != nil {
-		fmt.Fprintf(os.Stderr, "Error fetching servers: %v\n", err)
-		os.Exit(1)
-	}
+	fetchServersOrExit(m)
 
 	if len(m.ServerList) == 0 {
 		fmt.Fprintf(os.Stderr, "Error: no servers found\n")
 		os.Exit(1)
 	}
 
-	server := m.ServerList[0] // Auto-select fastest by default
+	serverIdx := 0
 	if runServerID != "" {
-		idx := slices.IndexFunc(m.ServerList, func(s *speedtest.Server) bool {
-			return s.ID == runServerID
-		})
-		if idx < 0 {
+		idx, found := m.FindServerIndex(runServerID)
+		if !found {
 			fmt.Fprintf(os.Stderr, "Error: server %s not found\n", runServerID)
 			os.Exit(1)
 		}
-		server = m.ServerList[idx]
+		serverIdx = idx
 	}
+	server := m.ServerList[serverIdx]
 
 	if runIsInteractive() {
 		fmt.Printf("Selected server: %s (%s)\n", server.Name, server.Country)
@@ -104,15 +93,10 @@ func runHeadlessTest() {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load history: %v\n", err)
 	}
 
-	var csvWriter *csv.Writer
-	if runCSV {
-		csvWriter = csv.NewWriter(os.Stdout)
-		_ = csvWriter.Write(model.SpeedTestCSVHeader)
-	}
-
 	// Collect results for JSON mode so we can emit valid JSON after all runs.
 	// (Printing one object per iteration produces invalid JSON when --count > 1.)
 	var jsonResults []*model.SpeedTestResult
+	var csvRows [][]string
 
 	for i := range runCount {
 		if runCount > 1 && !runJSON && !runCSV {
@@ -133,14 +117,14 @@ func runHeadlessTest() {
 			fmt.Fprintf(os.Stderr, "Warning: failed to save history: %v\n", err)
 		}
 
-		if runJSON {
+		switch {
+		case runJSON:
 			jsonResults = append(jsonResults, res)
-		} else if runCSV {
-			_ = csvWriter.Write(res.CSVRow())
-			flushCSV(csvWriter)
-		} else if runSimple {
+		case runCSV:
+			csvRows = append(csvRows, res.CSVRow())
+		case runSimple:
 			fmt.Println(formatSimpleResult(res))
-		} else {
+		default:
 			fmt.Println(formatDefaultResult(res))
 		}
 	}
@@ -155,6 +139,10 @@ func runHeadlessTest() {
 			os.Exit(1)
 		}
 		fmt.Println(string(data))
+	}
+
+	if runCSV {
+		writeCSVRows(model.SpeedTestCSVHeader, csvRows)
 	}
 }
 
