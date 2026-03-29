@@ -97,14 +97,14 @@ func hopJitter(hops []Hop) float64 {
 		return 0
 	}
 	var mean float64
-	for _, l := range latencies {
-		mean += l
+	for _, latency := range latencies {
+		mean += latency
 	}
 	mean /= float64(len(latencies))
 
 	var variance float64
-	for _, l := range latencies {
-		diff := l - mean
+	for _, latency := range latencies {
+		diff := latency - mean
 		variance += diff * diff
 	}
 	return math.Sqrt(variance / float64(len(latencies)))
