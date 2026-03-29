@@ -276,6 +276,12 @@ func TestRunDNSFailureContinuesTraceroute(t *testing.T) {
 	if len(result.Hops) != 1 {
 		t.Errorf("hop count = %d, want 1", len(result.Hops))
 	}
+	if result.DNS.Error == "" {
+		t.Error("DNS.Error should be set when resolution fails")
+	}
+	if result.DNS.Latency != 0 {
+		t.Errorf("DNS.Latency should be zero on failure, got %v", result.DNS.Latency)
+	}
 }
 
 func TestComputeScoreZeroHops(t *testing.T) {

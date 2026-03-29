@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -2205,5 +2206,29 @@ func TestNewDefaultModelConfigWarning(t *testing.T) {
 	// Should still have a usable config (defaults)
 	if m.Config.History.MaxEntries != defaultMaxEntries {
 		t.Errorf("expected default max_entries %d, got %d", defaultMaxEntries, m.Config.History.MaxEntries)
+	}
+}
+
+func TestMeasurePingAllFailPreservesError(t *testing.T) {
+	pingErr := fmt.Errorf("connection refused")
+	backend := &mockBackend{
+		pingTestFn: func(_ *speedtest.Server, _ func(latency time.Duration)) error {
+			return pingErr
+		},
+	}
+	server := &speedtest.Server{}
+
+	result, err := measurePing(context.Background(), backend, server, 3, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.pings) != 0 {
+		t.Errorf("expected 0 pings, got %d", len(result.pings))
+	}
+	if result.lastErr == nil {
+		t.Error("expected lastErr to be preserved when all pings fail")
+	}
+	if result.lastErr.Error() != "connection refused" {
+		t.Errorf("lastErr = %q, want %q", result.lastErr, "connection refused")
 	}
 }

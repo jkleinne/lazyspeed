@@ -54,6 +54,7 @@ type DNSResult struct {
 	IP      string        `json:"resolved_ip"`
 	Latency time.Duration `json:"latency"`
 	Cached  bool          `json:"cached"`
+	Error   string        `json:"error,omitempty"`
 }
 
 func (d DNSResult) MarshalJSON() ([]byte, error) {
@@ -153,9 +154,8 @@ func Run(ctx context.Context, backend DiagBackend, target string, cfg *DiagConfi
 		coldIP, coldLatency, err := backend.ResolveDNS(ctx, target)
 		if err != nil {
 			result.DNS = &DNSResult{
-				Host:    target,
-				Latency: time.Duration(dnsTerrible) * time.Millisecond,
-				Cached:  false,
+				Host:  target,
+				Error: fmt.Sprintf("dns resolution failed: %v", err),
 			}
 		} else {
 			_, warmLatency, warmErr := backend.ResolveDNS(ctx, target)
