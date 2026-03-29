@@ -1035,6 +1035,7 @@ func TestViewStateValues(t *testing.T) {
 }
 
 func TestUpdateDiagCompleteSuccess(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	m := model.NewDefaultModel()
 	s := speedTest{model: m, spinner: ui.DefaultSpinner, viewState: ViewDiagRunning}
 
@@ -1465,6 +1466,7 @@ func TestHandleServerSelectionKeysEsc(t *testing.T) {
 }
 
 func TestHandleServerSelectionKeysEnterValid(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	m := model.NewModel(&noopBackend{}, model.DefaultConfig())
 	m.State = model.StateSelectingServer
 	m.Servers.SetRaw(speedtest.Servers{&speedtest.Server{ID: "1", Name: "Test"}})
@@ -1625,6 +1627,7 @@ func TestStartNewTestWithServers(t *testing.T) {
 }
 
 func TestFullFlowFetchSelectTestResult(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	// 1. Create model with noopBackend so PerformSpeedTest completes quickly.
 	m := model.NewModel(&noopBackend{}, model.DefaultConfig())
 	m.Servers.SetRaw(speedtest.Servers{
@@ -1677,6 +1680,7 @@ func TestFullFlowFetchSelectTestResult(t *testing.T) {
 }
 
 func TestErrorDuringTestRecovery(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	// 1. Create model in StateTesting with pre-populated history.
 	m := model.NewModel(&noopBackend{}, model.DefaultConfig())
 	m.State = model.StateTesting
@@ -1705,6 +1709,7 @@ func TestErrorDuringTestRecovery(t *testing.T) {
 }
 
 func TestServerFetchFailureDuringIdle(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	m := model.NewDefaultModel()
 	m.History.Entries = makeHistoryEntries(3)
 
@@ -1728,6 +1733,7 @@ func TestServerFetchFailureDuringIdle(t *testing.T) {
 }
 
 func TestServerFetchFailureDuringAwait(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	m := model.NewDefaultModel()
 	m.State = model.StateAwaitingServers
 
