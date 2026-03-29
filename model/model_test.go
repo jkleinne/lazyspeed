@@ -589,6 +589,30 @@ func TestLoadConfigInvalidYAML(t *testing.T) {
 	}
 }
 
+func TestLoadConfigUnreadableFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	configDir := filepath.Join(tmpDir, "lazyspeed")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("could not create config dir: %v", err)
+	}
+	configFile := filepath.Join(configDir, "config.yaml")
+	if err := os.WriteFile(configFile, []byte("test:\n  ping_count: 5\n"), 0000); err != nil {
+		t.Fatalf("could not write config file: %v", err)
+	}
+
+	// Verify the file is actually unreadable (skip if running as root)
+	if _, readErr := os.ReadFile(configFile); readErr == nil {
+		t.Skip("file is readable despite 0000 permissions (running as root?)")
+	}
+
+	_, err := LoadConfig()
+	if err == nil {
+		t.Error("expected error when config file is unreadable, got nil")
+	}
+}
+
 func TestConfigDrivenHistoryPath(t *testing.T) {
 	tmpDir := t.TempDir()
 	customPath := filepath.Join(tmpDir, "custom_history.json")

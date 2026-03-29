@@ -90,7 +90,7 @@ func LoadConfig() (*Config, error) {
 		if os.IsNotExist(err) {
 			return cfg, nil // No config file yet — use defaults
 		}
-		return cfg, nil // Unreadable config — use defaults silently
+		return nil, fmt.Errorf("failed to read config file: %v", err)
 	}
 
 	// Unmarshal into a partial struct and overlay onto defaults so unspecified
