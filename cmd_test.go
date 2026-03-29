@@ -198,8 +198,8 @@ func TestMarshalJSONResultsSingle(t *testing.T) {
 
 func TestMarshalJSONResultsMultiple(t *testing.T) {
 	results := []*model.SpeedTestResult{
-		{DownloadSpeed: 95.12, Ping: 12.40, Timestamp: time.Now()},
-		{DownloadSpeed: 97.44, Ping: 11.90, Timestamp: time.Now()},
+		{DownloadSpeed: 95.12, Ping: 12.40, Timestamp: testTimestamp},
+		{DownloadSpeed: 97.44, Ping: 11.90, Timestamp: testTimestamp},
 	}
 
 	data, err := marshalJSONResults(results)

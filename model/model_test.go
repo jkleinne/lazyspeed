@@ -14,6 +14,8 @@ import (
 	"github.com/showwin/speedtest-go/speedtest"
 )
 
+var testTimestamp = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+
 // mockBackend implements Backend for testing
 type mockBackend struct {
 	fetchUserInfoFn func() (*speedtest.User, error)
@@ -785,7 +787,7 @@ func TestExportResultCSV(t *testing.T) {
 
 func TestExportResultUnknownFormat(t *testing.T) {
 	dir := t.TempDir()
-	result := &SpeedTestResult{Timestamp: time.Now()}
+	result := &SpeedTestResult{Timestamp: testTimestamp}
 
 	_, err := ExportResult(result, "xml", dir)
 	if err == nil {
