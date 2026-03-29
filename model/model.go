@@ -185,7 +185,11 @@ func NewDefaultModel() *Model {
 	if err != nil {
 		cfg = DefaultConfig()
 	}
-	return NewModel(&realBackend{}, cfg)
+	m := NewModel(&realBackend{}, cfg)
+	if err != nil {
+		m.Warning = fmt.Sprintf("could not load config: %v", err)
+	}
+	return m
 }
 
 // FetchTimeoutDuration returns the configured fetch timeout as a time.Duration.

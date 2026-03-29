@@ -2182,3 +2182,26 @@ func TestRunHeadlessFetchUserInfoWarning(t *testing.T) {
 		t.Errorf("Warning should contain cause, got %q", m.Warning)
 	}
 }
+
+func TestNewDefaultModelConfigWarning(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	configDir := filepath.Join(tmpDir, "lazyspeed")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("could not create config dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"),
+		[]byte("history:\n  max_entries: [unclosed\n"), 0644); err != nil {
+		t.Fatalf("could not write config: %v", err)
+	}
+
+	m := NewDefaultModel()
+	if m.Warning == "" {
+		t.Error("expected Warning to be set when LoadConfig fails")
+	}
+	// Should still have a usable config (defaults)
+	if m.Config.History.MaxEntries != defaultMaxEntries {
+		t.Errorf("expected default max_entries %d, got %d", defaultMaxEntries, m.Config.History.MaxEntries)
+	}
+}
