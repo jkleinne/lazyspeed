@@ -150,8 +150,7 @@ type RunOptions struct {
 
 // Model holds all application state for the TUI and speed test orchestration.
 type Model struct {
-	Results      *SpeedTestResult
-	TestHistory  []*SpeedTestResult
+	History      *HistoryStore
 	State        ModelState
 	Progress     float64
 	CurrentPhase string
@@ -159,7 +158,6 @@ type Model struct {
 	Warning      string
 	Width        int
 	Height       int
-	pingResults  []float64 // Used for jitter calculation
 	ServerList   speedtest.Servers
 	backend      Backend
 	Config       *Config
@@ -174,9 +172,9 @@ func NewModel(backend Backend, cfg *Config) *Model {
 		cfg = DefaultConfig()
 	}
 	return &Model{
-		TestHistory: make([]*SpeedTestResult, 0),
-		backend:     backend,
-		Config:      cfg,
+		History: NewHistoryStore(cfg.History),
+		backend: backend,
+		Config:  cfg,
 	}
 }
 
@@ -333,70 +331,6 @@ func callProgressFn(fn func(string), phase string) {
 	}
 }
 
-func (m *Model) historyPath() (string, error) {
-	if m.Config.History.Path != "" {
-		return m.Config.History.Path, nil
-	}
-	return defaultHistoryPath(), nil
-}
-
-func (m *Model) LoadHistory() error {
-	historyPath, err := m.historyPath()
-	if err != nil {
-		return fmt.Errorf("failed to resolve history path: %v", err)
-	}
-
-	data, err := os.ReadFile(historyPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil // No history yet, that's fine
-		}
-		return fmt.Errorf("failed to read history file: %v", err)
-	}
-
-	if err := json.Unmarshal(data, &m.TestHistory); err != nil {
-		return fmt.Errorf("failed to parse history file: %v", err)
-	}
-
-	if len(m.TestHistory) > 0 {
-		m.Results = m.TestHistory[len(m.TestHistory)-1]
-	}
-
-	return nil
-}
-
-func (m *Model) SaveHistory() error {
-	historyPath, err := m.historyPath()
-	if err != nil {
-		return fmt.Errorf("failed to resolve history path: %v", err)
-	}
-
-	// Ensure the parent directory exists
-	if err := os.MkdirAll(filepath.Dir(historyPath), 0700); err != nil {
-		return fmt.Errorf("failed to create history directory: %v", err)
-	}
-
-	maxEntries := defaultMaxEntries
-	if m.Config.History.MaxEntries > 0 {
-		maxEntries = m.Config.History.MaxEntries
-	}
-	if len(m.TestHistory) > maxEntries {
-		m.TestHistory = m.TestHistory[len(m.TestHistory)-maxEntries:]
-	}
-
-	data, err := json.MarshalIndent(m.TestHistory, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to serialize history: %v", err)
-	}
-
-	// 0600: history contains the user's IP address (PII)
-	if err := os.WriteFile(historyPath, data, 0600); err != nil {
-		return fmt.Errorf("failed to write history file: %v", err)
-	}
-
-	return nil
-}
-
 func (m *Model) FetchServerList(ctx context.Context) error {
 	serverList, err := m.backend.FetchServers()
 	if err != nil {
@@ -498,8 +432,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	m.Progress = 0
 	m.Error = nil
 	m.Warning = ""
-	m.Results = nil
-	m.pingResults = make([]float64, 0)
+	m.History.Results = nil
 
 	sendUpdate(progressInit, "Initializing speed test...", updateChan)
 
@@ -535,7 +468,6 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		m.State = StateIdle
 		return fmt.Errorf("failed to measure ping: %v", err)
 	}
-	m.pingResults = pingResult.pings
 	if len(pingResult.pings) == 0 {
 		msg := "all ping measurements failed; ping and jitter are reported as 0"
 		if pingResult.lastErr != nil {
@@ -580,9 +512,8 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 
 	result := buildResult(server, pingResult, downloadSpeed, uploadSpeed, userIP, userISP)
 
-	m.Results = result
-	m.TestHistory = append(m.TestHistory, result)
-	if saveErr := m.SaveHistory(); saveErr != nil {
+	m.History.Append(result)
+	if saveErr := m.History.Save(); saveErr != nil {
 		m.Warning = fmt.Sprintf("failed to save history: %v", saveErr)
 	}
 

@@ -190,7 +190,7 @@ func TestView(t *testing.T) {
 
 func TestUpdateExportKeyOpensPrompt(t *testing.T) {
 	m := model.NewDefaultModel()
-	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
+	m.History.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
 	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
@@ -203,7 +203,7 @@ func TestUpdateExportKeyOpensPrompt(t *testing.T) {
 
 func TestUpdateExportKeyNoOpWithoutResult(t *testing.T) {
 	m := model.NewDefaultModel()
-	// m.Results is nil
+	// m.History.Results is nil
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
 	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
@@ -216,7 +216,7 @@ func TestUpdateExportKeyNoOpWithoutResult(t *testing.T) {
 
 func TestUpdateExportEscCancels(t *testing.T) {
 	m := model.NewDefaultModel()
-	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
+	m.History.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
 	m.State = model.StateExporting
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
@@ -254,8 +254,8 @@ func TestUpdateExportDoneMsgError(t *testing.T) {
 
 func TestViewExportPrompt(t *testing.T) {
 	m := model.NewDefaultModel()
-	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
-	m.TestHistory = []*model.SpeedTestResult{m.Results}
+	m.History.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
+	m.History.Entries = []*model.SpeedTestResult{m.History.Results}
 	m.State = model.StateExporting
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
@@ -267,8 +267,8 @@ func TestViewExportPrompt(t *testing.T) {
 
 func TestViewExportMessage(t *testing.T) {
 	m := model.NewDefaultModel()
-	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
-	m.TestHistory = []*model.SpeedTestResult{m.Results}
+	m.History.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
+	m.History.Entries = []*model.SpeedTestResult{m.History.Results}
 	m.ExportMessage = "Saved to /tmp/lazyspeed_result.json"
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
@@ -412,7 +412,7 @@ func TestUpdateTestComplete(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		m := model.NewDefaultModel()
 		m.State = model.StateTesting
-		m.Results = &model.SpeedTestResult{DownloadSpeed: 100}
+		m.History.Results = &model.SpeedTestResult{DownloadSpeed: 100}
 		s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
 		newModel, _ := s.Update(testComplete{err: errors.New("failed")})
@@ -424,7 +424,7 @@ func TestUpdateTestComplete(t *testing.T) {
 		if newS.model.Error == nil {
 			t.Errorf("Expected Error to be set")
 		}
-		if newS.model.Results != nil {
+		if newS.model.History.Results != nil {
 			t.Errorf("Expected Results to be nil after error")
 		}
 	})
@@ -644,7 +644,7 @@ func TestCancelTestIfRunning(t *testing.T) {
 
 func TestUpdateExportJKey(t *testing.T) {
 	m := model.NewDefaultModel()
-	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
+	m.History.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
 	m.State = model.StateExporting
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
@@ -661,7 +661,7 @@ func TestUpdateExportJKey(t *testing.T) {
 
 func TestUpdateExportCKey(t *testing.T) {
 	m := model.NewDefaultModel()
-	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
+	m.History.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
 	m.State = model.StateExporting
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
@@ -679,8 +679,8 @@ func TestUpdateExportCKey(t *testing.T) {
 func TestViewWarning(t *testing.T) {
 	m := model.NewDefaultModel()
 	m.Warning = "some warning"
-	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
-	m.TestHistory = []*model.SpeedTestResult{m.Results}
+	m.History.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
+	m.History.Entries = []*model.SpeedTestResult{m.History.Results}
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
 	view := s.View()
@@ -743,14 +743,14 @@ func TestUpdateEnterOnEmptyServerList(t *testing.T) {
 func TestViewResultsDisplay(t *testing.T) {
 	t.Run("With results", func(t *testing.T) {
 		m := model.NewDefaultModel()
-		m.Results = &model.SpeedTestResult{
+		m.History.Results = &model.SpeedTestResult{
 			DownloadSpeed: 95.50,
 			UploadSpeed:   45.00,
 			Ping:          10.0,
 			ServerName:    "Test Server",
 			Timestamp:     testTimestamp,
 		}
-		m.TestHistory = []*model.SpeedTestResult{m.Results}
+		m.History.Entries = []*model.SpeedTestResult{m.History.Results}
 		s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
 		view := s.View()
@@ -764,14 +764,14 @@ func TestViewResultsDisplay(t *testing.T) {
 
 	t.Run("With help visible", func(t *testing.T) {
 		m := model.NewDefaultModel()
-		m.Results = &model.SpeedTestResult{
+		m.History.Results = &model.SpeedTestResult{
 			DownloadSpeed: 95.50,
 			UploadSpeed:   45.00,
 			Ping:          10.0,
 			ServerName:    "Test Server",
 			Timestamp:     testTimestamp,
 		}
-		m.TestHistory = []*model.SpeedTestResult{m.Results}
+		m.History.Entries = []*model.SpeedTestResult{m.History.Results}
 		s := speedTest{model: m, spinner: ui.DefaultSpinner, showHelp: true}
 
 		view := s.View()
@@ -804,7 +804,7 @@ func TestInitMethod(t *testing.T) {
 
 	t.Run("Has history", func(t *testing.T) {
 		m := model.NewDefaultModel()
-		m.TestHistory = []*model.SpeedTestResult{{DownloadSpeed: 100}}
+		m.History.Entries = []*model.SpeedTestResult{{DownloadSpeed: 100}}
 		s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
 		cmd := s.Init()
@@ -820,7 +820,7 @@ func TestInitMethod(t *testing.T) {
 
 func TestNewTestKeyResetsCursorAndOffset(t *testing.T) {
 	m := model.NewDefaultModel()
-	m.Results = &model.SpeedTestResult{DownloadSpeed: 100.0}
+	m.History.Results = &model.SpeedTestResult{DownloadSpeed: 100.0}
 	m.ServerList = make(speedtest.Servers, 10)
 	for i := range m.ServerList {
 		m.ServerList[i] = &speedtest.Server{Name: "S"}
@@ -954,14 +954,14 @@ func TestServerSelectionViewportNavigation(t *testing.T) {
 func TestHistoryScrollKeys(t *testing.T) {
 	m := model.NewDefaultModel()
 	m.Height = 30
-	m.TestHistory = make([]*model.SpeedTestResult, 20)
-	for i := range m.TestHistory {
-		m.TestHistory[i] = &model.SpeedTestResult{
+	m.History.Entries = make([]*model.SpeedTestResult, 20)
+	for i := range m.History.Entries {
+		m.History.Entries[i] = &model.SpeedTestResult{
 			DownloadSpeed: float64(100 + i),
 			Timestamp:     testTimestamp,
 		}
 	}
-	m.Results = m.TestHistory[len(m.TestHistory)-1]
+	m.History.Results = m.History.Entries[len(m.History.Entries)-1]
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
 	// Scroll down
@@ -991,7 +991,7 @@ func TestHistoryScrollKeys(t *testing.T) {
 		s = *newModel.(*speedTest)
 	}
 
-	totalRows := len(m.TestHistory) - 1
+	totalRows := len(m.History.Entries) - 1
 	maxVisible := ui.HistoryVisibleRows(m.Height, totalRows)
 	expectedMax := totalRows - maxVisible
 	if s.historyOffset != expectedMax {
@@ -1270,7 +1270,7 @@ func TestViewDiagStates(t *testing.T) {
 
 func TestServerListMsgErrorDuringIdleKeepsState(t *testing.T) {
 	m := model.NewDefaultModel()
-	m.TestHistory = []*model.SpeedTestResult{{DownloadSpeed: 100}}
+	m.History.Entries = []*model.SpeedTestResult{{DownloadSpeed: 100}}
 	// State is StateIdle (background fetch)
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
@@ -1668,7 +1668,7 @@ func TestFullFlowFetchSelectTestResult(t *testing.T) {
 	if s.model.State != model.StateIdle {
 		t.Errorf("Expected StateIdle after testComplete, got %d", s.model.State)
 	}
-	if s.model.Results == nil {
+	if s.model.History.Results == nil {
 		t.Errorf("Expected Results to be non-nil after successful test")
 	}
 }
@@ -1677,8 +1677,8 @@ func TestErrorDuringTestRecovery(t *testing.T) {
 	// 1. Create model in StateTesting with pre-populated history.
 	m := model.NewModel(&noopBackend{}, model.DefaultConfig())
 	m.State = model.StateTesting
-	m.TestHistory = makeHistoryEntries(2)
-	originalHistoryLen := len(m.TestHistory)
+	m.History.Entries = makeHistoryEntries(2)
+	originalHistoryLen := len(m.History.Entries)
 
 	s := &speedTest{model: m, spinner: ui.DefaultSpinner}
 
@@ -1696,14 +1696,14 @@ func TestErrorDuringTestRecovery(t *testing.T) {
 	if !strings.Contains(s.model.Error.Error(), "network timeout") {
 		t.Errorf("Expected error to contain 'network timeout', got %q", s.model.Error.Error())
 	}
-	if len(s.model.TestHistory) != originalHistoryLen {
-		t.Errorf("Expected TestHistory length %d unchanged, got %d", originalHistoryLen, len(s.model.TestHistory))
+	if len(s.model.History.Entries) != originalHistoryLen {
+		t.Errorf("Expected TestHistory length %d unchanged, got %d", originalHistoryLen, len(s.model.History.Entries))
 	}
 }
 
 func TestServerFetchFailureDuringIdle(t *testing.T) {
 	m := model.NewDefaultModel()
-	m.TestHistory = makeHistoryEntries(3)
+	m.History.Entries = makeHistoryEntries(3)
 
 	s := &speedTest{model: m, spinner: ui.DefaultSpinner}
 
@@ -1719,8 +1719,8 @@ func TestServerFetchFailureDuringIdle(t *testing.T) {
 	if !strings.Contains(s.model.Error.Error(), "network unreachable") {
 		t.Errorf("Expected error to contain 'network unreachable', got %q", s.model.Error.Error())
 	}
-	if len(s.model.TestHistory) != 3 {
-		t.Errorf("Expected TestHistory length 3 (preserved), got %d", len(s.model.TestHistory))
+	if len(s.model.History.Entries) != 3 {
+		t.Errorf("Expected TestHistory length 3 (preserved), got %d", len(s.model.History.Entries))
 	}
 }
 
@@ -1844,8 +1844,8 @@ func TestWindowResizeDuringTest(t *testing.T) {
 
 func TestWindowResizeTiny(t *testing.T) {
 	m := model.NewDefaultModel()
-	m.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
-	m.TestHistory = []*model.SpeedTestResult{m.Results}
+	m.History.Results = &model.SpeedTestResult{DownloadSpeed: 100, Timestamp: testTimestamp}
+	m.History.Entries = []*model.SpeedTestResult{m.History.Results}
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
 	newModel, _ := s.Update(tea.WindowSizeMsg{Width: 20, Height: 5})

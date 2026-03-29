@@ -89,7 +89,7 @@ func runHeadlessTest() {
 	}
 
 	// Load history once before the loop so results accumulate correctly
-	if err := m.LoadHistory(); err != nil {
+	if err := m.History.Load(); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load history: %v\n", err)
 	}
 
@@ -117,8 +117,8 @@ func runHeadlessTest() {
 		}
 
 		// Persist result to history
-		m.TestHistory = append(m.TestHistory, res)
-		if err := m.SaveHistory(); err != nil {
+		m.History.Append(res)
+		if err := m.History.Save(); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to save history: %v\n", err)
 		}
 

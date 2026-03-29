@@ -143,31 +143,31 @@ func TestLoadHistoryWithLegacyServerLoc(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(historyDir, "history.json"), []byte(legacyJSON), 0600)
 
 	m := NewModel(&mockBackend{}, nil)
-	if err := m.LoadHistory(); err != nil {
+	if err := m.History.Load(); err != nil {
 		t.Fatalf("LoadHistory failed: %v", err)
 	}
-	if len(m.TestHistory) != 2 {
-		t.Fatalf("Expected 2 history entries, got %d", len(m.TestHistory))
+	if len(m.History.Entries) != 2 {
+		t.Fatalf("Expected 2 history entries, got %d", len(m.History.Entries))
 	}
-	if m.TestHistory[0].ServerCountry != "Germany" {
-		t.Errorf("Expected legacy entry ServerCountry 'Germany', got %q", m.TestHistory[0].ServerCountry)
+	if m.History.Entries[0].ServerCountry != "Germany" {
+		t.Errorf("Expected legacy entry ServerCountry 'Germany', got %q", m.History.Entries[0].ServerCountry)
 	}
-	if m.TestHistory[1].ServerCountry != "France" {
-		t.Errorf("Expected current entry ServerCountry 'France', got %q", m.TestHistory[1].ServerCountry)
+	if m.History.Entries[1].ServerCountry != "France" {
+		t.Errorf("Expected current entry ServerCountry 'France', got %q", m.History.Entries[1].ServerCountry)
 	}
 }
 
 func TestNewModel(t *testing.T) {
 	m := NewModel(&mockBackend{}, nil)
 
-	if m.Results != nil {
-		t.Errorf("Expected Results to be nil, got %v", m.Results)
+	if m.History.Results != nil {
+		t.Errorf("Expected Results to be nil, got %v", m.History.Results)
 	}
 
-	if m.TestHistory == nil {
-		t.Errorf("Expected TestHistory to not be nil")
-	} else if len(m.TestHistory) != 0 {
-		t.Errorf("Expected TestHistory to be empty, got length %d", len(m.TestHistory))
+	if m.History.Entries == nil {
+		t.Errorf("Expected Entries to not be nil")
+	} else if len(m.History.Entries) != 0 {
+		t.Errorf("Expected Entries to be empty, got length %d", len(m.History.Entries))
 	}
 
 	if m.State != StateIdle {
@@ -190,64 +190,64 @@ func TestHistoryLoadSave(t *testing.T) {
 	m := NewModel(&mockBackend{}, nil)
 
 	// Case 1: missing file (no error)
-	err := m.LoadHistory()
+	err := m.History.Load()
 	if err != nil {
 		t.Fatalf("LoadHistory on missing file failed: %v", err)
 	}
-	if len(m.TestHistory) != 0 {
-		t.Errorf("Expected empty history, got %d", len(m.TestHistory))
+	if len(m.History.Entries) != 0 {
+		t.Errorf("Expected empty history, got %d", len(m.History.Entries))
 	}
 
 	// Case 2: Save empty history
-	err = m.SaveHistory()
+	err = m.History.Save()
 	if err != nil {
 		t.Fatalf("SaveHistory failed: %v", err)
 	}
 
 	// Case 3: Save and Load with data
-	m.TestHistory = []*SpeedTestResult{
+	m.History.Entries = []*SpeedTestResult{
 		{DownloadSpeed: 100},
 		{DownloadSpeed: 200},
 	}
-	err = m.SaveHistory()
+	err = m.History.Save()
 	if err != nil {
 		t.Fatalf("SaveHistory with data failed: %v", err)
 	}
 
 	m2 := NewModel(&mockBackend{}, nil)
-	err = m2.LoadHistory()
+	err = m2.History.Load()
 	if err != nil {
 		t.Fatalf("LoadHistory with data failed: %v", err)
 	}
-	if len(m2.TestHistory) != 2 {
-		t.Errorf("Expected 2 history items, got %d", len(m2.TestHistory))
+	if len(m2.History.Entries) != 2 {
+		t.Errorf("Expected 2 history items, got %d", len(m2.History.Entries))
 	}
-	if m2.Results == nil || m2.Results.DownloadSpeed != 200 {
-		t.Errorf("Expected Results to be last item (200), got %v", m2.Results)
+	if m2.History.Results == nil || m2.History.Results.DownloadSpeed != 200 {
+		t.Errorf("Expected Results to be last item (200), got %v", m2.History.Results)
 	}
 
 	// Case 4: Save > max size
 	for i := 0; i < 60; i++ {
-		m2.TestHistory = append(m2.TestHistory, &SpeedTestResult{DownloadSpeed: float64(i)})
+		m2.History.Entries = append(m2.History.Entries, &SpeedTestResult{DownloadSpeed: float64(i)})
 	}
-	err = m2.SaveHistory()
+	err = m2.History.Save()
 	if err != nil {
 		t.Fatalf("SaveHistory > max size failed: %v", err)
 	}
 
 	m3 := NewModel(&mockBackend{}, nil)
-	err = m3.LoadHistory()
+	err = m3.History.Load()
 	if err != nil {
 		t.Fatalf("LoadHistory > max size failed: %v", err)
 	}
-	if len(m3.TestHistory) != 50 {
-		t.Errorf("Expected exactly 50 history items, got %d", len(m3.TestHistory))
+	if len(m3.History.Entries) != 50 {
+		t.Errorf("Expected exactly 50 history items, got %d", len(m3.History.Entries))
 	}
 
 	// Case 5: Corrupt JSON — write corrupt data to the XDG path
 	historyPath := filepath.Join(tmpDir, ".local", "share", "lazyspeed", "history.json")
 	_ = os.WriteFile(historyPath, []byte("invalid json"), 0644)
-	err = m3.LoadHistory()
+	err = m3.History.Load()
 	if err == nil {
 		t.Errorf("Expected error loading corrupt JSON, got nil")
 	}
@@ -332,17 +332,17 @@ func TestPerformSpeedTest(t *testing.T) {
 		t.Fatalf("PerformSpeedTest failed: %v", err)
 	}
 
-	if m.Results == nil {
+	if m.History.Results == nil {
 		t.Fatalf("Expected Results to be populated")
 	}
-	if m.Results.DownloadSpeed != 100.0 {
-		t.Errorf("Expected DL speed 100.0, got %f", m.Results.DownloadSpeed)
+	if m.History.Results.DownloadSpeed != 100.0 {
+		t.Errorf("Expected DL speed 100.0, got %f", m.History.Results.DownloadSpeed)
 	}
-	if m.Results.UploadSpeed != 50.0 {
-		t.Errorf("Expected UL speed 50.0, got %f", m.Results.UploadSpeed)
+	if m.History.Results.UploadSpeed != 50.0 {
+		t.Errorf("Expected UL speed 50.0, got %f", m.History.Results.UploadSpeed)
 	}
-	if m.Results.ServerCountry != "Test Country" {
-		t.Errorf("Expected ServerCountry 'Test Country', got %q", m.Results.ServerCountry)
+	if m.History.Results.ServerCountry != "Test Country" {
+		t.Errorf("Expected ServerCountry 'Test Country', got %q", m.History.Results.ServerCountry)
 	}
 	if m.State != StateIdle {
 		t.Errorf("Expected State to be StateIdle at end")
@@ -362,8 +362,8 @@ func TestPerformSpeedTestFailures(t *testing.T) {
 	}, nil)
 	updateChan := make(chan ProgressUpdate, 100)
 	_ = m.PerformSpeedTest(ctx, server, updateChan)
-	if m.Results != nil && m.Results.Ping != 0.0 {
-		t.Errorf("Expected avg ping to be 0.0 when all fail, got %f", m.Results.Ping)
+	if m.History.Results != nil && m.History.Results.Ping != 0.0 {
+		t.Errorf("Expected avg ping to be 0.0 when all fail, got %f", m.History.Results.Ping)
 	}
 
 	// Case: Download fails
@@ -624,9 +624,9 @@ func TestConfigDrivenHistoryPath(t *testing.T) {
 	cfg.History.Path = customPath
 
 	m := NewModel(&mockBackend{}, cfg)
-	m.TestHistory = []*SpeedTestResult{{DownloadSpeed: 99}}
+	m.History.Entries = []*SpeedTestResult{{DownloadSpeed: 99}}
 
-	if err := m.SaveHistory(); err != nil {
+	if err := m.History.Save(); err != nil {
 		t.Fatalf("SaveHistory failed: %v", err)
 	}
 
@@ -1371,11 +1371,11 @@ func TestPerformSpeedTestJitterCalculation(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	if m.Results.Ping != 15.0 {
-		t.Errorf("Expected avg ping 15.0, got %f", m.Results.Ping)
+	if m.History.Results.Ping != 15.0 {
+		t.Errorf("Expected avg ping 15.0, got %f", m.History.Results.Ping)
 	}
-	if m.Results.Jitter != 7.5 {
-		t.Errorf("Expected jitter 7.5, got %f", m.Results.Jitter)
+	if m.History.Results.Jitter != 7.5 {
+		t.Errorf("Expected jitter 7.5, got %f", m.History.Results.Jitter)
 	}
 }
 
@@ -1407,8 +1407,8 @@ func TestPerformSpeedTestUserInfoFailure(t *testing.T) {
 	if m.Warning == "" {
 		t.Errorf("Expected non-empty warning")
 	}
-	if m.Results.UserIP != "" {
-		t.Errorf("Expected empty UserIP, got %s", m.Results.UserIP)
+	if m.History.Results.UserIP != "" {
+		t.Errorf("Expected empty UserIP, got %s", m.History.Results.UserIP)
 	}
 }
 
@@ -1501,11 +1501,11 @@ func TestPerformSpeedTestSinglePing(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	if m.Results.Ping != 10.0 {
-		t.Errorf("Expected Ping 10.0, got %f", m.Results.Ping)
+	if m.History.Results.Ping != 10.0 {
+		t.Errorf("Expected Ping 10.0, got %f", m.History.Results.Ping)
 	}
-	if m.Results.Jitter != 0.0 {
-		t.Errorf("Expected Jitter 0.0 with single ping (MAD requires 2+ samples), got %f", m.Results.Jitter)
+	if m.History.Results.Jitter != 0.0 {
+		t.Errorf("Expected Jitter 0.0 with single ping (MAD requires 2+ samples), got %f", m.History.Results.Jitter)
 	}
 }
 
@@ -1538,9 +1538,9 @@ func TestSaveHistoryUnwritableDirectory(t *testing.T) {
 	cfg.History.Path = filepath.Join(readOnlyDir, "history.json")
 
 	m := NewModel(&mockBackend{}, cfg)
-	m.TestHistory = []*SpeedTestResult{{DownloadSpeed: 100}}
+	m.History.Entries = []*SpeedTestResult{{DownloadSpeed: 100}}
 
-	err := m.SaveHistory()
+	err := m.History.Save()
 	if err == nil {
 		t.Fatalf("Expected error writing to read-only directory, got nil")
 	}
@@ -1925,32 +1925,32 @@ func TestHistoryJSONRoundTripFidelity(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.History.Path = historyPath
 	m1 := NewModel(&mockBackend{}, cfg)
-	m1.TestHistory = []*SpeedTestResult{original}
+	m1.History.Entries = []*SpeedTestResult{original}
 
-	if err := m1.SaveHistory(); err != nil {
+	if err := m1.History.Save(); err != nil {
 		t.Fatalf("First SaveHistory failed: %v", err)
 	}
 
 	m2 := NewModel(&mockBackend{}, cfg)
-	if err := m2.LoadHistory(); err != nil {
+	if err := m2.History.Load(); err != nil {
 		t.Fatalf("First LoadHistory failed: %v", err)
 	}
 
 	// Second cycle: Save → Load (on fresh model)
-	if err := m2.SaveHistory(); err != nil {
+	if err := m2.History.Save(); err != nil {
 		t.Fatalf("Second SaveHistory failed: %v", err)
 	}
 
 	m3 := NewModel(&mockBackend{}, cfg)
-	if err := m3.LoadHistory(); err != nil {
+	if err := m3.History.Load(); err != nil {
 		t.Fatalf("Second LoadHistory failed: %v", err)
 	}
 
-	if len(m3.TestHistory) != 1 {
-		t.Fatalf("Expected 1 history entry, got %d", len(m3.TestHistory))
+	if len(m3.History.Entries) != 1 {
+		t.Fatalf("Expected 1 history entry, got %d", len(m3.History.Entries))
 	}
 
-	final := m3.TestHistory[0]
+	final := m3.History.Entries[0]
 
 	if final.DownloadSpeed != original.DownloadSpeed {
 		t.Errorf("DownloadSpeed drift: got %v, want %v", final.DownloadSpeed, original.DownloadSpeed)
@@ -1974,29 +1974,29 @@ func TestHistoryTruncationPreservesNewest(t *testing.T) {
 	m := NewModel(&mockBackend{}, cfg)
 	baseTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	for i := 0; i < 10; i++ {
-		m.TestHistory = append(m.TestHistory, &SpeedTestResult{
+		m.History.Entries = append(m.History.Entries, &SpeedTestResult{
 			DownloadSpeed: float64(i),
 			Timestamp:     baseTime.Add(time.Duration(i) * time.Hour),
 		})
 	}
 
-	if err := m.SaveHistory(); err != nil {
+	if err := m.History.Save(); err != nil {
 		t.Fatalf("SaveHistory failed: %v", err)
 	}
 
 	m2 := NewModel(&mockBackend{}, cfg)
-	if err := m2.LoadHistory(); err != nil {
+	if err := m2.History.Load(); err != nil {
 		t.Fatalf("LoadHistory failed: %v", err)
 	}
 
-	if len(m2.TestHistory) != 5 {
-		t.Fatalf("Expected 5 history entries, got %d", len(m2.TestHistory))
+	if len(m2.History.Entries) != 5 {
+		t.Fatalf("Expected 5 history entries, got %d", len(m2.History.Entries))
 	}
-	if m2.TestHistory[0].DownloadSpeed != 5 {
-		t.Errorf("Oldest kept entry: got DownloadSpeed %v, want 5", m2.TestHistory[0].DownloadSpeed)
+	if m2.History.Entries[0].DownloadSpeed != 5 {
+		t.Errorf("Oldest kept entry: got DownloadSpeed %v, want 5", m2.History.Entries[0].DownloadSpeed)
 	}
-	if m2.TestHistory[4].DownloadSpeed != 9 {
-		t.Errorf("Newest entry: got DownloadSpeed %v, want 9", m2.TestHistory[4].DownloadSpeed)
+	if m2.History.Entries[4].DownloadSpeed != 9 {
+		t.Errorf("Newest entry: got DownloadSpeed %v, want 9", m2.History.Entries[4].DownloadSpeed)
 	}
 }
 

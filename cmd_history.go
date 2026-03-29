@@ -42,8 +42,9 @@ func runHistory() {
 
 	if historyClear {
 		// Wipe history by setting to empty and saving
-		m.TestHistory = []*model.SpeedTestResult{}
-		if err := m.SaveHistory(); err != nil {
+		m.History.Entries = nil
+		m.History.Results = nil
+		if err := m.History.Save(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error clearing history: %v\n", err)
 			os.Exit(1)
 		}
@@ -51,18 +52,18 @@ func runHistory() {
 		return
 	}
 
-	if err := m.LoadHistory(); err != nil {
+	if err := m.History.Load(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading history: %v\n", err)
 		os.Exit(1)
 	}
 
-	if len(m.TestHistory) == 0 {
+	if len(m.History.Entries) == 0 {
 		fmt.Println("No history found.")
 		return
 	}
 
 	// Apply --last slice: take the last N entries
-	entries := m.TestHistory
+	entries := m.History.Entries
 	if historyLast > 0 && historyLast < len(entries) {
 		entries = entries[len(entries)-historyLast:]
 	}
