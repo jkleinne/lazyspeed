@@ -52,8 +52,8 @@ func TestTimeoutDurations(t *testing.T) {
 func TestPingCount(t *testing.T) {
 	t.Run("Default config", func(t *testing.T) {
 		cfg := DefaultConfig()
-		if cfg.PingCount() != 10 {
-			t.Errorf("Expected default ping count 10, got %d", cfg.PingCount())
+		if cfg.PingCount() != 1 {
+			t.Errorf("Expected default ping count 1, got %d", cfg.PingCount())
 		}
 	})
 

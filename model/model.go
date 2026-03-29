@@ -165,11 +165,12 @@ type pingResult struct {
 }
 
 // pingObserver is called after each successful ping measurement.
-// iteration is 1-based; jitter is 0 when fewer than 2 pings have been recorded.
-type pingObserver func(iteration, total int, ping, jitter float64)
+// pingNum is 1-based; jitter is 0 when fewer than 2 pings have been recorded.
+type pingObserver func(pingNum int, ping, jitter float64)
 
-// measurePing runs count ping iterations against server and computes avg/jitter.
-// observe is called after each successful ping; pass nil to skip progress reporting.
+// measurePing runs count PingTest rounds against server and computes avg/jitter.
+// Each round yields multiple ping samples from the library (~10 per call).
+// observe is called after each individual sample; pass nil to skip progress reporting.
 // Callers should check len(result.pings) == 0 to detect total ping failure.
 func measurePing(ctx context.Context, backend Backend, server *speedtest.Server, count int, observe pingObserver) (*pingResult, error) {
 	var pings []float64
@@ -181,7 +182,7 @@ func measurePing(ctx context.Context, backend Backend, server *speedtest.Server,
 			return nil, ctx.Err()
 		}
 		err := backend.PingTest(server, func(latency time.Duration) {
-			ping := float64(latency.Milliseconds())
+			ping := float64(latency) / float64(time.Millisecond)
 			pings = append(pings, ping)
 			sumPing += ping
 			var currentJitter float64
@@ -189,17 +190,19 @@ func measurePing(ctx context.Context, backend Backend, server *speedtest.Server,
 				currentJitter = math.Abs(pings[len(pings)-1] - pings[len(pings)-2])
 			}
 			if observe != nil {
-				observe(i+1, count, ping, currentJitter)
+				observe(len(pings), ping, currentJitter)
 			}
 		})
 		if err != nil {
 			lastErr = err
 			continue
 		}
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(pingDelay):
+		if i < count-1 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(pingDelay):
+			}
 		}
 	}
 
@@ -348,14 +351,14 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	pingCount := m.Config.PingCount()
 
 	sendUpdate(progressPingStart, "Measuring ping and jitter...", updateChan)
-	pingResult, err := measurePing(ctx, m.backend, server, pingCount, func(i, total int, ping, jitter float64) {
-		pingProgress := min(progressPingStart+float64(i)*progressPingIncrement, progressDownloadStart)
+	pingResult, err := measurePing(ctx, m.backend, server, pingCount, func(pingNum int, ping, jitter float64) {
+		pingProgress := min(progressPingStart+float64(pingNum)*progressPingIncrement, progressDownloadStart)
 		if jitter > 0 {
 			sendUpdate(pingProgress,
-				fmt.Sprintf("Ping: %.1f ms, Jitter: %.1f ms (%d/%d)", ping, jitter, i, total), updateChan)
+				fmt.Sprintf("Ping: %.1f ms, Jitter: %.1f ms", ping, jitter), updateChan)
 		} else {
 			sendUpdate(pingProgress,
-				fmt.Sprintf("Ping: %.1f ms (%d/%d)", ping, i, total), updateChan)
+				fmt.Sprintf("Ping: %.1f ms", ping), updateChan)
 		}
 	})
 	if err != nil {
@@ -473,9 +476,9 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 
 	pingCount := m.Config.PingCount()
 
-	callProgressFn(opts.ProgressFn, fmt.Sprintf("Measuring ping (0/%d)...", pingCount))
-	pingResult, err := measurePing(ctx, m.backend, server, pingCount, func(i, total int, ping, _ float64) {
-		callProgressFn(opts.ProgressFn, fmt.Sprintf("Measuring ping (%d/%d): %.1f ms", i, total, ping))
+	callProgressFn(opts.ProgressFn, "Measuring ping...")
+	pingResult, err := measurePing(ctx, m.backend, server, pingCount, func(pingNum int, ping, _ float64) {
+		callProgressFn(opts.ProgressFn, fmt.Sprintf("Measuring ping (%d): %.1f ms", pingNum, ping))
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to measure ping: %v", err)
