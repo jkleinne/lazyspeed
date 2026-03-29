@@ -153,6 +153,16 @@ func icmpTraceroute(ctx context.Context, destIP string, maxHops int) ([]Hop, err
 	}), nil
 }
 
+// setHopDeadline sets the read deadline on conn to the sooner of hopTimeout
+// or the context deadline.
+func setHopDeadline(ctx context.Context, conn *icmp.PacketConn) error {
+	deadline := time.Now().Add(hopTimeout)
+	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
+		deadline = ctxDeadline
+	}
+	return conn.SetReadDeadline(deadline)
+}
+
 // traceHop sends an ICMP echo request with the given TTL and waits for a response.
 func traceHop(ctx context.Context, conn *icmp.PacketConn, destIP string, ttl int) Hop {
 	hop := Hop{Number: ttl}
@@ -185,12 +195,7 @@ func traceHop(ctx context.Context, conn *icmp.PacketConn, destIP string, ttl int
 		return hop
 	}
 
-	// Calculate deadline from context or hopTimeout, whichever is sooner
-	deadline := time.Now().Add(hopTimeout)
-	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
-		deadline = ctxDeadline
-	}
-	if err := conn.SetReadDeadline(deadline); err != nil {
+	if err := setHopDeadline(ctx, conn); err != nil {
 		hop.Timeout = true
 		return hop
 	}
@@ -258,12 +263,7 @@ func udpTraceHop(ctx context.Context, icmpConn *icmp.PacketConn, destIP string, 
 		return hop
 	}
 
-	// Calculate deadline from context or hopTimeout, whichever is sooner
-	deadline := time.Now().Add(hopTimeout)
-	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
-		deadline = ctxDeadline
-	}
-	if err := icmpConn.SetReadDeadline(deadline); err != nil {
+	if err := setHopDeadline(ctx, icmpConn); err != nil {
 		hop.Timeout = true
 		return hop
 	}
