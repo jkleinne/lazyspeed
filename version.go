@@ -11,7 +11,6 @@ import (
 // and the function falls back to debug.ReadBuildInfo().
 var (
 	version = ""
-	commit  = ""
 	date    = ""
 )
 
