@@ -111,6 +111,11 @@ func runHeadlessTest() {
 			os.Exit(1)
 		}
 
+		if m.Warning != "" {
+			fmt.Fprintf(os.Stderr, "Warning: %s\n", m.Warning)
+			m.Warning = ""
+		}
+
 		// Persist result to history
 		m.TestHistory = append(m.TestHistory, res)
 		if err := m.SaveHistory(); err != nil {
