@@ -1,8 +1,6 @@
 package main
 
 import (
-	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"os"
 	"text/tabwriter"
@@ -71,20 +69,14 @@ func runHistory() {
 
 	switch historyFormat {
 	case historyFormatJSON:
-		data, err := json.MarshalIndent(entries, "", "  ")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error serialising history: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Println(string(data))
+		printJSON(entries)
 
 	case historyFormatCSV:
-		w := csv.NewWriter(os.Stdout)
-		_ = w.Write(model.SpeedTestCSVHeader)
-		for _, res := range entries {
-			_ = w.Write(res.CSVRow())
+		rows := make([][]string, len(entries))
+		for i, res := range entries {
+			rows[i] = res.CSVRow()
 		}
-		flushCSV(w)
+		writeCSVRows(model.SpeedTestCSVHeader, rows)
 
 	default:
 		// Default: table view

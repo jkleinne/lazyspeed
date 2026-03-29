@@ -64,6 +64,46 @@ type SpeedTestResult struct {
 	UserISP       string    `json:"user_isp"`
 }
 
+// Server is a display-friendly representation of a speed test server,
+// decoupled from the speedtest-go library type.
+type Server struct {
+	ID       string
+	Name     string
+	Sponsor  string
+	Country  string
+	Host     string
+	Latency  time.Duration
+	Distance float64
+}
+
+// Servers returns the server list as display-friendly Server values.
+func (m *Model) Servers() []Server {
+	servers := make([]Server, len(m.ServerList))
+	for i, s := range m.ServerList {
+		servers[i] = Server{
+			ID:       s.ID,
+			Name:     s.Name,
+			Sponsor:  s.Sponsor,
+			Country:  s.Country,
+			Host:     s.Host,
+			Latency:  s.Latency,
+			Distance: s.Distance,
+		}
+	}
+	return servers
+}
+
+// FindServerIndex returns the index of the server with the given ID,
+// or -1 and false if not found.
+func (m *Model) FindServerIndex(id string) (int, bool) {
+	for i, s := range m.ServerList {
+		if s.ID == id {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
 // UnmarshalJSON supports reading both the current "server_country" key and
 // the legacy "server_loc" key so that existing history files are loaded
 // without data loss.
@@ -145,7 +185,11 @@ func NewDefaultModel() *Model {
 	if err != nil {
 		cfg = DefaultConfig()
 	}
-	return NewModel(&realBackend{}, cfg)
+	m := NewModel(&realBackend{}, cfg)
+	if err != nil {
+		m.Warning = fmt.Sprintf("could not load config: %v", err)
+	}
+	return m
 }
 
 // FetchTimeoutDuration returns the configured fetch timeout as a time.Duration.
@@ -428,6 +472,23 @@ func runTransferPhase(
 	return rawSpeed() / bytesPerMbit, nil
 }
 
+// buildResult constructs a SpeedTestResult from the completed test data.
+func buildResult(server *speedtest.Server, pr *pingResult, download, upload float64, userIP, userISP string) *SpeedTestResult {
+	return &SpeedTestResult{
+		DownloadSpeed: download,
+		UploadSpeed:   upload,
+		Ping:          pr.avgPing,
+		Jitter:        pr.jitter,
+		ServerName:    server.Name,
+		ServerSponsor: server.Sponsor,
+		ServerCountry: server.Country,
+		Distance:      server.Distance,
+		Timestamp:     time.Now(),
+		UserIP:        userIP,
+		UserISP:       userISP,
+	}
+}
+
 func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, updateChan chan<- ProgressUpdate) error {
 	m.State = StateTesting
 	m.Progress = 0
@@ -509,19 +570,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 
 	userIP, userISP := m.userInfo()
 
-	result := &SpeedTestResult{
-		DownloadSpeed: downloadSpeed,
-		UploadSpeed:   uploadSpeed,
-		Ping:          pingResult.avgPing,
-		Jitter:        pingResult.jitter,
-		ServerName:    server.Name,
-		ServerSponsor: server.Sponsor,
-		ServerCountry: server.Country,
-		Distance:      server.Distance,
-		Timestamp:     time.Now(),
-		UserIP:        userIP,
-		UserISP:       userISP,
-	}
+	result := buildResult(server, pingResult, downloadSpeed, uploadSpeed, userIP, userISP)
 
 	m.Results = result
 	m.TestHistory = append(m.TestHistory, result)
@@ -577,8 +626,11 @@ func ExportResult(result *SpeedTestResult, format string, dir string) (path stri
 
 func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts RunOptions) (*SpeedTestResult, error) {
 	callProgressFn(opts.ProgressFn, "Fetching network information...")
-	if user, err := m.backend.FetchUserInfo(); err == nil {
+	user, userErr := m.backend.FetchUserInfo()
+	if userErr == nil {
 		m.user = user
+	} else {
+		m.Warning = fmt.Sprintf("could not fetch network info: %v", userErr)
 	}
 	userIP, userISP := m.userInfo()
 
@@ -604,7 +656,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		}
 		callProgressFn(opts.ProgressFn, "Testing download...")
 		if err := m.backend.DownloadTest(server); err != nil {
-			return nil, fmt.Errorf("download test failed: %v", err)
+			return nil, fmt.Errorf("failed to measure download speed: %v", err)
 		}
 		downloadSpeed = float64(server.DLSpeed) / bytesPerMbit
 		callProgressFn(opts.ProgressFn, fmt.Sprintf("Download: %.2f Mbps", downloadSpeed))
@@ -616,23 +668,11 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		}
 		callProgressFn(opts.ProgressFn, "Testing upload...")
 		if err := m.backend.UploadTest(server); err != nil {
-			return nil, fmt.Errorf("upload test failed: %v", err)
+			return nil, fmt.Errorf("failed to measure upload speed: %v", err)
 		}
 		uploadSpeed = float64(server.ULSpeed) / bytesPerMbit
 		callProgressFn(opts.ProgressFn, fmt.Sprintf("Upload: %.2f Mbps", uploadSpeed))
 	}
 
-	return &SpeedTestResult{
-		DownloadSpeed: downloadSpeed,
-		UploadSpeed:   uploadSpeed,
-		Ping:          pingResult.avgPing,
-		Jitter:        pingResult.jitter,
-		ServerName:    server.Name,
-		ServerSponsor: server.Sponsor,
-		ServerCountry: server.Country,
-		Distance:      server.Distance,
-		Timestamp:     time.Now(),
-		UserIP:        userIP,
-		UserISP:       userISP,
-	}, nil
+	return buildResult(server, pingResult, downloadSpeed, uploadSpeed, userIP, userISP), nil
 }

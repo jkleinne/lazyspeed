@@ -249,14 +249,9 @@ func (s *speedTest) handleDiagComplete(msg diagCompleteMsg) (tea.Model, tea.Cmd)
 	} else {
 		s.diagResult = msg.result
 		s.viewState = ViewDiagCompact
-		cfg := diagConfigFromModel(s.model)
-		history, loadErr := diag.LoadHistory(cfg.Path)
-		if loadErr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to load diagnostics history: %v\n", loadErr)
-		}
-		history = append(history, msg.result)
-		if saveErr := diag.SaveHistory(cfg.Path, history, cfg.MaxEntries); saveErr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to save diagnostics history: %v\n", saveErr)
+		cfg := diagConfig(s.model.Config.Diagnostics)
+		if err := diag.AppendHistory(cfg.Path, msg.result, cfg.MaxEntries); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to persist diagnostics history: %v\n", err)
 		}
 	}
 	return s, nil
@@ -333,7 +328,7 @@ func (s *speedTest) startDiagnostics() (tea.Model, tea.Cmd) {
 	s.diagResult = nil
 	s.model.CurrentPhase = runningDiagnosticsPhase
 	s.showHelp = false
-	cfg := diagConfigFromModel(s.model)
+	cfg := diagConfig(s.model.Config.Diagnostics)
 	return s, tea.Batch(s.spinner.Tick, runDiagCmd(s.model, cfg))
 }
 
@@ -496,7 +491,7 @@ func (s *speedTest) renderMainView() string {
 		b.WriteString("\n\n")
 
 	case model.StateSelectingServer:
-		b.WriteString(ui.RenderServerSelection(s.model.ServerList, ui.Viewport{
+		b.WriteString(ui.RenderServerSelection(s.model.Servers(), ui.Viewport{
 			Width:  s.model.Width,
 			Height: s.model.Height,
 			Offset: s.serverListOffset,

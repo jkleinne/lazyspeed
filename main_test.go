@@ -39,14 +39,13 @@ func (b *noopBackend) UploadTest(_ *speedtest.Server) error   { return nil }
 
 func TestGetVersionInfo(t *testing.T) {
 	// Reset package vars after test
-	origVersion, origCommit, origDate := version, commit, date
+	origVersion, origDate := version, date
 	defer func() {
-		version, commit, date = origVersion, origCommit, origDate
+		version, date = origVersion, origDate
 	}()
 
 	// Case 1: All set
 	version = "1.0.0"
-	commit = "abcdef"
 	date = "2023-01-01"
 	res := GetVersionInfo()
 	if !strings.Contains(res, "1.0.0") || !strings.Contains(res, "2023-01-01") {
@@ -55,7 +54,6 @@ func TestGetVersionInfo(t *testing.T) {
 
 	// Case 2: Only version set
 	version = "2.0.0"
-	commit = ""
 	date = ""
 	res = GetVersionInfo()
 	if !strings.Contains(res, "2.0.0") || strings.Contains(res, "built:") {

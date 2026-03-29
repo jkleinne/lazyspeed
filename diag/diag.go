@@ -110,6 +110,24 @@ func DefaultDiagConfig() *DiagConfig {
 	}
 }
 
+// NewDiagConfig creates a DiagConfig by overlaying non-zero overrides onto defaults.
+func NewDiagConfig(overrides DiagConfig) *DiagConfig {
+	cfg := DefaultDiagConfig()
+	if overrides.MaxHops > 0 {
+		cfg.MaxHops = overrides.MaxHops
+	}
+	if overrides.Timeout > 0 {
+		cfg.Timeout = overrides.Timeout
+	}
+	if overrides.MaxEntries > 0 {
+		cfg.MaxEntries = overrides.MaxEntries
+	}
+	if overrides.Path != "" {
+		cfg.Path = overrides.Path
+	}
+	return cfg
+}
+
 // DurationMs converts a time.Duration to fractional milliseconds.
 func DurationMs(d time.Duration) float64 {
 	return float64(d.Microseconds()) / 1000.0
@@ -140,8 +158,8 @@ func Run(ctx context.Context, backend DiagBackend, target string, cfg *DiagConfi
 				Cached:  false,
 			}
 		} else {
-			_, warmLatency, _ := backend.ResolveDNS(ctx, target)
-			cached := warmLatency < coldLatency/dnsCacheThresholdDivisor
+			_, warmLatency, warmErr := backend.ResolveDNS(ctx, target)
+			cached := warmErr == nil && warmLatency < coldLatency/dnsCacheThresholdDivisor
 			result.DNS = &DNSResult{
 				Host:    target,
 				IP:      coldIP,

@@ -8,8 +8,8 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
+	"github.com/jkleinne/lazyspeed/diag"
 	"github.com/jkleinne/lazyspeed/model"
-	"github.com/showwin/speedtest-go/speedtest"
 )
 
 const (
@@ -249,7 +249,7 @@ func ServerListVisibleLines(height, total int) int {
 }
 
 // RenderServerSelection renders the server list with viewport-based windowing.
-func RenderServerSelection(servers speedtest.Servers, vp Viewport) string {
+func RenderServerSelection(servers []model.Server, vp Viewport) string {
 	var b strings.Builder
 	b.WriteString("Select a server:\n\n")
 
@@ -274,7 +274,7 @@ func RenderServerSelection(servers speedtest.Servers, vp Viewport) string {
 		}
 		fmt.Fprintf(&b, "%s%s: %s (%s) - %.2f ms\n",
 			prefix, server.Sponsor, server.Name, server.Country,
-			float64(server.Latency.Microseconds())/1000.0)
+			diag.DurationMs(server.Latency))
 	}
 
 	remaining := total - end

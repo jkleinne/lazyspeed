@@ -2,12 +2,9 @@ package main
 
 import (
 	"context"
-	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"net"
 	"os"
-	"slices"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -16,7 +13,6 @@ import (
 	"github.com/jkleinne/lazyspeed/diag"
 	"github.com/jkleinne/lazyspeed/model"
 	"github.com/jkleinne/lazyspeed/ui"
-	"github.com/showwin/speedtest-go/speedtest"
 	"github.com/spf13/cobra"
 )
 
@@ -76,35 +72,12 @@ func stripPort(hostPort string) string {
 	return host
 }
 
-// diagConfigFromModel maps model.Config.Diagnostics to diag.DiagConfig.
-func diagConfigFromModel(m *model.Model) *diag.DiagConfig {
-	cfg := diag.DefaultDiagConfig()
-	if m.Config.Diagnostics.MaxHops > 0 {
-		cfg.MaxHops = m.Config.Diagnostics.MaxHops
-	}
-	if m.Config.Diagnostics.Timeout > 0 {
-		cfg.Timeout = m.Config.Diagnostics.Timeout
-	}
-	if m.Config.Diagnostics.MaxEntries > 0 {
-		cfg.MaxEntries = m.Config.Diagnostics.MaxEntries
-	}
-	if m.Config.Diagnostics.Path != "" {
-		cfg.Path = m.Config.Diagnostics.Path
-	}
-	return cfg
-}
-
 // fetchDiagServers fetches the server list, printing status if interactive.
 func fetchDiagServers(m *model.Model) {
 	if diagIsInteractive() {
 		fmt.Fprintln(os.Stderr, "Fetching server list...")
 	}
-	fetchCtx, fetchCancel := context.WithTimeout(context.Background(), m.FetchTimeoutDuration())
-	defer fetchCancel()
-	if err := m.FetchServerList(fetchCtx); err != nil {
-		fmt.Fprintf(os.Stderr, "Error fetching servers: %v\n", err)
-		os.Exit(1)
-	}
+	fetchServersOrExit(m)
 }
 
 // resolveDiagTarget determines the diagnostics target from CLI args, --server flag,
@@ -117,10 +90,8 @@ func resolveDiagTarget(m *model.Model, args []string) string {
 	fetchDiagServers(m)
 
 	if diagServer != "" {
-		idx := slices.IndexFunc(m.ServerList, func(s *speedtest.Server) bool {
-			return s.ID == diagServer
-		})
-		if idx < 0 {
+		idx, found := m.FindServerIndex(diagServer)
+		if !found {
 			fmt.Fprintf(os.Stderr, "Error: server %s not found\n", diagServer)
 			os.Exit(1)
 		}
@@ -139,7 +110,7 @@ func resolveDiagTarget(m *model.Model, args []string) string {
 
 func runDiag(args []string) {
 	m := model.NewDefaultModel()
-	cfg := diagConfigFromModel(m)
+	cfg := diagConfig(m.Config.Diagnostics)
 	target := resolveDiagTarget(m, args)
 
 	if diagIsInteractive() {
@@ -157,33 +128,18 @@ func runDiag(args []string) {
 		os.Exit(1)
 	}
 
-	// Persist to history
-	histPath := cfg.Path
-	history, loadErr := diag.LoadHistory(histPath)
-	if loadErr != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to load diagnostics history: %v\n", loadErr)
-	}
-	history = append(history, result)
-	if saveErr := diag.SaveHistory(histPath, history, cfg.MaxEntries); saveErr != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to save diagnostics history: %v\n", saveErr)
+	if err := diag.AppendHistory(cfg.Path, result, cfg.MaxEntries); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to persist diagnostics history: %v\n", err)
 	}
 
 	// Output
 	if diagJSON {
-		data, err := json.MarshalIndent(result, "", "  ")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error serialising result: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Println(string(data))
+		printJSON(result)
 		return
 	}
 
 	if diagCSV {
-		w := csv.NewWriter(os.Stdout)
-		_ = w.Write(diagCSVHeader)
-		_ = w.Write(diagCSVRow(result))
-		flushCSV(w)
+		writeCSVRows(diagCSVHeader, [][]string{diagCSVRow(result)})
 		return
 	}
 
@@ -198,7 +154,7 @@ func runDiag(args []string) {
 
 func runDiagHistory() {
 	m := model.NewDefaultModel()
-	cfg := diagConfigFromModel(m)
+	cfg := diagConfig(m.Config.Diagnostics)
 
 	history, err := diag.LoadHistory(cfg.Path)
 	if err != nil {
@@ -218,22 +174,16 @@ func runDiagHistory() {
 	}
 
 	if diagJSON {
-		data, err := json.MarshalIndent(entries, "", "  ")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error serialising history: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Println(string(data))
+		printJSON(entries)
 		return
 	}
 
 	if diagCSV {
-		w := csv.NewWriter(os.Stdout)
-		_ = w.Write(diagCSVHeader)
-		for _, r := range entries {
-			_ = w.Write(diagCSVRow(r))
+		rows := make([][]string, len(entries))
+		for i, r := range entries {
+			rows[i] = diagCSVRow(r)
 		}
-		flushCSV(w)
+		writeCSVRows(diagCSVHeader, rows)
 		return
 	}
 
@@ -301,9 +251,9 @@ func diagDefaultOutput(r *diag.DiagResult) string {
 		r.Quality.Score, r.Quality.Grade, r.Quality.Label)
 
 	if r.DNS != nil {
-		cachedStr := "no"
+		cachedStr := "cold"
 		if r.DNS.Cached {
-			cachedStr = "yes"
+			cachedStr = "cached"
 		}
 		fmt.Fprintf(&b, "DNS:         %.1f ms (cached: %s)\n",
 			diag.DurationMs(r.DNS.Latency), cachedStr)

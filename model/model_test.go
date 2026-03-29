@@ -589,6 +589,30 @@ func TestLoadConfigInvalidYAML(t *testing.T) {
 	}
 }
 
+func TestLoadConfigUnreadableFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	configDir := filepath.Join(tmpDir, "lazyspeed")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("could not create config dir: %v", err)
+	}
+	configFile := filepath.Join(configDir, "config.yaml")
+	if err := os.WriteFile(configFile, []byte("test:\n  ping_count: 5\n"), 0000); err != nil {
+		t.Fatalf("could not write config file: %v", err)
+	}
+
+	// Verify the file is actually unreadable (skip if running as root)
+	if _, readErr := os.ReadFile(configFile); readErr == nil {
+		t.Skip("file is readable despite 0000 permissions (running as root?)")
+	}
+
+	_, err := LoadConfig()
+	if err == nil {
+		t.Error("expected error when config file is unreadable, got nil")
+	}
+}
+
 func TestConfigDrivenHistoryPath(t *testing.T) {
 	tmpDir := t.TempDir()
 	customPath := filepath.Join(tmpDir, "custom_history.json")
@@ -939,7 +963,7 @@ func TestRunHeadless(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "download test failed",
+			wantErr: "failed to measure download speed",
 		},
 		{
 			name:      "Upload failure",
@@ -960,7 +984,7 @@ func TestRunHeadless(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "upload test failed",
+			wantErr: "failed to measure upload speed",
 		},
 		{
 			name:      "User info failure",
@@ -2064,5 +2088,120 @@ func TestDiagnosticsConfigTildePath(t *testing.T) {
 	}
 	if cfg.Diagnostics.Path != "~/custom-diag/history.json" {
 		t.Errorf("Expected diagnostics path '~/custom-diag/history.json', got %q", cfg.Diagnostics.Path)
+	}
+}
+
+func TestServers(t *testing.T) {
+	m := NewDefaultModel()
+	m.ServerList = speedtest.Servers{
+		&speedtest.Server{
+			ID: "1", Name: "Server A", Sponsor: "Sponsor A",
+			Country: "US", Host: "a.example.com:8080",
+			Latency: 10 * time.Millisecond, Distance: 100.5,
+		},
+		&speedtest.Server{
+			ID: "2", Name: "Server B", Sponsor: "Sponsor B",
+			Country: "DE", Host: "b.example.com",
+			Latency: 25 * time.Millisecond, Distance: 500.0,
+		},
+	}
+
+	servers := m.Servers()
+	if len(servers) != 2 {
+		t.Fatalf("len(Servers()) = %d, want 2", len(servers))
+	}
+
+	s := servers[0]
+	if s.ID != "1" || s.Name != "Server A" || s.Sponsor != "Sponsor A" {
+		t.Errorf("server[0] identity = (%q, %q, %q), want (1, Server A, Sponsor A)", s.ID, s.Name, s.Sponsor)
+	}
+	if s.Country != "US" || s.Host != "a.example.com:8080" {
+		t.Errorf("server[0] location = (%q, %q), want (US, a.example.com:8080)", s.Country, s.Host)
+	}
+	if s.Latency != 10*time.Millisecond || s.Distance != 100.5 {
+		t.Errorf("server[0] metrics = (%v, %v), want (10ms, 100.5)", s.Latency, s.Distance)
+	}
+}
+
+func TestServersEmpty(t *testing.T) {
+	m := NewDefaultModel()
+	servers := m.Servers()
+	if len(servers) != 0 {
+		t.Errorf("len(Servers()) = %d, want 0 for empty model", len(servers))
+	}
+}
+
+func TestFindServerIndex(t *testing.T) {
+	m := NewDefaultModel()
+	m.ServerList = speedtest.Servers{
+		&speedtest.Server{ID: "10"},
+		&speedtest.Server{ID: "20"},
+		&speedtest.Server{ID: "30"},
+	}
+
+	idx, found := m.FindServerIndex("20")
+	if !found || idx != 1 {
+		t.Errorf("FindServerIndex(20) = (%d, %v), want (1, true)", idx, found)
+	}
+
+	_, found = m.FindServerIndex("99")
+	if found {
+		t.Error("FindServerIndex(99) should return false")
+	}
+}
+
+func TestRunHeadlessFetchUserInfoWarning(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Test.PingCount = 1
+	m := NewModel(&mockBackend{
+		fetchUserInfoFn: func() (*speedtest.User, error) {
+			return nil, errors.New("network unreachable")
+		},
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(10 * time.Millisecond)
+			return nil
+		},
+		downloadTestFn: func(s *speedtest.Server) error {
+			s.DLSpeed = 100 * bytesPerMbit
+			return nil
+		},
+		uploadTestFn: func(s *speedtest.Server) error {
+			s.ULSpeed = 50 * bytesPerMbit
+			return nil
+		},
+	}, cfg)
+
+	_, err := m.RunHeadless(context.Background(), &speedtest.Server{}, RunOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if m.Warning == "" {
+		t.Error("expected Warning to be set when FetchUserInfo fails")
+	}
+	if !strings.Contains(m.Warning, "network unreachable") {
+		t.Errorf("Warning should contain cause, got %q", m.Warning)
+	}
+}
+
+func TestNewDefaultModelConfigWarning(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	configDir := filepath.Join(tmpDir, "lazyspeed")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("could not create config dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"),
+		[]byte("history:\n  max_entries: [unclosed\n"), 0644); err != nil {
+		t.Fatalf("could not write config: %v", err)
+	}
+
+	m := NewDefaultModel()
+	if m.Warning == "" {
+		t.Error("expected Warning to be set when LoadConfig fails")
+	}
+	// Should still have a usable config (defaults)
+	if m.Config.History.MaxEntries != defaultMaxEntries {
+		t.Errorf("expected default max_entries %d, got %d", defaultMaxEntries, m.Config.History.MaxEntries)
 	}
 }
