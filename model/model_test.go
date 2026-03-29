@@ -401,101 +401,6 @@ func TestDefaultConfig(t *testing.T) {
 	}
 }
 
-func TestExportDir(t *testing.T) {
-	tests := []struct {
-		name      string
-		directory string
-		wantCWD   bool
-	}{
-		{"empty config uses CWD", "", true},
-		{"configured directory", "", false}, // uses tmpDir, set below
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := DefaultConfig()
-			if !tt.wantCWD {
-				cfg.Export.Directory = t.TempDir()
-			}
-			m := NewModel(nil, cfg)
-
-			dir, err := m.ExportDir()
-			if err != nil {
-				t.Fatalf("Expected no error, got %v", err)
-			}
-			if tt.wantCWD {
-				cwd, _ := os.Getwd()
-				if dir != cwd {
-					t.Errorf("Expected CWD %q, got %q", cwd, dir)
-				}
-			} else {
-				if dir != cfg.Export.Directory {
-					t.Errorf("Expected %q, got %q", cfg.Export.Directory, dir)
-				}
-			}
-		})
-	}
-}
-
-func TestExportDirCreatesDirectory(t *testing.T) {
-	base := t.TempDir()
-	nested := filepath.Join(base, "exports", "sub")
-	cfg := DefaultConfig()
-	cfg.Export.Directory = nested
-	m := NewModel(nil, cfg)
-
-	dir, err := m.ExportDir()
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
-	if dir != nested {
-		t.Errorf("Expected %q, got %q", nested, dir)
-	}
-	info, err := os.Stat(nested)
-	if err != nil {
-		t.Fatalf("Expected directory to exist: %v", err)
-	}
-	if !info.IsDir() {
-		t.Error("Expected path to be a directory")
-	}
-}
-
-func TestExportDirTildeExpansion(t *testing.T) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		t.Skip("cannot determine home directory")
-	}
-	cfg := DefaultConfig()
-	cfg.Export.Directory = "~/lazyspeed-test-export-" + t.Name()
-	m := NewModel(nil, cfg)
-
-	dir, err := m.ExportDir()
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
-	expected := filepath.Join(home, "lazyspeed-test-export-"+t.Name())
-	if dir != expected {
-		t.Errorf("Expected %q, got %q", expected, dir)
-	}
-	// Clean up the created directory
-	_ = os.Remove(dir)
-}
-
-func TestExportDirBareTilde(t *testing.T) {
-	fakeHome := t.TempDir()
-	t.Setenv("HOME", fakeHome)
-	cfg := DefaultConfig()
-	cfg.Export.Directory = "~"
-	m := NewModel(nil, cfg)
-
-	dir, err := m.ExportDir()
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
-	if dir != fakeHome {
-		t.Errorf("Expected %q, got %q", fakeHome, dir)
-	}
-}
-
 func TestLoadConfigExportDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
@@ -657,31 +562,6 @@ func TestConfigDrivenPingCount(t *testing.T) {
 	if pingCallCount != 3 {
 		t.Errorf("Expected 3 ping calls (from config), got %d", pingCallCount)
 	}
-}
-
-func TestTimeoutDurations(t *testing.T) {
-	t.Run("Default config", func(t *testing.T) {
-		m := NewModel(&mockBackend{}, nil)
-		if m.FetchTimeoutDuration() != 30*time.Second {
-			t.Errorf("Expected 30s fetch timeout, got %v", m.FetchTimeoutDuration())
-		}
-		if m.TestTimeoutDuration() != 120*time.Second {
-			t.Errorf("Expected 120s test timeout, got %v", m.TestTimeoutDuration())
-		}
-	})
-
-	t.Run("Custom config", func(t *testing.T) {
-		cfg := DefaultConfig()
-		cfg.Test.FetchTimeout = 10
-		cfg.Test.TestTimeout = 60
-		m := NewModel(&mockBackend{}, cfg)
-		if m.FetchTimeoutDuration() != 10*time.Second {
-			t.Errorf("Expected 10s fetch timeout, got %v", m.FetchTimeoutDuration())
-		}
-		if m.TestTimeoutDuration() != 60*time.Second {
-			t.Errorf("Expected 60s test timeout, got %v", m.TestTimeoutDuration())
-		}
-	})
 }
 
 func TestExportResultJSON(t *testing.T) {

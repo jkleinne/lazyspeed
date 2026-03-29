@@ -103,7 +103,7 @@ func runHeadlessTest() {
 			fmt.Printf("\n--- Test %d of %d ---\n", i+1, runCount)
 		}
 
-		testCtx, testCancel := context.WithTimeout(context.Background(), m.TestTimeoutDuration())
+		testCtx, testCancel := context.WithTimeout(context.Background(), m.Config.TestTimeoutDuration())
 		res, err := m.RunHeadless(testCtx, server, opts)
 		testCancel()
 		if err != nil {

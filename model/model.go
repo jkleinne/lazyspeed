@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/showwin/speedtest-go/speedtest"
@@ -190,66 +189,12 @@ func NewDefaultModel() *Model {
 	return m
 }
 
-// FetchTimeoutDuration returns the configured fetch timeout as a time.Duration.
-func (m *Model) FetchTimeoutDuration() time.Duration {
-	secs := defaultFetchTimeout
-	if m.Config.Test.FetchTimeout > 0 {
-		secs = m.Config.Test.FetchTimeout
-	}
-	return time.Duration(secs) * time.Second
-}
-
-// TestTimeoutDuration returns the configured test timeout as a time.Duration.
-func (m *Model) TestTimeoutDuration() time.Duration {
-	secs := defaultTestTimeout
-	if m.Config.Test.TestTimeout > 0 {
-		secs = m.Config.Test.TestTimeout
-	}
-	return time.Duration(secs) * time.Second
-}
-
-// pingCount returns the configured ping count.
-func (m *Model) pingCount() int {
-	if m.Config.Test.PingCount > 0 {
-		return m.Config.Test.PingCount
-	}
-	return defaultPingCount
-}
-
 // userInfo extracts IP and ISP from the User field.
 func (m *Model) userInfo() (ip, isp string) {
 	if m.user != nil {
 		return m.user.IP, m.user.Isp
 	}
 	return "", ""
-}
-
-// ExportDir returns the configured export directory, falling back to the
-// current working directory if none is configured.
-func (m *Model) ExportDir() (string, error) {
-	if m.Config != nil && m.Config.Export.Directory != "" {
-		dir := m.Config.Export.Directory
-		if dir == "~" || strings.HasPrefix(dir, "~/") {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return "", fmt.Errorf("failed to expand home directory: %v", err)
-			}
-			if dir == "~" {
-				dir = home
-			} else {
-				dir = filepath.Join(home, dir[2:])
-			}
-		}
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return "", fmt.Errorf("failed to create export directory: %v", err)
-		}
-		return dir, nil
-	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", fmt.Errorf("could not determine working directory: %v", err)
-	}
-	return cwd, nil
 }
 
 // pingResult holds the aggregated outcome of a ping measurement.
@@ -451,7 +396,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 
 	sendUpdate(progressServer, fmt.Sprintf("Testing with server: %s", server.Name), updateChan)
 
-	pingCount := m.pingCount()
+	pingCount := m.Config.PingCount()
 
 	sendUpdate(progressPingStart, "Measuring ping and jitter...", updateChan)
 	pingResult, err := measurePing(ctx, m.backend, server, pingCount, func(i, total int, ping, jitter float64) {
@@ -577,7 +522,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		return nil, ctx.Err()
 	}
 
-	pingCount := m.pingCount()
+	pingCount := m.Config.PingCount()
 
 	callProgressFn(opts.ProgressFn, fmt.Sprintf("Measuring ping (0/%d)...", pingCount))
 	pingResult, err := measurePing(ctx, m.backend, server, pingCount, func(i, total int, ping, _ float64) {

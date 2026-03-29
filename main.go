@@ -107,7 +107,7 @@ func runDiagCmd(m *model.Model, cfg *diag.DiagConfig) tea.Cmd {
 
 func fetchServerListCmd(m *model.Model) tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), m.FetchTimeoutDuration())
+		ctx, cancel := context.WithTimeout(context.Background(), m.Config.FetchTimeoutDuration())
 		defer cancel()
 		err := m.FetchServerList(ctx)
 		return serverListMsg{err: err}
@@ -464,7 +464,7 @@ func (s *speedTest) startSpeedTest() (tea.Model, tea.Cmd) {
 	s.model.CurrentPhase = "Starting speed test..."
 	s.model.Error = nil
 
-	ctx, cancel := context.WithTimeout(context.Background(), s.model.TestTimeoutDuration())
+	ctx, cancel := context.WithTimeout(context.Background(), s.model.Config.TestTimeoutDuration())
 	s.cancelTest = cancel
 
 	s.progressChan = make(chan model.ProgressUpdate)
@@ -555,7 +555,7 @@ func waitForProgress(progressChan chan model.ProgressUpdate, errChan chan error)
 // exportCmd runs the file export in a goroutine and returns the result as a tea.Cmd.
 func exportCmd(result *model.SpeedTestResult, format string, m *model.Model) tea.Cmd {
 	return func() tea.Msg {
-		dir, err := m.ExportDir()
+		dir, err := m.Config.ExportDir()
 		if err != nil {
 			return exportDoneMsg{err: err}
 		}
