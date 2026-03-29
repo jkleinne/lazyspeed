@@ -2125,3 +2125,36 @@ func TestFindServerIndex(t *testing.T) {
 		t.Error("FindServerIndex(99) should return false")
 	}
 }
+
+func TestRunHeadlessFetchUserInfoWarning(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Test.PingCount = 1
+	m := NewModel(&mockBackend{
+		fetchUserInfoFn: func() (*speedtest.User, error) {
+			return nil, errors.New("network unreachable")
+		},
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(10 * time.Millisecond)
+			return nil
+		},
+		downloadTestFn: func(s *speedtest.Server) error {
+			s.DLSpeed = 100 * bytesPerMbit
+			return nil
+		},
+		uploadTestFn: func(s *speedtest.Server) error {
+			s.ULSpeed = 50 * bytesPerMbit
+			return nil
+		},
+	}, cfg)
+
+	_, err := m.RunHeadless(context.Background(), &speedtest.Server{}, RunOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if m.Warning == "" {
+		t.Error("expected Warning to be set when FetchUserInfo fails")
+	}
+	if !strings.Contains(m.Warning, "network unreachable") {
+		t.Errorf("Warning should contain cause, got %q", m.Warning)
+	}
+}

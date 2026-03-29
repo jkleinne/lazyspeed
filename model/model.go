@@ -622,8 +622,11 @@ func ExportResult(result *SpeedTestResult, format string, dir string) (path stri
 
 func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts RunOptions) (*SpeedTestResult, error) {
 	callProgressFn(opts.ProgressFn, "Fetching network information...")
-	if user, err := m.backend.FetchUserInfo(); err == nil {
+	user, userErr := m.backend.FetchUserInfo()
+	if userErr == nil {
 		m.user = user
+	} else {
+		m.Warning = fmt.Sprintf("could not fetch network info: %v", userErr)
 	}
 	userIP, userISP := m.userInfo()
 
