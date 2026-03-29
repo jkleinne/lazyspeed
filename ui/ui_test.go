@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jkleinne/lazyspeed/model"
 	"github.com/muesli/termenv"
-	"github.com/showwin/speedtest-go/speedtest"
 )
 
 func TestMain(m *testing.M) {
@@ -229,18 +228,18 @@ func TestRenderServerSelection(t *testing.T) {
 	m.Height = 40
 
 	// Case 1: Empty list
-	res := RenderServerSelection(m.ServerList, Viewport{Width: 100, Height: m.Height})
+	res := RenderServerSelection([]model.Server{}, Viewport{Width: 100, Height: m.Height})
 	if !strings.Contains(res, "No servers available") {
 		t.Errorf("Expected 'No servers available' for empty list")
 	}
 
 	// Case 2: Populated list
-	m.ServerList = speedtest.Servers{
-		&speedtest.Server{Name: "Server 1", Sponsor: "Sponsor 1", Country: "Country 1", Latency: 10 * time.Millisecond},
-		&speedtest.Server{Name: "Server 2", Sponsor: "Sponsor 2", Country: "Country 2", Latency: 20 * time.Millisecond},
+	servers := []model.Server{
+		{Name: "Server 1", Sponsor: "Sponsor 1", Country: "Country 1", Latency: 10 * time.Millisecond},
+		{Name: "Server 2", Sponsor: "Sponsor 2", Country: "Country 2", Latency: 20 * time.Millisecond},
 	}
 
-	res = RenderServerSelection(m.ServerList, Viewport{Width: 100, Height: m.Height, Cursor: 1})
+	res = RenderServerSelection(servers, Viewport{Width: 100, Height: m.Height, Cursor: 1})
 	if !strings.Contains(res, "> Sponsor 2") {
 		t.Errorf("Expected cursor on Server 2")
 	}
@@ -294,9 +293,9 @@ func TestRenderServerSelectionViewport(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			servers := make(speedtest.Servers, tt.serverCount)
+			servers := make([]model.Server, tt.serverCount)
 			for i := range servers {
-				servers[i] = &speedtest.Server{
+				servers[i] = model.Server{
 					Name:    fmt.Sprintf("Server %d", i),
 					Sponsor: fmt.Sprintf("Sponsor %d", i),
 					Country: "US",

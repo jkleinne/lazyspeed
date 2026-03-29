@@ -491,7 +491,7 @@ func (s *speedTest) renderMainView() string {
 		b.WriteString("\n\n")
 
 	case model.StateSelectingServer:
-		b.WriteString(ui.RenderServerSelection(s.model.ServerList, ui.Viewport{
+		b.WriteString(ui.RenderServerSelection(s.model.Servers(), ui.Viewport{
 			Width:  s.model.Width,
 			Height: s.model.Height,
 			Offset: s.serverListOffset,

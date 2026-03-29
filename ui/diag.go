@@ -23,7 +23,7 @@ const (
 
 // renderLatency formats a duration value with colour coding.
 func renderLatency(d time.Duration) string {
-	s := fmt.Sprintf("%dms", d.Milliseconds())
+	s := fmt.Sprintf("%.0fms", diag.DurationMs(d))
 	return latencyStyle(d).Render(s)
 }
 
@@ -267,5 +267,5 @@ func dnsDisplayStr(dns *diag.DNSResult) string {
 	if dns.Cached {
 		cacheLabel = "cached"
 	}
-	return fmt.Sprintf("%dms (%s)", dns.Latency.Milliseconds(), cacheLabel)
+	return fmt.Sprintf("%.0fms (%s)", diag.DurationMs(dns.Latency), cacheLabel)
 }

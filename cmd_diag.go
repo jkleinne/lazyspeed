@@ -251,9 +251,9 @@ func diagDefaultOutput(r *diag.DiagResult) string {
 		r.Quality.Score, r.Quality.Grade, r.Quality.Label)
 
 	if r.DNS != nil {
-		cachedStr := "no"
+		cachedStr := "cold"
 		if r.DNS.Cached {
-			cachedStr = "yes"
+			cachedStr = "cached"
 		}
 		fmt.Fprintf(&b, "DNS:         %.1f ms (cached: %s)\n",
 			diag.DurationMs(r.DNS.Latency), cachedStr)
