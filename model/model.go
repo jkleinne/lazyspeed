@@ -64,6 +64,46 @@ type SpeedTestResult struct {
 	UserISP       string    `json:"user_isp"`
 }
 
+// Server is a display-friendly representation of a speed test server,
+// decoupled from the speedtest-go library type.
+type Server struct {
+	ID       string
+	Name     string
+	Sponsor  string
+	Country  string
+	Host     string
+	Latency  time.Duration
+	Distance float64
+}
+
+// Servers returns the server list as display-friendly Server values.
+func (m *Model) Servers() []Server {
+	servers := make([]Server, len(m.ServerList))
+	for i, s := range m.ServerList {
+		servers[i] = Server{
+			ID:       s.ID,
+			Name:     s.Name,
+			Sponsor:  s.Sponsor,
+			Country:  s.Country,
+			Host:     s.Host,
+			Latency:  s.Latency,
+			Distance: s.Distance,
+		}
+	}
+	return servers
+}
+
+// FindServerIndex returns the index of the server with the given ID,
+// or -1 and false if not found.
+func (m *Model) FindServerIndex(id string) (int, bool) {
+	for i, s := range m.ServerList {
+		if s.ID == id {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
 // UnmarshalJSON supports reading both the current "server_country" key and
 // the legacy "server_loc" key so that existing history files are loaded
 // without data loss.

@@ -2066,3 +2066,62 @@ func TestDiagnosticsConfigTildePath(t *testing.T) {
 		t.Errorf("Expected diagnostics path '~/custom-diag/history.json', got %q", cfg.Diagnostics.Path)
 	}
 }
+
+func TestServers(t *testing.T) {
+	m := NewDefaultModel()
+	m.ServerList = speedtest.Servers{
+		&speedtest.Server{
+			ID: "1", Name: "Server A", Sponsor: "Sponsor A",
+			Country: "US", Host: "a.example.com:8080",
+			Latency: 10 * time.Millisecond, Distance: 100.5,
+		},
+		&speedtest.Server{
+			ID: "2", Name: "Server B", Sponsor: "Sponsor B",
+			Country: "DE", Host: "b.example.com",
+			Latency: 25 * time.Millisecond, Distance: 500.0,
+		},
+	}
+
+	servers := m.Servers()
+	if len(servers) != 2 {
+		t.Fatalf("len(Servers()) = %d, want 2", len(servers))
+	}
+
+	s := servers[0]
+	if s.ID != "1" || s.Name != "Server A" || s.Sponsor != "Sponsor A" {
+		t.Errorf("server[0] identity = (%q, %q, %q), want (1, Server A, Sponsor A)", s.ID, s.Name, s.Sponsor)
+	}
+	if s.Country != "US" || s.Host != "a.example.com:8080" {
+		t.Errorf("server[0] location = (%q, %q), want (US, a.example.com:8080)", s.Country, s.Host)
+	}
+	if s.Latency != 10*time.Millisecond || s.Distance != 100.5 {
+		t.Errorf("server[0] metrics = (%v, %v), want (10ms, 100.5)", s.Latency, s.Distance)
+	}
+}
+
+func TestServersEmpty(t *testing.T) {
+	m := NewDefaultModel()
+	servers := m.Servers()
+	if len(servers) != 0 {
+		t.Errorf("len(Servers()) = %d, want 0 for empty model", len(servers))
+	}
+}
+
+func TestFindServerIndex(t *testing.T) {
+	m := NewDefaultModel()
+	m.ServerList = speedtest.Servers{
+		&speedtest.Server{ID: "10"},
+		&speedtest.Server{ID: "20"},
+		&speedtest.Server{ID: "30"},
+	}
+
+	idx, found := m.FindServerIndex("20")
+	if !found || idx != 1 {
+		t.Errorf("FindServerIndex(20) = (%d, %v), want (1, true)", idx, found)
+	}
+
+	_, found = m.FindServerIndex("99")
+	if found {
+		t.Error("FindServerIndex(99) should return false")
+	}
+}
