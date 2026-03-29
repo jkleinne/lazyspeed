@@ -428,6 +428,23 @@ func runTransferPhase(
 	return rawSpeed() / bytesPerMbit, nil
 }
 
+// buildResult constructs a SpeedTestResult from the completed test data.
+func buildResult(server *speedtest.Server, pr *pingResult, download, upload float64, userIP, userISP string) *SpeedTestResult {
+	return &SpeedTestResult{
+		DownloadSpeed: download,
+		UploadSpeed:   upload,
+		Ping:          pr.avgPing,
+		Jitter:        pr.jitter,
+		ServerName:    server.Name,
+		ServerSponsor: server.Sponsor,
+		ServerCountry: server.Country,
+		Distance:      server.Distance,
+		Timestamp:     time.Now(),
+		UserIP:        userIP,
+		UserISP:       userISP,
+	}
+}
+
 func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, updateChan chan<- ProgressUpdate) error {
 	m.State = StateTesting
 	m.Progress = 0
@@ -509,19 +526,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 
 	userIP, userISP := m.userInfo()
 
-	result := &SpeedTestResult{
-		DownloadSpeed: downloadSpeed,
-		UploadSpeed:   uploadSpeed,
-		Ping:          pingResult.avgPing,
-		Jitter:        pingResult.jitter,
-		ServerName:    server.Name,
-		ServerSponsor: server.Sponsor,
-		ServerCountry: server.Country,
-		Distance:      server.Distance,
-		Timestamp:     time.Now(),
-		UserIP:        userIP,
-		UserISP:       userISP,
-	}
+	result := buildResult(server, pingResult, downloadSpeed, uploadSpeed, userIP, userISP)
 
 	m.Results = result
 	m.TestHistory = append(m.TestHistory, result)
@@ -622,17 +627,5 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		callProgressFn(opts.ProgressFn, fmt.Sprintf("Upload: %.2f Mbps", uploadSpeed))
 	}
 
-	return &SpeedTestResult{
-		DownloadSpeed: downloadSpeed,
-		UploadSpeed:   uploadSpeed,
-		Ping:          pingResult.avgPing,
-		Jitter:        pingResult.jitter,
-		ServerName:    server.Name,
-		ServerSponsor: server.Sponsor,
-		ServerCountry: server.Country,
-		Distance:      server.Distance,
-		Timestamp:     time.Now(),
-		UserIP:        userIP,
-		UserISP:       userISP,
-	}, nil
+	return buildResult(server, pingResult, downloadSpeed, uploadSpeed, userIP, userISP), nil
 }
