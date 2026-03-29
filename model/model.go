@@ -259,6 +259,7 @@ type pingResult struct {
 	pings   []float64
 	avgPing float64
 	jitter  float64
+	lastErr error
 }
 
 // pingObserver is called after each successful ping measurement.
@@ -271,6 +272,7 @@ type pingObserver func(iteration, total int, ping, jitter float64)
 func measurePing(ctx context.Context, backend Backend, server *speedtest.Server, count int, observe pingObserver) (*pingResult, error) {
 	var pings []float64
 	var sumPing float64
+	var lastErr error
 
 	for i := range count {
 		if ctx.Err() != nil {
@@ -289,6 +291,7 @@ func measurePing(ctx context.Context, backend Backend, server *speedtest.Server,
 			}
 		})
 		if err != nil {
+			lastErr = err
 			continue
 		}
 		select {
@@ -299,6 +302,7 @@ func measurePing(ctx context.Context, backend Backend, server *speedtest.Server,
 	}
 
 	result := &pingResult{pings: pings}
+	result.lastErr = lastErr
 
 	if len(pings) > 0 {
 		result.avgPing = sumPing / float64(len(pings))
@@ -533,7 +537,11 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	}
 	m.pingResults = pingResult.pings
 	if len(pingResult.pings) == 0 {
-		m.Warning = "all ping measurements failed; ping and jitter are reported as 0"
+		msg := "all ping measurements failed; ping and jitter are reported as 0"
+		if pingResult.lastErr != nil {
+			msg = fmt.Sprintf("%s (last error: %v)", msg, pingResult.lastErr)
+		}
+		m.Warning = msg
 	}
 
 	sendUpdate(progressDownloadStart, "Starting download test...", updateChan)
