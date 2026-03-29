@@ -90,22 +90,22 @@ func resolveDiagTarget(m *model.Model, args []string) string {
 	fetchDiagServers(m)
 
 	if diagServer != "" {
-		idx, found := m.FindServerIndex(diagServer)
+		idx, found := m.Servers.FindIndex(diagServer)
 		if !found {
 			fmt.Fprintf(os.Stderr, "Error: server %s not found\n", diagServer)
 			os.Exit(1)
 		}
-		return stripPort(m.ServerList[idx].Host)
+		return stripPort(m.Servers.Raw()[idx].Host)
 	}
 
-	if len(m.ServerList) == 0 {
+	if m.Servers.Len() == 0 {
 		fmt.Fprintf(os.Stderr, "Error: no servers found\n")
 		os.Exit(1)
 	}
 	if diagIsInteractive() {
-		fmt.Fprintf(os.Stderr, "Selected server: %s (%s)\n", m.ServerList[0].Name, m.ServerList[0].Country)
+		fmt.Fprintf(os.Stderr, "Selected server: %s (%s)\n", m.Servers.Raw()[0].Name, m.Servers.Raw()[0].Country)
 	}
-	return stripPort(m.ServerList[0].Host)
+	return stripPort(m.Servers.Raw()[0].Host)
 }
 
 func runDiag(args []string) {

@@ -86,8 +86,8 @@ type diagCompleteMsg struct {
 func runDiagCmd(m *model.Model, cfg *diag.DiagConfig) tea.Cmd {
 	return func() tea.Msg {
 		var target string
-		if len(m.ServerList) > 0 {
-			srv := m.ServerList[0]
+		if m.Servers.Len() > 0 {
+			srv := m.Servers.Raw()[0]
 			target = stripPort(srv.Host)
 			if target == "" {
 				target = srv.Name
@@ -109,7 +109,7 @@ func fetchServerListCmd(m *model.Model) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), m.Config.FetchTimeoutDuration())
 		defer cancel()
-		err := m.FetchServerList(ctx)
+		err := m.FetchServers(ctx)
 		return serverListMsg{err: err}
 	}
 }
@@ -134,7 +134,7 @@ func (s *speedTest) cancelTestIfRunning() {
 }
 
 func (s *speedTest) adjustServerListOffset() {
-	total := len(s.model.ServerList)
+	total := s.model.Servers.Len()
 	visible := ui.ServerListVisibleLines(s.model.Height, total)
 
 	if s.cursor >= s.serverListOffset+visible {
@@ -294,7 +294,7 @@ func (s *speedTest) handleServerSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cm
 			s.adjustServerListOffset()
 		}
 	case keyDown, keyJ:
-		if s.cursor < len(s.model.ServerList)-1 {
+		if s.cursor < s.model.Servers.Len()-1 {
 			s.cursor++
 			s.adjustServerListOffset()
 		}
@@ -336,7 +336,7 @@ func (s *speedTest) startNewTest() (tea.Model, tea.Cmd) {
 	s.viewState = ViewMain
 	s.diagResult = nil
 	s.showHelp = false
-	if len(s.model.ServerList) == 0 {
+	if s.model.Servers.Len() == 0 {
 		s.model.State = model.StateAwaitingServers
 		s.model.CurrentPhase = fetchingServerListPhase
 		return s, s.spinner.Tick
@@ -452,7 +452,7 @@ func (s *speedTest) View() string {
 }
 
 func (s *speedTest) startSpeedTest() (tea.Model, tea.Cmd) {
-	if s.cursor < 0 || s.cursor >= len(s.model.ServerList) {
+	if s.cursor < 0 || s.cursor >= s.model.Servers.Len() {
 		s.model.Error = fmt.Errorf("invalid server selection")
 		s.model.State = model.StateIdle
 		s.showHelp = false
@@ -470,7 +470,7 @@ func (s *speedTest) startSpeedTest() (tea.Model, tea.Cmd) {
 	s.progressChan = make(chan model.ProgressUpdate)
 	s.errChan = make(chan error, 1)
 	go func() {
-		server := s.model.ServerList[s.cursor]
+		server := s.model.Servers.Raw()[s.cursor]
 		err := s.model.PerformSpeedTest(ctx, server, s.progressChan)
 		s.errChan <- err
 		close(s.progressChan)
@@ -491,7 +491,7 @@ func (s *speedTest) renderMainView() string {
 		b.WriteString("\n\n")
 
 	case model.StateSelectingServer:
-		b.WriteString(ui.RenderServerSelection(s.model.Servers(), ui.Viewport{
+		b.WriteString(ui.RenderServerSelection(s.model.Servers.List(), ui.Viewport{
 			Width:  s.model.Width,
 			Height: s.model.Height,
 			Offset: s.serverListOffset,

@@ -58,21 +58,21 @@ func runHeadlessTest() {
 	}
 	fetchServersOrExit(m)
 
-	if len(m.ServerList) == 0 {
+	if m.Servers.Len() == 0 {
 		fmt.Fprintf(os.Stderr, "Error: no servers found\n")
 		os.Exit(1)
 	}
 
 	serverIdx := 0
 	if runServerID != "" {
-		idx, found := m.FindServerIndex(runServerID)
+		idx, found := m.Servers.FindIndex(runServerID)
 		if !found {
 			fmt.Fprintf(os.Stderr, "Error: server %s not found\n", runServerID)
 			os.Exit(1)
 		}
 		serverIdx = idx
 	}
-	server := m.ServerList[serverIdx]
+	server := m.Servers.Raw()[serverIdx]
 
 	if runIsInteractive() {
 		fmt.Printf("Selected server: %s (%s)\n", server.Name, server.Country)

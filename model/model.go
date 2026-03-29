@@ -1,7 +1,6 @@
 package model
 
 import (
-	"cmp"
 	"context"
 	"encoding/csv"
 	"encoding/json"
@@ -9,7 +8,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"slices"
 	"time"
 
 	"github.com/showwin/speedtest-go/speedtest"
@@ -63,46 +61,6 @@ type SpeedTestResult struct {
 	UserISP       string    `json:"user_isp"`
 }
 
-// Server is a display-friendly representation of a speed test server,
-// decoupled from the speedtest-go library type.
-type Server struct {
-	ID       string
-	Name     string
-	Sponsor  string
-	Country  string
-	Host     string
-	Latency  time.Duration
-	Distance float64
-}
-
-// Servers returns the server list as display-friendly Server values.
-func (m *Model) Servers() []Server {
-	servers := make([]Server, len(m.ServerList))
-	for i, s := range m.ServerList {
-		servers[i] = Server{
-			ID:       s.ID,
-			Name:     s.Name,
-			Sponsor:  s.Sponsor,
-			Country:  s.Country,
-			Host:     s.Host,
-			Latency:  s.Latency,
-			Distance: s.Distance,
-		}
-	}
-	return servers
-}
-
-// FindServerIndex returns the index of the server with the given ID,
-// or -1 and false if not found.
-func (m *Model) FindServerIndex(id string) (int, bool) {
-	for i, s := range m.ServerList {
-		if s.ID == id {
-			return i, true
-		}
-	}
-	return -1, false
-}
-
 // UnmarshalJSON supports reading both the current "server_country" key and
 // the legacy "server_loc" key so that existing history files are loaded
 // without data loss.
@@ -150,6 +108,7 @@ type RunOptions struct {
 // Model holds all application state for the TUI and speed test orchestration.
 type Model struct {
 	History      *HistoryStore
+	Servers      *ServerStore
 	State        ModelState
 	Progress     float64
 	CurrentPhase string
@@ -157,7 +116,6 @@ type Model struct {
 	Warning      string
 	Width        int
 	Height       int
-	ServerList   speedtest.Servers
 	backend      Backend
 	Config       *Config
 	user         *speedtest.User
@@ -172,6 +130,7 @@ func NewModel(backend Backend, cfg *Config) *Model {
 	}
 	return &Model{
 		History: NewHistoryStore(cfg.History),
+		Servers: &ServerStore{},
 		backend: backend,
 		Config:  cfg,
 	}
@@ -276,19 +235,9 @@ func callProgressFn(fn func(string), phase string) {
 	}
 }
 
-func (m *Model) FetchServerList(ctx context.Context) error {
-	serverList, err := m.backend.FetchServers()
-	if err != nil {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		return fmt.Errorf("failed to fetch servers: %v", err)
-	}
-	slices.SortFunc(serverList, func(a, b *speedtest.Server) int {
-		return cmp.Compare(a.Latency, b.Latency)
-	})
-	m.ServerList = serverList
-	return nil
+// FetchServers fetches the server list from the backend.
+func (m *Model) FetchServers(ctx context.Context) error {
+	return m.Servers.Fetch(ctx, m.backend)
 }
 
 // transferPhase defines the progress parameters for a download or upload phase.

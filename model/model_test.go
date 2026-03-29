@@ -253,7 +253,7 @@ func TestHistoryLoadSave(t *testing.T) {
 	}
 }
 
-func TestFetchServerList(t *testing.T) {
+func TestFetchServers(t *testing.T) {
 	// Case 1: Normal fetch (mocked) and sort
 	m := NewModel(&mockBackend{
 		fetchServersFn: func() (speedtest.Servers, error) {
@@ -265,16 +265,17 @@ func TestFetchServerList(t *testing.T) {
 		},
 	}, nil)
 
-	err := m.FetchServerList(context.Background())
+	err := m.FetchServers(context.Background())
 	if err != nil {
-		t.Fatalf("FetchServerList failed: %v", err)
+		t.Fatalf("FetchServers failed: %v", err)
 	}
-	if len(m.ServerList) != 3 {
-		t.Fatalf("Expected 3 servers, got %d", len(m.ServerList))
+	if m.Servers.Len() != 3 {
+		t.Fatalf("Expected 3 servers, got %d", m.Servers.Len())
 	}
 	// Verify sorted by latency
-	if m.ServerList[0].Name != "Server A" || m.ServerList[1].Name != "Server B" || m.ServerList[2].Name != "Server C" {
-		t.Errorf("ServerList not sorted correctly by latency")
+	raw := m.Servers.Raw()
+	if raw[0].Name != "Server A" || raw[1].Name != "Server B" || raw[2].Name != "Server C" {
+		t.Errorf("Servers not sorted correctly by latency")
 	}
 
 	// Case 2: Error from backend
@@ -283,7 +284,7 @@ func TestFetchServerList(t *testing.T) {
 			return nil, errors.New("backend error")
 		},
 	}, nil)
-	err = m.FetchServerList(context.Background())
+	err = m.FetchServers(context.Background())
 	if err == nil || err.Error() != "failed to fetch servers: backend error" {
 		t.Errorf("Expected backend error, got %v", err)
 	}
@@ -291,7 +292,7 @@ func TestFetchServerList(t *testing.T) {
 	// Case 3: Cancelled context
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err = m.FetchServerList(ctx)
+	err = m.FetchServers(ctx)
 	if err != context.Canceled {
 		t.Errorf("Expected context.Canceled, got %v", err)
 	}
@@ -1339,19 +1340,19 @@ drain:
 	}
 }
 
-func TestFetchServerListEmptyResult(t *testing.T) {
+func TestFetchServersEmptyResult(t *testing.T) {
 	m := NewModel(&mockBackend{
 		fetchServersFn: func() (speedtest.Servers, error) {
 			return speedtest.Servers{}, nil
 		},
 	}, nil)
 
-	err := m.FetchServerList(context.Background())
+	err := m.FetchServers(context.Background())
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
-	if len(m.ServerList) != 0 {
-		t.Errorf("Expected empty ServerList, got %d servers", len(m.ServerList))
+	if m.Servers.Len() != 0 {
+		t.Errorf("Expected empty server list, got %d servers", m.Servers.Len())
 	}
 }
 
@@ -1974,9 +1975,9 @@ func TestDiagnosticsConfigTildePath(t *testing.T) {
 	}
 }
 
-func TestServers(t *testing.T) {
+func TestServersList(t *testing.T) {
 	m := NewDefaultModel()
-	m.ServerList = speedtest.Servers{
+	m.Servers.servers = speedtest.Servers{
 		&speedtest.Server{
 			ID: "1", Name: "Server A", Sponsor: "Sponsor A",
 			Country: "US", Host: "a.example.com:8080",
@@ -1989,7 +1990,7 @@ func TestServers(t *testing.T) {
 		},
 	}
 
-	servers := m.Servers()
+	servers := m.Servers.List()
 	if len(servers) != 2 {
 		t.Fatalf("len(Servers()) = %d, want 2", len(servers))
 	}
@@ -2006,9 +2007,9 @@ func TestServers(t *testing.T) {
 	}
 }
 
-func TestServersEmpty(t *testing.T) {
+func TestServersListEmpty(t *testing.T) {
 	m := NewDefaultModel()
-	servers := m.Servers()
+	servers := m.Servers.List()
 	if len(servers) != 0 {
 		t.Errorf("len(Servers()) = %d, want 0 for empty model", len(servers))
 	}
@@ -2016,20 +2017,20 @@ func TestServersEmpty(t *testing.T) {
 
 func TestFindServerIndex(t *testing.T) {
 	m := NewDefaultModel()
-	m.ServerList = speedtest.Servers{
+	m.Servers.servers = speedtest.Servers{
 		&speedtest.Server{ID: "10"},
 		&speedtest.Server{ID: "20"},
 		&speedtest.Server{ID: "30"},
 	}
 
-	idx, found := m.FindServerIndex("20")
+	idx, found := m.Servers.FindIndex("20")
 	if !found || idx != 1 {
-		t.Errorf("FindServerIndex(20) = (%d, %v), want (1, true)", idx, found)
+		t.Errorf("FindIndex(20) = (%d, %v), want (1, true)", idx, found)
 	}
 
-	_, found = m.FindServerIndex("99")
+	_, found = m.Servers.FindIndex("99")
 	if found {
-		t.Error("FindServerIndex(99) should return false")
+		t.Error("FindIndex(99) should return false")
 	}
 }
 
