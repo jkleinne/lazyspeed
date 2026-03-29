@@ -43,16 +43,14 @@ func TestDiagIsInteractive(t *testing.T) {
 	}
 }
 
-func TestDiagConfigFromModel(t *testing.T) {
+func TestDiagConfig(t *testing.T) {
 	t.Run("custom values", func(t *testing.T) {
-		dcfg := model.DiagnosticsConfig{
+		got := diagConfig(model.DiagnosticsConfig{
 			MaxHops:    15,
 			Timeout:    30,
 			MaxEntries: 10,
 			Path:       "/custom/path",
-		}
-
-		got := diag.ConfigFromModel(dcfg)
+		})
 
 		if got.MaxHops != 15 {
 			t.Errorf("MaxHops = %d, want 15", got.MaxHops)
@@ -69,7 +67,7 @@ func TestDiagConfigFromModel(t *testing.T) {
 	})
 
 	t.Run("zero values fall back to defaults", func(t *testing.T) {
-		got := diag.ConfigFromModel(model.DiagnosticsConfig{})
+		got := diagConfig(model.DiagnosticsConfig{})
 		defaults := diag.DefaultDiagConfig()
 
 		if got.MaxHops != defaults.MaxHops {

@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net"
 	"time"
-
-	"github.com/jkleinne/lazyspeed/model"
 )
 
 const (
@@ -112,20 +110,20 @@ func DefaultDiagConfig() *DiagConfig {
 	}
 }
 
-// ConfigFromModel creates a DiagConfig by overlaying model diagnostics settings onto defaults.
-func ConfigFromModel(dcfg model.DiagnosticsConfig) *DiagConfig {
+// NewDiagConfig creates a DiagConfig by overlaying non-zero overrides onto defaults.
+func NewDiagConfig(overrides DiagConfig) *DiagConfig {
 	cfg := DefaultDiagConfig()
-	if dcfg.MaxHops > 0 {
-		cfg.MaxHops = dcfg.MaxHops
+	if overrides.MaxHops > 0 {
+		cfg.MaxHops = overrides.MaxHops
 	}
-	if dcfg.Timeout > 0 {
-		cfg.Timeout = dcfg.Timeout
+	if overrides.Timeout > 0 {
+		cfg.Timeout = overrides.Timeout
 	}
-	if dcfg.MaxEntries > 0 {
-		cfg.MaxEntries = dcfg.MaxEntries
+	if overrides.MaxEntries > 0 {
+		cfg.MaxEntries = overrides.MaxEntries
 	}
-	if dcfg.Path != "" {
-		cfg.Path = dcfg.Path
+	if overrides.Path != "" {
+		cfg.Path = overrides.Path
 	}
 	return cfg
 }

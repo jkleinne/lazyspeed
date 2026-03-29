@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/jkleinne/lazyspeed/diag"
 	"github.com/jkleinne/lazyspeed/model"
 )
 
@@ -28,6 +29,16 @@ func printJSON(v any) {
 		os.Exit(1)
 	}
 	fmt.Println(string(data))
+}
+
+// diagConfig maps model diagnostics settings to a diag.DiagConfig.
+func diagConfig(d model.DiagnosticsConfig) *diag.DiagConfig {
+	return diag.NewDiagConfig(diag.DiagConfig{
+		MaxHops:    d.MaxHops,
+		Timeout:    d.Timeout,
+		MaxEntries: d.MaxEntries,
+		Path:       d.Path,
+	})
 }
 
 // writeCSVRows writes a header and rows as CSV to stdout, exiting on flush error.

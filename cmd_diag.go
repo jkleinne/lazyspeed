@@ -110,7 +110,7 @@ func resolveDiagTarget(m *model.Model, args []string) string {
 
 func runDiag(args []string) {
 	m := model.NewDefaultModel()
-	cfg := diag.ConfigFromModel(m.Config.Diagnostics)
+	cfg := diagConfig(m.Config.Diagnostics)
 	target := resolveDiagTarget(m, args)
 
 	if diagIsInteractive() {
@@ -154,7 +154,7 @@ func runDiag(args []string) {
 
 func runDiagHistory() {
 	m := model.NewDefaultModel()
-	cfg := diag.ConfigFromModel(m.Config.Diagnostics)
+	cfg := diagConfig(m.Config.Diagnostics)
 
 	history, err := diag.LoadHistory(cfg.Path)
 	if err != nil {

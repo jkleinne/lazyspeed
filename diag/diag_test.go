@@ -7,11 +7,12 @@ import (
 	"net"
 	"testing"
 	"time"
-
-	"github.com/jkleinne/lazyspeed/model"
 )
 
-const testExampleIP = "93.184.216.34"
+const (
+	testExampleIP   = "93.184.216.34"
+	testExampleHost = "example.com"
+)
 
 func TestRun(t *testing.T) {
 	tests := []struct {
@@ -24,12 +25,12 @@ func TestRun(t *testing.T) {
 	}{
 		{
 			name:   "happy path with hostname",
-			target: "example.com",
+			target: testExampleHost,
 			backend: &mockDiagBackend{
 				TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
 					return []Hop{
 						{Number: 1, IP: "192.168.1.1", Host: "router.local", Latency: 1 * time.Millisecond},
-						{Number: 2, IP: testExampleIP, Host: "example.com", Latency: 20 * time.Millisecond},
+						{Number: 2, IP: testExampleIP, Host: testExampleHost, Latency: 20 * time.Millisecond},
 					}, MethodICMP, nil
 				},
 				ResolveDNSFn: func(_ context.Context, _ string) (string, time.Duration, error) {
@@ -54,7 +55,7 @@ func TestRun(t *testing.T) {
 		},
 		{
 			name:   "all hops timeout",
-			target: "example.com",
+			target: testExampleHost,
 			backend: &mockDiagBackend{
 				TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
 					return []Hop{
@@ -72,7 +73,7 @@ func TestRun(t *testing.T) {
 		},
 		{
 			name:   "traceroute error",
-			target: "example.com",
+			target: testExampleHost,
 			backend: &mockDiagBackend{
 				TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
 					return nil, "", fmt.Errorf("network unreachable")
@@ -125,7 +126,7 @@ func TestRunContextCancellationImmediate(t *testing.T) {
 	}
 
 	cfg := DefaultDiagConfig()
-	_, err := Run(ctx, backend, "example.com", cfg)
+	_, err := Run(ctx, backend, testExampleHost, cfg)
 	if err == nil {
 		t.Fatal("expected error from cancelled context")
 	}
@@ -147,7 +148,7 @@ func TestRunContextCancellationPartialResults(t *testing.T) {
 	}
 
 	cfg := DefaultDiagConfig()
-	result, err := Run(ctx, backend, "example.com", cfg)
+	result, err := Run(ctx, backend, testExampleHost, cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -161,7 +162,7 @@ func TestRunContextCancellationPartialResults(t *testing.T) {
 
 func TestDNSResultMarshalJSON(t *testing.T) {
 	dns := DNSResult{
-		Host:    "example.com",
+		Host:    testExampleHost,
 		IP:      testExampleIP,
 		Latency: 12500 * time.Microsecond,
 		Cached:  false,
@@ -188,14 +189,14 @@ func TestDNSResultMarshalJSON(t *testing.T) {
 
 func TestDiagResultJSONRoundTrip(t *testing.T) {
 	original := DiagResult{
-		Target: "example.com",
+		Target: testExampleHost,
 		Method: MethodICMP,
 		Hops: []Hop{
 			{Number: 1, IP: "192.168.1.1", Host: "router.local", Latency: 5 * time.Millisecond},
 			{Number: 2, Timeout: true},
 		},
 		DNS: &DNSResult{
-			Host:    "example.com",
+			Host:    testExampleHost,
 			IP:      testExampleIP,
 			Latency: 15 * time.Millisecond,
 			Cached:  false,
@@ -245,8 +246,8 @@ func TestDiagResultUnmarshalPartialJSON(t *testing.T) {
 		t.Fatalf("unmarshal failed: %v", err)
 	}
 
-	if result.Target != "example.com" {
-		t.Errorf("target = %q, want %q", result.Target, "example.com")
+	if result.Target != testExampleHost {
+		t.Errorf("target = %q, want %q", result.Target, testExampleHost)
 	}
 	if result.Quality.Score != 0 {
 		t.Errorf("score = %d, want 0 for missing quality", result.Quality.Score)
@@ -265,7 +266,7 @@ func TestRunDNSFailureContinuesTraceroute(t *testing.T) {
 		},
 	}
 
-	result, err := Run(context.Background(), backend, "example.com", DefaultDiagConfig())
+	result, err := Run(context.Background(), backend, testExampleHost, DefaultDiagConfig())
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -279,10 +280,10 @@ func TestRunDNSFailureContinuesTraceroute(t *testing.T) {
 
 func TestComputeScoreZeroHops(t *testing.T) {
 	result := &DiagResult{
-		Target: "example.com",
+		Target: testExampleHost,
 		Hops:   []Hop{},
 		DNS: &DNSResult{
-			Host:    "example.com",
+			Host:    testExampleHost,
 			IP:      testExampleIP,
 			Latency: 10 * time.Millisecond,
 		},
@@ -304,10 +305,10 @@ func TestComputeScoreAllHopsTimeout(t *testing.T) {
 	}
 
 	result := &DiagResult{
-		Target: "example.com",
+		Target: testExampleHost,
 		Hops:   hops,
 		DNS: &DNSResult{
-			Host:    "example.com",
+			Host:    testExampleHost,
 			IP:      testExampleIP,
 			Latency: 500 * time.Millisecond,
 		},
@@ -319,10 +320,10 @@ func TestComputeScoreAllHopsTimeout(t *testing.T) {
 	}
 }
 
-func TestConfigFromModel(t *testing.T) {
+func TestNewDiagConfig(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    model.DiagnosticsConfig
+		input    DiagConfig
 		wantHops int
 		wantTime int
 		wantMax  int
@@ -330,7 +331,7 @@ func TestConfigFromModel(t *testing.T) {
 	}{
 		{
 			name:     "all zeros returns defaults",
-			input:    model.DiagnosticsConfig{},
+			input:    DiagConfig{},
 			wantHops: 30,
 			wantTime: 60,
 			wantMax:  20,
@@ -338,7 +339,7 @@ func TestConfigFromModel(t *testing.T) {
 		},
 		{
 			name:     "non-zero values override defaults",
-			input:    model.DiagnosticsConfig{MaxHops: 15, Timeout: 45, MaxEntries: 10, Path: "/custom/path.json"},
+			input:    DiagConfig{MaxHops: 15, Timeout: 45, MaxEntries: 10, Path: "/custom/path.json"},
 			wantHops: 15,
 			wantTime: 45,
 			wantMax:  10,
@@ -346,7 +347,7 @@ func TestConfigFromModel(t *testing.T) {
 		},
 		{
 			name:     "partial override",
-			input:    model.DiagnosticsConfig{MaxHops: 20},
+			input:    DiagConfig{MaxHops: 20},
 			wantHops: 20,
 			wantTime: 60,
 			wantMax:  20,
@@ -356,7 +357,7 @@ func TestConfigFromModel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := ConfigFromModel(tt.input)
+			cfg := NewDiagConfig(tt.input)
 			if cfg.MaxHops != tt.wantHops {
 				t.Errorf("MaxHops = %d, want %d", cfg.MaxHops, tt.wantHops)
 			}
@@ -390,7 +391,7 @@ func TestRunWarmDNSFailureSetsCachedFalse(t *testing.T) {
 		},
 	}
 
-	result, err := Run(context.Background(), backend, "example.com", DefaultDiagConfig())
+	result, err := Run(context.Background(), backend, testExampleHost, DefaultDiagConfig())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -409,7 +410,7 @@ func TestIsIP(t *testing.T) {
 	}{
 		{"8.8.8.8", true},
 		{"::1", true},
-		{"example.com", false},
+		{testExampleHost, false},
 		{"not-an-ip", false},
 	}
 	for _, tt := range tests {
