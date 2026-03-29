@@ -370,7 +370,7 @@ func TestPerformSpeedTestFailures(t *testing.T) {
 		},
 	}, nil)
 	err := m.PerformSpeedTest(ctx, server, updateChan)
-	if err == nil || err.Error() != "failed to measure download speed: download test failed: dl failed" {
+	if err == nil || err.Error() != "download test failed: dl failed" {
 		t.Errorf("Expected download error, got %v", err)
 	}
 }
@@ -1285,8 +1285,8 @@ func TestPerformSpeedTestUploadFailure(t *testing.T) {
 	}, nil)
 
 	err := m.PerformSpeedTest(context.Background(), &speedtest.Server{}, make(chan ProgressUpdate, 100))
-	if err == nil || !strings.Contains(err.Error(), "failed to measure upload speed") {
-		t.Errorf("Expected error containing 'failed to measure upload speed', got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "upload test failed") {
+		t.Errorf("Expected error containing 'upload test failed', got %v", err)
 	}
 }
 

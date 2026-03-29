@@ -548,7 +548,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		updateChan)
 	if err != nil {
 		m.State = StateIdle
-		return fmt.Errorf("failed to measure download speed: %v", err)
+		return err
 	}
 	sendUpdate(progressDownloadDone, fmt.Sprintf("Download complete: %.2f Mbps", downloadSpeed), updateChan)
 
@@ -564,7 +564,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		updateChan)
 	if err != nil {
 		m.State = StateIdle
-		return fmt.Errorf("failed to measure upload speed: %v", err)
+		return err
 	}
 	sendUpdate(progressUploadDone, fmt.Sprintf("Upload complete: %.2f Mbps", uploadSpeed), updateChan)
 
