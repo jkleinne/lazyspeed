@@ -13,9 +13,9 @@ import (
 
 // fetchServersOrExit fetches the server list with timeout, exiting on failure.
 func fetchServersOrExit(m *model.Model) {
-	ctx, cancel := context.WithTimeout(context.Background(), m.FetchTimeoutDuration())
+	ctx, cancel := context.WithTimeout(context.Background(), m.Config.FetchTimeoutDuration())
 	defer cancel()
-	if err := m.FetchServerList(ctx); err != nil {
+	if err := m.FetchServers(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "Error fetching servers: %v\n", err)
 		os.Exit(1)
 	}

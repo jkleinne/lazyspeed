@@ -86,8 +86,8 @@ type diagCompleteMsg struct {
 func runDiagCmd(m *model.Model, cfg *diag.DiagConfig) tea.Cmd {
 	return func() tea.Msg {
 		var target string
-		if len(m.ServerList) > 0 {
-			srv := m.ServerList[0]
+		if m.Servers.Len() > 0 {
+			srv := m.Servers.Raw()[0]
 			target = stripPort(srv.Host)
 			if target == "" {
 				target = srv.Name
@@ -107,9 +107,9 @@ func runDiagCmd(m *model.Model, cfg *diag.DiagConfig) tea.Cmd {
 
 func fetchServerListCmd(m *model.Model) tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), m.FetchTimeoutDuration())
+		ctx, cancel := context.WithTimeout(context.Background(), m.Config.FetchTimeoutDuration())
 		defer cancel()
-		err := m.FetchServerList(ctx)
+		err := m.FetchServers(ctx)
 		return serverListMsg{err: err}
 	}
 }
@@ -117,7 +117,7 @@ func fetchServerListCmd(m *model.Model) tea.Cmd {
 func (s *speedTest) Init() tea.Cmd {
 	cmds := []tea.Cmd{fetchServerListCmd(s.model)}
 
-	if len(s.model.TestHistory) == 0 {
+	if len(s.model.History.Entries) == 0 {
 		s.model.State = model.StateAwaitingServers
 		s.model.CurrentPhase = fetchingServerListPhase
 		cmds = append(cmds, s.spinner.Tick)
@@ -134,7 +134,7 @@ func (s *speedTest) cancelTestIfRunning() {
 }
 
 func (s *speedTest) adjustServerListOffset() {
-	total := len(s.model.ServerList)
+	total := s.model.Servers.Len()
 	visible := ui.ServerListVisibleLines(s.model.Height, total)
 
 	if s.cursor >= s.serverListOffset+visible {
@@ -210,7 +210,7 @@ func (s *speedTest) handleServerListMsg(msg serverListMsg) (tea.Model, tea.Cmd) 
 		if s.model.State == model.StateAwaitingServers {
 			s.model.State = model.StateIdle
 		}
-	} else if s.model.State == model.StateAwaitingServers || len(s.model.TestHistory) == 0 {
+	} else if s.model.State == model.StateAwaitingServers || len(s.model.History.Entries) == 0 {
 		s.model.State = model.StateSelectingServer
 		s.cursor = 0
 		s.serverListOffset = 0
@@ -236,7 +236,7 @@ func (s *speedTest) handleTestComplete(msg testComplete) (tea.Model, tea.Cmd) {
 	s.historyOffset = 0
 	if msg.err != nil {
 		s.model.Error = msg.err
-		s.model.Results = nil
+		s.model.History.Results = nil
 	}
 	return s, nil
 }
@@ -261,10 +261,10 @@ func (s *speedTest) handleExportKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "j":
 		s.model.State = model.StateIdle
-		return s, exportCmd(s.model.Results, "json", s.model)
+		return s, exportCmd(s.model.History.Results, "json", s.model)
 	case "c":
 		s.model.State = model.StateIdle
-		return s, exportCmd(s.model.Results, "csv", s.model)
+		return s, exportCmd(s.model.History.Results, "csv", s.model)
 	case keyEsc, "q", keyCtrlC:
 		s.model.State = model.StateIdle
 	}
@@ -294,7 +294,7 @@ func (s *speedTest) handleServerSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cm
 			s.adjustServerListOffset()
 		}
 	case keyDown, keyJ:
-		if s.cursor < len(s.model.ServerList)-1 {
+		if s.cursor < s.model.Servers.Len()-1 {
 			s.cursor++
 			s.adjustServerListOffset()
 		}
@@ -336,7 +336,7 @@ func (s *speedTest) startNewTest() (tea.Model, tea.Cmd) {
 	s.viewState = ViewMain
 	s.diagResult = nil
 	s.showHelp = false
-	if len(s.model.ServerList) == 0 {
+	if s.model.Servers.Len() == 0 {
 		s.model.State = model.StateAwaitingServers
 		s.model.CurrentPhase = fetchingServerListPhase
 		return s, s.spinner.Tick
@@ -399,7 +399,7 @@ func (s *speedTest) handleIdleKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			s.historyOffset--
 		}
 	case keyDown, keyJ:
-		totalRows := len(s.model.TestHistory) - 1
+		totalRows := len(s.model.History.Entries) - 1
 		maxVisible := ui.HistoryVisibleRows(s.model.Height, totalRows)
 		if totalRows > maxVisible && s.historyOffset < totalRows-maxVisible {
 			s.historyOffset++
@@ -409,7 +409,7 @@ func (s *speedTest) handleIdleKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "d":
 		return s.startDiagnostics()
 	case "e":
-		if s.model.Results != nil {
+		if s.model.History.Results != nil {
 			s.model.State = model.StateExporting
 			s.model.ExportMessage = ""
 		}
@@ -452,7 +452,7 @@ func (s *speedTest) View() string {
 }
 
 func (s *speedTest) startSpeedTest() (tea.Model, tea.Cmd) {
-	if s.cursor < 0 || s.cursor >= len(s.model.ServerList) {
+	if s.cursor < 0 || s.cursor >= s.model.Servers.Len() {
 		s.model.Error = fmt.Errorf("invalid server selection")
 		s.model.State = model.StateIdle
 		s.showHelp = false
@@ -464,13 +464,13 @@ func (s *speedTest) startSpeedTest() (tea.Model, tea.Cmd) {
 	s.model.CurrentPhase = "Starting speed test..."
 	s.model.Error = nil
 
-	ctx, cancel := context.WithTimeout(context.Background(), s.model.TestTimeoutDuration())
+	ctx, cancel := context.WithTimeout(context.Background(), s.model.Config.TestTimeoutDuration())
 	s.cancelTest = cancel
 
 	s.progressChan = make(chan model.ProgressUpdate)
 	s.errChan = make(chan error, 1)
 	go func() {
-		server := s.model.ServerList[s.cursor]
+		server := s.model.Servers.Raw()[s.cursor]
 		err := s.model.PerformSpeedTest(ctx, server, s.progressChan)
 		s.errChan <- err
 		close(s.progressChan)
@@ -491,7 +491,7 @@ func (s *speedTest) renderMainView() string {
 		b.WriteString("\n\n")
 
 	case model.StateSelectingServer:
-		b.WriteString(ui.RenderServerSelection(s.model.Servers(), ui.Viewport{
+		b.WriteString(ui.RenderServerSelection(s.model.Servers.List(), ui.Viewport{
 			Width:  s.model.Width,
 			Height: s.model.Height,
 			Offset: s.serverListOffset,
@@ -503,8 +503,8 @@ func (s *speedTest) renderMainView() string {
 		b.WriteString("\n\n")
 
 	case model.StateExporting, model.StateIdle:
-		if s.model.Results != nil || len(s.model.TestHistory) > 0 {
-			b.WriteString(ui.RenderResults(s.model.TestHistory, ui.Viewport{
+		if s.model.History.Results != nil || len(s.model.History.Entries) > 0 {
+			b.WriteString(ui.RenderResults(s.model.History.Entries, ui.Viewport{
 				Width:  s.model.Width,
 				Height: s.model.Height,
 				Offset: s.historyOffset,
@@ -531,7 +531,7 @@ func (s *speedTest) renderMainView() string {
 		}
 
 		if s.showHelp {
-			b.WriteString(ui.RenderHelp(s.model.Width, s.model.Results != nil))
+			b.WriteString(ui.RenderHelp(s.model.Width, s.model.History.Results != nil))
 		}
 	}
 
@@ -555,7 +555,7 @@ func waitForProgress(progressChan chan model.ProgressUpdate, errChan chan error)
 // exportCmd runs the file export in a goroutine and returns the result as a tea.Cmd.
 func exportCmd(result *model.SpeedTestResult, format string, m *model.Model) tea.Cmd {
 	return func() tea.Msg {
-		dir, err := m.ExportDir()
+		dir, err := m.Config.ExportDir()
 		if err != nil {
 			return exportDoneMsg{err: err}
 		}
@@ -603,7 +603,7 @@ func migrateHistoryIfNeeded() {
 func runTUI() {
 	migrateHistoryIfNeeded()
 	m := model.NewDefaultModel()
-	if err := m.LoadHistory(); err != nil {
+	if err := m.History.Load(); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load test history: %v\n", err)
 	}
 

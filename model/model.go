@@ -1,7 +1,6 @@
 package model
 
 import (
-	"cmp"
 	"context"
 	"encoding/csv"
 	"encoding/json"
@@ -9,8 +8,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"slices"
-	"strings"
 	"time"
 
 	"github.com/showwin/speedtest-go/speedtest"
@@ -64,46 +61,6 @@ type SpeedTestResult struct {
 	UserISP       string    `json:"user_isp"`
 }
 
-// Server is a display-friendly representation of a speed test server,
-// decoupled from the speedtest-go library type.
-type Server struct {
-	ID       string
-	Name     string
-	Sponsor  string
-	Country  string
-	Host     string
-	Latency  time.Duration
-	Distance float64
-}
-
-// Servers returns the server list as display-friendly Server values.
-func (m *Model) Servers() []Server {
-	servers := make([]Server, len(m.ServerList))
-	for i, s := range m.ServerList {
-		servers[i] = Server{
-			ID:       s.ID,
-			Name:     s.Name,
-			Sponsor:  s.Sponsor,
-			Country:  s.Country,
-			Host:     s.Host,
-			Latency:  s.Latency,
-			Distance: s.Distance,
-		}
-	}
-	return servers
-}
-
-// FindServerIndex returns the index of the server with the given ID,
-// or -1 and false if not found.
-func (m *Model) FindServerIndex(id string) (int, bool) {
-	for i, s := range m.ServerList {
-		if s.ID == id {
-			return i, true
-		}
-	}
-	return -1, false
-}
-
 // UnmarshalJSON supports reading both the current "server_country" key and
 // the legacy "server_loc" key so that existing history files are loaded
 // without data loss.
@@ -150,8 +107,8 @@ type RunOptions struct {
 
 // Model holds all application state for the TUI and speed test orchestration.
 type Model struct {
-	Results      *SpeedTestResult
-	TestHistory  []*SpeedTestResult
+	History      *HistoryStore
+	Servers      *ServerStore
 	State        ModelState
 	Progress     float64
 	CurrentPhase string
@@ -159,8 +116,6 @@ type Model struct {
 	Warning      string
 	Width        int
 	Height       int
-	pingResults  []float64 // Used for jitter calculation
-	ServerList   speedtest.Servers
 	backend      Backend
 	Config       *Config
 	user         *speedtest.User
@@ -174,9 +129,10 @@ func NewModel(backend Backend, cfg *Config) *Model {
 		cfg = DefaultConfig()
 	}
 	return &Model{
-		TestHistory: make([]*SpeedTestResult, 0),
-		backend:     backend,
-		Config:      cfg,
+		History: NewHistoryStore(cfg.History),
+		Servers: &ServerStore{},
+		backend: backend,
+		Config:  cfg,
 	}
 }
 
@@ -192,66 +148,12 @@ func NewDefaultModel() *Model {
 	return m
 }
 
-// FetchTimeoutDuration returns the configured fetch timeout as a time.Duration.
-func (m *Model) FetchTimeoutDuration() time.Duration {
-	secs := defaultFetchTimeout
-	if m.Config.Test.FetchTimeout > 0 {
-		secs = m.Config.Test.FetchTimeout
-	}
-	return time.Duration(secs) * time.Second
-}
-
-// TestTimeoutDuration returns the configured test timeout as a time.Duration.
-func (m *Model) TestTimeoutDuration() time.Duration {
-	secs := defaultTestTimeout
-	if m.Config.Test.TestTimeout > 0 {
-		secs = m.Config.Test.TestTimeout
-	}
-	return time.Duration(secs) * time.Second
-}
-
-// pingCount returns the configured ping count.
-func (m *Model) pingCount() int {
-	if m.Config.Test.PingCount > 0 {
-		return m.Config.Test.PingCount
-	}
-	return defaultPingCount
-}
-
 // userInfo extracts IP and ISP from the User field.
 func (m *Model) userInfo() (ip, isp string) {
 	if m.user != nil {
 		return m.user.IP, m.user.Isp
 	}
 	return "", ""
-}
-
-// ExportDir returns the configured export directory, falling back to the
-// current working directory if none is configured.
-func (m *Model) ExportDir() (string, error) {
-	if m.Config != nil && m.Config.Export.Directory != "" {
-		dir := m.Config.Export.Directory
-		if dir == "~" || strings.HasPrefix(dir, "~/") {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return "", fmt.Errorf("failed to expand home directory: %v", err)
-			}
-			if dir == "~" {
-				dir = home
-			} else {
-				dir = filepath.Join(home, dir[2:])
-			}
-		}
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return "", fmt.Errorf("failed to create export directory: %v", err)
-		}
-		return dir, nil
-	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", fmt.Errorf("could not determine working directory: %v", err)
-	}
-	return cwd, nil
 }
 
 // pingResult holds the aggregated outcome of a ping measurement.
@@ -333,83 +235,9 @@ func callProgressFn(fn func(string), phase string) {
 	}
 }
 
-func (m *Model) historyPath() (string, error) {
-	if m.Config.History.Path != "" {
-		return m.Config.History.Path, nil
-	}
-	return defaultHistoryPath(), nil
-}
-
-func (m *Model) LoadHistory() error {
-	historyPath, err := m.historyPath()
-	if err != nil {
-		return fmt.Errorf("failed to resolve history path: %v", err)
-	}
-
-	data, err := os.ReadFile(historyPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil // No history yet, that's fine
-		}
-		return fmt.Errorf("failed to read history file: %v", err)
-	}
-
-	if err := json.Unmarshal(data, &m.TestHistory); err != nil {
-		return fmt.Errorf("failed to parse history file: %v", err)
-	}
-
-	if len(m.TestHistory) > 0 {
-		m.Results = m.TestHistory[len(m.TestHistory)-1]
-	}
-
-	return nil
-}
-
-func (m *Model) SaveHistory() error {
-	historyPath, err := m.historyPath()
-	if err != nil {
-		return fmt.Errorf("failed to resolve history path: %v", err)
-	}
-
-	// Ensure the parent directory exists
-	if err := os.MkdirAll(filepath.Dir(historyPath), 0700); err != nil {
-		return fmt.Errorf("failed to create history directory: %v", err)
-	}
-
-	maxEntries := defaultMaxEntries
-	if m.Config.History.MaxEntries > 0 {
-		maxEntries = m.Config.History.MaxEntries
-	}
-	if len(m.TestHistory) > maxEntries {
-		m.TestHistory = m.TestHistory[len(m.TestHistory)-maxEntries:]
-	}
-
-	data, err := json.MarshalIndent(m.TestHistory, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to serialize history: %v", err)
-	}
-
-	// 0600: history contains the user's IP address (PII)
-	if err := os.WriteFile(historyPath, data, 0600); err != nil {
-		return fmt.Errorf("failed to write history file: %v", err)
-	}
-
-	return nil
-}
-
-func (m *Model) FetchServerList(ctx context.Context) error {
-	serverList, err := m.backend.FetchServers()
-	if err != nil {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		return fmt.Errorf("failed to fetch servers: %v", err)
-	}
-	slices.SortFunc(serverList, func(a, b *speedtest.Server) int {
-		return cmp.Compare(a.Latency, b.Latency)
-	})
-	m.ServerList = serverList
-	return nil
+// FetchServers fetches the server list from the backend.
+func (m *Model) FetchServers(ctx context.Context) error {
+	return m.Servers.Fetch(ctx, m.backend)
 }
 
 // transferPhase defines the progress parameters for a download or upload phase.
@@ -498,8 +326,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	m.Progress = 0
 	m.Error = nil
 	m.Warning = ""
-	m.Results = nil
-	m.pingResults = make([]float64, 0)
+	m.History.Results = nil
 
 	sendUpdate(progressInit, "Initializing speed test...", updateChan)
 
@@ -518,7 +345,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 
 	sendUpdate(progressServer, fmt.Sprintf("Testing with server: %s", server.Name), updateChan)
 
-	pingCount := m.pingCount()
+	pingCount := m.Config.PingCount()
 
 	sendUpdate(progressPingStart, "Measuring ping and jitter...", updateChan)
 	pingResult, err := measurePing(ctx, m.backend, server, pingCount, func(i, total int, ping, jitter float64) {
@@ -535,7 +362,6 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		m.State = StateIdle
 		return fmt.Errorf("failed to measure ping: %v", err)
 	}
-	m.pingResults = pingResult.pings
 	if len(pingResult.pings) == 0 {
 		msg := "all ping measurements failed; ping and jitter are reported as 0"
 		if pingResult.lastErr != nil {
@@ -580,9 +406,8 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 
 	result := buildResult(server, pingResult, downloadSpeed, uploadSpeed, userIP, userISP)
 
-	m.Results = result
-	m.TestHistory = append(m.TestHistory, result)
-	if saveErr := m.SaveHistory(); saveErr != nil {
+	m.History.Append(result)
+	if saveErr := m.History.Save(); saveErr != nil {
 		m.Warning = fmt.Sprintf("failed to save history: %v", saveErr)
 	}
 
@@ -646,7 +471,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		return nil, ctx.Err()
 	}
 
-	pingCount := m.pingCount()
+	pingCount := m.Config.PingCount()
 
 	callProgressFn(opts.ProgressFn, fmt.Sprintf("Measuring ping (0/%d)...", pingCount))
 	pingResult, err := measurePing(ctx, m.backend, server, pingCount, func(i, total int, ping, _ float64) {

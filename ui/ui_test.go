@@ -93,13 +93,13 @@ func TestRenderResults(t *testing.T) {
 	m := model.NewDefaultModel()
 
 	// Case 1: Empty history
-	res := RenderResults(m.TestHistory, Viewport{Width: 100})
+	res := RenderResults(m.History.Entries, Viewport{Width: 100})
 	if res != "" {
 		t.Errorf("Expected empty string for empty history, got %q", res)
 	}
 
 	// Case 2: One entry
-	m.TestHistory = []*model.SpeedTestResult{
+	m.History.Entries = []*model.SpeedTestResult{
 		{
 			DownloadSpeed: 100.0,
 			UploadSpeed:   50.0,
@@ -110,7 +110,7 @@ func TestRenderResults(t *testing.T) {
 			Timestamp:     testTimestamp,
 		},
 	}
-	res = RenderResults(m.TestHistory, Viewport{Width: 100})
+	res = RenderResults(m.History.Entries, Viewport{Width: 100})
 	if !strings.Contains(res, "Latest Test Results:") {
 		t.Errorf("Expected Latest Test Results block")
 	}
@@ -119,7 +119,7 @@ func TestRenderResults(t *testing.T) {
 	}
 
 	// Case 3: Two entries (adds table)
-	m.TestHistory = append(m.TestHistory, &model.SpeedTestResult{
+	m.History.Entries = append(m.History.Entries, &model.SpeedTestResult{
 		DownloadSpeed: 200.0,
 		UploadSpeed:   100.0,
 		Ping:          5.0,
@@ -130,7 +130,7 @@ func TestRenderResults(t *testing.T) {
 		UserISP:       "Cloudflare",
 		Timestamp:     testTimestamp,
 	})
-	res = RenderResults(m.TestHistory, Viewport{Width: 100})
+	res = RenderResults(m.History.Entries, Viewport{Width: 100})
 	if !strings.Contains(res, "Latest Test Results:") {
 		t.Errorf("Expected Latest Test Results block")
 	}
@@ -325,7 +325,7 @@ func TestRenderServerSelectionViewport(t *testing.T) {
 
 func TestRenderResultsMissingSponsorDistance(t *testing.T) {
 	m := model.NewDefaultModel()
-	m.TestHistory = []*model.SpeedTestResult{
+	m.History.Entries = []*model.SpeedTestResult{
 		{
 			DownloadSpeed: 80.0,
 			UploadSpeed:   40.0,
@@ -350,7 +350,7 @@ func TestRenderResultsMissingSponsorDistance(t *testing.T) {
 		},
 	}
 
-	res := RenderResults(m.TestHistory, Viewport{Width: 120, Height: m.Height})
+	res := RenderResults(m.History.Entries, Viewport{Width: 120, Height: m.Height})
 
 	if !strings.Contains(res, "Previous Tests") {
 		t.Errorf("Expected 'Previous Tests' label for 2 entries")
@@ -375,9 +375,9 @@ func TestRenderResultsMissingSponsorDistance(t *testing.T) {
 func TestRenderResultsManyEntries(t *testing.T) {
 	m := model.NewDefaultModel()
 	m.Height = 60
-	m.TestHistory = make([]*model.SpeedTestResult, 5)
-	for i := range m.TestHistory {
-		m.TestHistory[i] = &model.SpeedTestResult{
+	m.History.Entries = make([]*model.SpeedTestResult, 5)
+	for i := range m.History.Entries {
+		m.History.Entries[i] = &model.SpeedTestResult{
 			DownloadSpeed: float64(100 + i),
 			UploadSpeed:   float64(50 + i),
 			Ping:          float64(10 + i),
@@ -388,7 +388,7 @@ func TestRenderResultsManyEntries(t *testing.T) {
 		}
 	}
 
-	res := RenderResults(m.TestHistory, Viewport{Width: 120, Height: m.Height})
+	res := RenderResults(m.History.Entries, Viewport{Width: 120, Height: m.Height})
 	if !strings.Contains(res, "Previous Tests") {
 		t.Errorf("Expected 'Previous Tests' label in output")
 	}
@@ -397,9 +397,9 @@ func TestRenderResultsManyEntries(t *testing.T) {
 func TestRenderResultsPagination(t *testing.T) {
 	m := model.NewDefaultModel()
 	m.Height = 30
-	m.TestHistory = make([]*model.SpeedTestResult, 20)
-	for i := range m.TestHistory {
-		m.TestHistory[i] = &model.SpeedTestResult{
+	m.History.Entries = make([]*model.SpeedTestResult, 20)
+	for i := range m.History.Entries {
+		m.History.Entries[i] = &model.SpeedTestResult{
 			DownloadSpeed: float64(100 + i),
 			UploadSpeed:   float64(50 + i),
 			Ping:          float64(10 + i),
@@ -410,7 +410,7 @@ func TestRenderResultsPagination(t *testing.T) {
 		}
 	}
 
-	res := RenderResults(m.TestHistory, Viewport{Width: 120, Height: m.Height})
+	res := RenderResults(m.History.Entries, Viewport{Width: 120, Height: m.Height})
 	if !strings.Contains(res, "Showing") {
 		t.Errorf("Expected pagination indicator for large history")
 	}
@@ -422,9 +422,9 @@ func TestRenderResultsPagination(t *testing.T) {
 func TestRenderResultsNoPaginationSmallHistory(t *testing.T) {
 	m := model.NewDefaultModel()
 	m.Height = 60
-	m.TestHistory = make([]*model.SpeedTestResult, 3)
-	for i := range m.TestHistory {
-		m.TestHistory[i] = &model.SpeedTestResult{
+	m.History.Entries = make([]*model.SpeedTestResult, 3)
+	for i := range m.History.Entries {
+		m.History.Entries[i] = &model.SpeedTestResult{
 			DownloadSpeed: float64(100 + i),
 			UploadSpeed:   float64(50 + i),
 			Ping:          float64(10 + i),
@@ -435,7 +435,7 @@ func TestRenderResultsNoPaginationSmallHistory(t *testing.T) {
 		}
 	}
 
-	res := RenderResults(m.TestHistory, Viewport{Width: 120, Height: m.Height})
+	res := RenderResults(m.History.Entries, Viewport{Width: 120, Height: m.Height})
 	if strings.Contains(res, "Showing") {
 		t.Errorf("Did not expect pagination indicator when all rows fit")
 	}
@@ -444,9 +444,9 @@ func TestRenderResultsNoPaginationSmallHistory(t *testing.T) {
 func TestRenderResultsWithHistoryOffset(t *testing.T) {
 	m := model.NewDefaultModel()
 	m.Height = 30
-	m.TestHistory = make([]*model.SpeedTestResult, 20)
-	for i := range m.TestHistory {
-		m.TestHistory[i] = &model.SpeedTestResult{
+	m.History.Entries = make([]*model.SpeedTestResult, 20)
+	for i := range m.History.Entries {
+		m.History.Entries[i] = &model.SpeedTestResult{
 			DownloadSpeed: float64(100 + i),
 			UploadSpeed:   float64(50 + i),
 			Ping:          float64(10 + i),
@@ -456,7 +456,7 @@ func TestRenderResultsWithHistoryOffset(t *testing.T) {
 			Timestamp:     testTimestamp,
 		}
 	}
-	res := RenderResults(m.TestHistory, Viewport{Width: 120, Height: m.Height, Offset: 3})
+	res := RenderResults(m.History.Entries, Viewport{Width: 120, Height: m.Height, Offset: 3})
 	if !strings.Contains(res, "Showing 4-") {
 		t.Errorf("Expected pagination to start at 4 with offset 3, got: %s", res)
 	}
@@ -465,9 +465,9 @@ func TestRenderResultsWithHistoryOffset(t *testing.T) {
 func TestRenderResultsHistoryOffsetClamped(t *testing.T) {
 	m := model.NewDefaultModel()
 	m.Height = 30
-	m.TestHistory = make([]*model.SpeedTestResult, 20)
-	for i := range m.TestHistory {
-		m.TestHistory[i] = &model.SpeedTestResult{
+	m.History.Entries = make([]*model.SpeedTestResult, 20)
+	for i := range m.History.Entries {
+		m.History.Entries[i] = &model.SpeedTestResult{
 			DownloadSpeed: float64(100 + i),
 			UploadSpeed:   float64(50 + i),
 			Ping:          float64(10 + i),
@@ -477,7 +477,7 @@ func TestRenderResultsHistoryOffsetClamped(t *testing.T) {
 			Timestamp:     testTimestamp,
 		}
 	}
-	res := RenderResults(m.TestHistory, Viewport{Width: 120, Height: m.Height, Offset: 999})
+	res := RenderResults(m.History.Entries, Viewport{Width: 120, Height: m.Height, Offset: 999})
 	if !strings.Contains(res, "Showing") {
 		t.Errorf("Expected pagination indicator even with clamped offset")
 	}

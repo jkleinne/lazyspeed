@@ -49,7 +49,7 @@ func runServers() {
 	fmt.Println("Fetching server list...")
 	fetchServersOrExit(m)
 
-	servers := m.Servers()
+	servers := m.Servers.List()
 	if len(servers) == 0 {
 		fmt.Println("No servers found.")
 		return

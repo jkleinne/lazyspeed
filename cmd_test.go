@@ -264,8 +264,8 @@ func TestHistoryFormatJSON(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 
 	m := model.NewDefaultModel()
-	m.TestHistory = makeHistoryEntries(3)
-	if err := m.SaveHistory(); err != nil {
+	m.History.Entries = makeHistoryEntries(3)
+	if err := m.History.Save(); err != nil {
 		t.Fatalf("SaveHistory failed: %v", err)
 	}
 
@@ -302,8 +302,8 @@ func TestHistoryFormatCSV(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 
 	m := model.NewDefaultModel()
-	m.TestHistory = makeHistoryEntries(2)
-	if err := m.SaveHistory(); err != nil {
+	m.History.Entries = makeHistoryEntries(2)
+	if err := m.History.Save(); err != nil {
 		t.Fatalf("SaveHistory failed: %v", err)
 	}
 
@@ -348,8 +348,8 @@ func TestHistoryLastFlag(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 
 	m := model.NewDefaultModel()
-	m.TestHistory = makeHistoryEntries(5)
-	if err := m.SaveHistory(); err != nil {
+	m.History.Entries = makeHistoryEntries(5)
+	if err := m.History.Save(); err != nil {
 		t.Fatalf("SaveHistory failed: %v", err)
 	}
 
@@ -382,8 +382,8 @@ func TestHistoryLastFlagExceedsLength(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 
 	m := model.NewDefaultModel()
-	m.TestHistory = makeHistoryEntries(3)
-	if err := m.SaveHistory(); err != nil {
+	m.History.Entries = makeHistoryEntries(3)
+	if err := m.History.Save(); err != nil {
 		t.Fatalf("SaveHistory failed: %v", err)
 	}
 
@@ -416,8 +416,8 @@ func TestHistoryClearFlag(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 
 	m := model.NewDefaultModel()
-	m.TestHistory = makeHistoryEntries(3)
-	if err := m.SaveHistory(); err != nil {
+	m.History.Entries = makeHistoryEntries(3)
+	if err := m.History.Save(); err != nil {
 		t.Fatalf("SaveHistory failed: %v", err)
 	}
 
@@ -441,11 +441,11 @@ func TestHistoryClearFlag(t *testing.T) {
 	}
 
 	m2 := model.NewDefaultModel()
-	if err := m2.LoadHistory(); err != nil {
+	if err := m2.History.Load(); err != nil {
 		t.Fatalf("LoadHistory failed: %v", err)
 	}
-	if len(m2.TestHistory) != 0 {
-		t.Errorf("Expected empty history after clear, got %d entries", len(m2.TestHistory))
+	if len(m2.History.Entries) != 0 {
+		t.Errorf("Expected empty history after clear, got %d entries", len(m2.History.Entries))
 	}
 }
 
@@ -454,8 +454,8 @@ func TestHistoryDefaultTableFormat(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 
 	m := model.NewDefaultModel()
-	m.TestHistory = makeHistoryEntries(2)
-	if err := m.SaveHistory(); err != nil {
+	m.History.Entries = makeHistoryEntries(2)
+	if err := m.History.Save(); err != nil {
 		t.Fatalf("SaveHistory failed: %v", err)
 	}
 
@@ -573,7 +573,7 @@ func TestHistoryTableFormatTruncation(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 
 	m := model.NewDefaultModel()
-	m.TestHistory = []*model.SpeedTestResult{
+	m.History.Entries = []*model.SpeedTestResult{
 		{
 			DownloadSpeed: 100.0,
 			UploadSpeed:   50.0,
@@ -583,7 +583,7 @@ func TestHistoryTableFormatTruncation(t *testing.T) {
 			Timestamp:     time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
 		},
 	}
-	if err := m.SaveHistory(); err != nil {
+	if err := m.History.Save(); err != nil {
 		t.Fatalf("SaveHistory failed: %v", err)
 	}
 

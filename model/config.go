@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -72,6 +74,60 @@ func DefaultConfig() *Config {
 			Path:       defaultDiagnosticsPath(),
 		},
 	}
+}
+
+// FetchTimeoutDuration returns the configured fetch timeout as a time.Duration.
+func (c *Config) FetchTimeoutDuration() time.Duration {
+	secs := defaultFetchTimeout
+	if c.Test.FetchTimeout > 0 {
+		secs = c.Test.FetchTimeout
+	}
+	return time.Duration(secs) * time.Second
+}
+
+// TestTimeoutDuration returns the configured test timeout as a time.Duration.
+func (c *Config) TestTimeoutDuration() time.Duration {
+	secs := defaultTestTimeout
+	if c.Test.TestTimeout > 0 {
+		secs = c.Test.TestTimeout
+	}
+	return time.Duration(secs) * time.Second
+}
+
+// PingCount returns the configured ping count.
+func (c *Config) PingCount() int {
+	if c.Test.PingCount > 0 {
+		return c.Test.PingCount
+	}
+	return defaultPingCount
+}
+
+// ExportDir resolves the configured export directory, creating it if it does
+// not exist. Falls back to the current working directory if none is configured.
+func (c *Config) ExportDir() (string, error) {
+	if c.Export.Directory != "" {
+		dir := c.Export.Directory
+		if dir == "~" || strings.HasPrefix(dir, "~/") {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return "", fmt.Errorf("failed to expand home directory: %v", err)
+			}
+			if dir == "~" {
+				dir = home
+			} else {
+				dir = filepath.Join(home, dir[2:])
+			}
+		}
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return "", fmt.Errorf("failed to create export directory: %v", err)
+		}
+		return dir, nil
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("could not determine working directory: %v", err)
+	}
+	return cwd, nil
 }
 
 // LoadConfig reads ~/.config/lazyspeed/config.yaml, returning defaults for any

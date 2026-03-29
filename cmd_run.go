@@ -58,21 +58,21 @@ func runHeadlessTest() {
 	}
 	fetchServersOrExit(m)
 
-	if len(m.ServerList) == 0 {
+	if m.Servers.Len() == 0 {
 		fmt.Fprintf(os.Stderr, "Error: no servers found\n")
 		os.Exit(1)
 	}
 
 	serverIdx := 0
 	if runServerID != "" {
-		idx, found := m.FindServerIndex(runServerID)
+		idx, found := m.Servers.FindIndex(runServerID)
 		if !found {
 			fmt.Fprintf(os.Stderr, "Error: server %s not found\n", runServerID)
 			os.Exit(1)
 		}
 		serverIdx = idx
 	}
-	server := m.ServerList[serverIdx]
+	server := m.Servers.Raw()[serverIdx]
 
 	if runIsInteractive() {
 		fmt.Printf("Selected server: %s (%s)\n", server.Name, server.Country)
@@ -89,7 +89,7 @@ func runHeadlessTest() {
 	}
 
 	// Load history once before the loop so results accumulate correctly
-	if err := m.LoadHistory(); err != nil {
+	if err := m.History.Load(); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load history: %v\n", err)
 	}
 
@@ -103,7 +103,7 @@ func runHeadlessTest() {
 			fmt.Printf("\n--- Test %d of %d ---\n", i+1, runCount)
 		}
 
-		testCtx, testCancel := context.WithTimeout(context.Background(), m.TestTimeoutDuration())
+		testCtx, testCancel := context.WithTimeout(context.Background(), m.Config.TestTimeoutDuration())
 		res, err := m.RunHeadless(testCtx, server, opts)
 		testCancel()
 		if err != nil {
@@ -117,8 +117,8 @@ func runHeadlessTest() {
 		}
 
 		// Persist result to history
-		m.TestHistory = append(m.TestHistory, res)
-		if err := m.SaveHistory(); err != nil {
+		m.History.Append(res)
+		if err := m.History.Save(); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to save history: %v\n", err)
 		}
 
