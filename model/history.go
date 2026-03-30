@@ -7,6 +7,11 @@ import (
 	"path/filepath"
 )
 
+const (
+	backupSuffix = ".bak"
+	tmpSuffix    = ".tmp"
+)
+
 // HistoryStore manages speed test result persistence and in-memory history.
 type HistoryStore struct {
 	Results *SpeedTestResult
@@ -37,8 +42,11 @@ func (h *HistoryStore) historyPath() string {
 }
 
 // Load reads and parses the history file. Returns nil if the file does not exist.
+// If the main file is corrupted, attempts recovery from the backup (.bak).
 func (h *HistoryStore) Load() error {
-	data, err := os.ReadFile(h.historyPath())
+	path := h.historyPath()
+
+	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -47,7 +55,14 @@ func (h *HistoryStore) Load() error {
 	}
 
 	if err := json.Unmarshal(data, &h.Entries); err != nil {
-		return fmt.Errorf("failed to parse history file: %v", err)
+		// Main file is corrupted — attempt recovery from backup
+		bakData, bakErr := os.ReadFile(path + backupSuffix)
+		if bakErr != nil {
+			return fmt.Errorf("failed to parse history file: %v", err)
+		}
+		if bakUnmarshalErr := json.Unmarshal(bakData, &h.Entries); bakUnmarshalErr != nil {
+			return fmt.Errorf("failed to parse history file (backup also corrupt): main: %v, backup: %v", err, bakUnmarshalErr)
+		}
 	}
 
 	if len(h.Entries) > 0 {
@@ -58,6 +73,8 @@ func (h *HistoryStore) Load() error {
 }
 
 // Save writes the history to disk, enforcing the max-entries cap.
+// Uses atomic write (temp file + rename) to prevent corruption from
+// interrupted writes. Backs up the current file before overwriting.
 func (h *HistoryStore) Save() error {
 	path := h.historyPath()
 
@@ -78,9 +95,22 @@ func (h *HistoryStore) Save() error {
 		return fmt.Errorf("failed to serialize history: %v", err)
 	}
 
-	// 0600: history contains the user's IP address (PII)
-	if err := os.WriteFile(path, data, 0600); err != nil {
+	// Atomic write: temp file first, then backup, then rename.
+	// This ordering ensures the main file stays intact until the final rename.
+	// 0600: history contains the user's IP address (PII).
+	tmpPath := path + tmpSuffix
+	if err := os.WriteFile(tmpPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write history file: %v", err)
+	}
+
+	// Back up current file before overwriting (best-effort, only if valid JSON)
+	if src, readErr := os.ReadFile(path); readErr == nil && json.Valid(src) {
+		_ = os.WriteFile(path+backupSuffix, src, 0600)
+	}
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("failed to commit history file: %v", err)
 	}
 
 	return nil
