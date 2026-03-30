@@ -244,12 +244,24 @@ func TestHistoryLoadSave(t *testing.T) {
 		t.Errorf("Expected exactly 50 history items, got %d", len(m3.History.Entries))
 	}
 
-	// Case 5: Corrupt JSON — write corrupt data to the XDG path
+	// Case 5: Corrupt main file with valid backup — should recover from backup
 	historyPath := filepath.Join(tmpDir, ".local", "share", "lazyspeed", "history.json")
 	_ = os.WriteFile(historyPath, []byte("invalid json"), 0644)
-	err = m3.History.Load()
+	m4 := NewModel(&mockBackend{}, nil)
+	err = m4.History.Load()
+	if err != nil {
+		t.Fatalf("Expected backup recovery to succeed, got: %v", err)
+	}
+	if len(m4.History.Entries) == 0 {
+		t.Errorf("Expected entries recovered from backup, got 0")
+	}
+
+	// Case 6: Corrupt main file with no backup — should return error
+	_ = os.Remove(historyPath + ".bak")
+	m5 := NewModel(&mockBackend{}, nil)
+	err = m5.History.Load()
 	if err == nil {
-		t.Errorf("Expected error loading corrupt JSON, got nil")
+		t.Errorf("Expected error loading corrupt JSON with no backup, got nil")
 	}
 }
 
