@@ -40,10 +40,4 @@ brews:
       assert_match "lazyspeed version", shell_output("#{bin}/lazyspeed version")
 
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
-      - "^ci:"
-      - "^chore:"
+  use: github-native

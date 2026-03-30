@@ -1,0 +1,12 @@
+changelog:
+  categories:
+    - title: "Features"
+      labels: ["feat"]
+    - title: "Bug Fixes"
+      labels: ["fix"]
+    - title: "Performance"
+      labels: ["perf"]
+    - title: "Maintenance"
+      labels: ["refactor", "chore", "build"]
+  exclude:
+    labels: ["ci", "docs", "test"]
