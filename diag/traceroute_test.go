@@ -3,6 +3,7 @@ package diag
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -34,6 +35,56 @@ func TestRealDiagBackendResolveDNSCancelled(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error from cancelled context")
 	}
+}
+
+func TestTraceLoop(t *testing.T) {
+	t.Run("reaches destination", func(t *testing.T) {
+		destIP := "10.0.0.3"
+		hops := traceLoop(context.Background(), destIP, 30, func(ttl int) Hop {
+			return Hop{Number: ttl, IP: fmt.Sprintf("10.0.0.%d", ttl)}
+		})
+		if len(hops) != 3 {
+			t.Fatalf("got %d hops, want 3 (should stop at destIP)", len(hops))
+		}
+		if hops[2].IP != destIP {
+			t.Errorf("last hop IP = %q, want %q", hops[2].IP, destIP)
+		}
+	})
+
+	t.Run("respects maxHops", func(t *testing.T) {
+		hops := traceLoop(context.Background(), "unreachable", 5, func(ttl int) Hop {
+			return Hop{Number: ttl, IP: fmt.Sprintf("10.0.0.%d", ttl)}
+		})
+		if len(hops) != 5 {
+			t.Fatalf("got %d hops, want 5 (maxHops limit)", len(hops))
+		}
+	})
+
+	t.Run("context cancellation stops loop", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		hops := traceLoop(ctx, "10.0.0.5", 30, func(ttl int) Hop {
+			return Hop{Number: ttl, IP: fmt.Sprintf("10.0.0.%d", ttl)}
+		})
+		if len(hops) != 0 {
+			t.Fatalf("got %d hops, want 0 (context already cancelled)", len(hops))
+		}
+	})
+
+	t.Run("cancel mid-loop", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		hops := traceLoop(ctx, "unreachable", 30, func(ttl int) Hop {
+			if ttl == 3 {
+				cancel()
+			}
+			return Hop{Number: ttl, IP: fmt.Sprintf("10.0.0.%d", ttl)}
+		})
+		// Should have hops 1-3 (cancel happens at ttl=3, but that hop completes;
+		// ctx.Err() is checked at the start of the next iteration)
+		if len(hops) != 3 {
+			t.Fatalf("got %d hops, want 3", len(hops))
+		}
+	})
 }
 
 func TestIsPermissionError(t *testing.T) {

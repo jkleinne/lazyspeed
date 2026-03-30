@@ -409,6 +409,75 @@ func TestRunWarmDNSFailureSetsCachedFalse(t *testing.T) {
 	}
 }
 
+func TestRunNilConfig(t *testing.T) {
+	backend := &mockDiagBackend{
+		TracerouteFn: func(_ context.Context, _ string, maxHops int) ([]Hop, string, error) {
+			if maxHops != 30 {
+				t.Errorf("expected default maxHops 30, got %d", maxHops)
+			}
+			return []Hop{
+				{Number: 1, IP: "10.0.0.1", Host: "gw", Latency: 1 * time.Millisecond},
+			}, MethodICMP, nil
+		},
+		ResolveDNSFn: func(_ context.Context, _ string) (string, time.Duration, error) {
+			return testExampleIP, 10 * time.Millisecond, nil
+		},
+	}
+
+	result, err := Run(context.Background(), backend, testExampleHost, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+}
+
+func TestRunWarmDNSCachedTrue(t *testing.T) {
+	callCount := 0
+	backend := &mockDiagBackend{
+		TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
+			return []Hop{
+				{Number: 1, IP: "10.0.0.1", Host: "gw", Latency: 1 * time.Millisecond},
+			}, MethodICMP, nil
+		},
+		ResolveDNSFn: func(_ context.Context, _ string) (string, time.Duration, error) {
+			callCount++
+			if callCount == 1 {
+				return testExampleIP, 100 * time.Millisecond, nil // cold: slow
+			}
+			return testExampleIP, 1 * time.Millisecond, nil // warm: very fast (<cold/2)
+		},
+	}
+
+	result, err := Run(context.Background(), backend, testExampleHost, DefaultDiagConfig())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.DNS == nil {
+		t.Fatal("expected DNS result")
+	}
+	if !result.DNS.Cached {
+		t.Error("expected cached=true when warm latency < cold/2")
+	}
+}
+
+func TestRunContextCancelledBetweenDNSAndTraceroute(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	backend := &mockDiagBackend{
+		ResolveDNSFn: func(_ context.Context, _ string) (string, time.Duration, error) {
+			cancel() // cancel after DNS completes
+			return testExampleIP, 10 * time.Millisecond, nil
+		},
+	}
+
+	_, err := Run(ctx, backend, testExampleHost, DefaultDiagConfig())
+	if err == nil {
+		t.Fatal("expected error from context cancellation between DNS and traceroute")
+	}
+}
+
 func TestIsIP(t *testing.T) {
 	tests := []struct {
 		input string
