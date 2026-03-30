@@ -27,7 +27,7 @@ func TestSaveAndLoadHistory(t *testing.T) {
 
 	results := []*DiagResult{
 		{
-			Target:    "example.com",
+			Target:    testExampleHost,
 			Method:    MethodUDP,
 			Hops:      []Hop{{Number: 1, IP: "10.0.0.1", Host: "gw", Latency: 5 * time.Millisecond}},
 			Quality:   QualityScore{Score: 85, Grade: "B", Label: "Good for most activities"},
@@ -46,8 +46,8 @@ func TestSaveAndLoadHistory(t *testing.T) {
 	if len(loaded) != 1 {
 		t.Fatalf("expected 1 entry, got %d", len(loaded))
 	}
-	if loaded[0].Target != "example.com" {
-		t.Errorf("target = %q, want %q", loaded[0].Target, "example.com")
+	if loaded[0].Target != testExampleHost {
+		t.Errorf("target = %q, want %q", loaded[0].Target, testExampleHost)
 	}
 }
 
@@ -77,7 +77,7 @@ func TestSaveHistoryRetention(t *testing.T) {
 
 func TestSaveHistoryMaxEntriesZero(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "diagnostics.json")
-	results := []*DiagResult{{Target: "example.com", Timestamp: testTimestamp}}
+	results := []*DiagResult{{Target: testExampleHost, Timestamp: testTimestamp}}
 
 	if err := SaveHistory(path, results, 0); err != nil {
 		t.Fatalf("save failed: %v", err)
@@ -113,7 +113,7 @@ func TestAppendHistory(t *testing.T) {
 	path := filepath.Join(dir, "diag_history.json")
 
 	// Append to non-existent file creates it
-	result := &DiagResult{Target: "example.com", Method: MethodICMP}
+	result := &DiagResult{Target: testExampleHost, Method: MethodICMP}
 	if err := AppendHistory(path, result, 5); err != nil {
 		t.Fatalf("AppendHistory on new file: %v", err)
 	}
@@ -125,8 +125,8 @@ func TestAppendHistory(t *testing.T) {
 	if len(history) != 1 {
 		t.Fatalf("expected 1 entry, got %d", len(history))
 	}
-	if history[0].Target != "example.com" {
-		t.Errorf("target = %q, want %q", history[0].Target, "example.com")
+	if history[0].Target != testExampleHost {
+		t.Errorf("target = %q, want %q", history[0].Target, testExampleHost)
 	}
 
 	// Append respects maxEntries
@@ -146,6 +146,82 @@ func TestAppendHistory(t *testing.T) {
 	}
 	if history[4].Target != "host-5" {
 		t.Errorf("last entry target = %q, want %q", history[4].Target, "host-5")
+	}
+}
+
+func TestLoadHistoryBackupRecovery(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "diagnostics.json")
+	bakPath := path + ".bak"
+
+	validResults := []*DiagResult{
+		{Target: testExampleHost, Method: MethodUDP, Timestamp: testTimestamp},
+	}
+
+	// First save creates the file; second save backs it up to .bak
+	if err := SaveHistory(path, validResults, 20); err != nil {
+		t.Fatalf("initial save failed: %v", err)
+	}
+	if err := SaveHistory(path, validResults, 20); err != nil {
+		t.Fatalf("second save (to create .bak) failed: %v", err)
+	}
+	_ = os.WriteFile(path, []byte("invalid json"), 0600)
+
+	// Corrupt main + valid backup — should recover
+	loaded, err := LoadHistory(path)
+	if err != nil {
+		t.Fatalf("expected backup recovery to succeed, got: %v", err)
+	}
+	if len(loaded) != 1 {
+		t.Errorf("expected 1 entry recovered from backup, got %d", len(loaded))
+	}
+	if loaded[0].Target != testExampleHost {
+		t.Errorf("target = %q, want %q", loaded[0].Target, testExampleHost)
+	}
+
+	// Corrupt main + no backup — should return error
+	_ = os.Remove(bakPath)
+	_, err = LoadHistory(path)
+	if err == nil {
+		t.Error("expected error loading corrupt file with no backup, got nil")
+	}
+
+	// Corrupt main + corrupt backup — should return error mentioning both
+	_ = os.WriteFile(bakPath, []byte("also invalid"), 0600)
+	_, err = LoadHistory(path)
+	if err == nil {
+		t.Error("expected error when both main and backup are corrupt, got nil")
+	}
+}
+
+func TestSaveHistorySkipsCorruptBackup(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "diagnostics.json")
+	bakPath := path + ".bak"
+
+	validResults := []*DiagResult{
+		{Target: testExampleHost, Method: MethodUDP, Timestamp: testTimestamp},
+	}
+
+	// Save valid data, then corrupt the main file
+	if err := SaveHistory(path, validResults, 20); err != nil {
+		t.Fatalf("save failed: %v", err)
+	}
+	_ = os.WriteFile(path, []byte("corrupt"), 0600)
+
+	// Save again — should NOT back up the corrupt main file
+	newResults := []*DiagResult{
+		{Target: "new.com", Method: MethodICMP, Timestamp: testTimestamp},
+	}
+	if err := SaveHistory(path, newResults, 20); err != nil {
+		t.Fatalf("save over corrupt failed: %v", err)
+	}
+
+	// The .bak should either not exist or not contain the corrupt data
+	if bakData, err := os.ReadFile(bakPath); err == nil {
+		if string(bakData) == "corrupt" {
+			t.Error("backup contains corrupt data — json.Valid guard did not prevent overwrite")
+		}
 	}
 }
 

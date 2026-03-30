@@ -246,7 +246,11 @@ func TestHistoryLoadSave(t *testing.T) {
 
 	// Case 5: Corrupt main file with valid backup — should recover from backup
 	historyPath := filepath.Join(tmpDir, ".local", "share", "lazyspeed", "history.json")
-	_ = os.WriteFile(historyPath, []byte("invalid json"), 0644)
+	bakPath := historyPath + ".bak"
+	if _, statErr := os.Stat(bakPath); os.IsNotExist(statErr) {
+		t.Fatal("Precondition failed: expected .bak file from previous save")
+	}
+	_ = os.WriteFile(historyPath, []byte("invalid json"), 0600)
 	m4 := NewModel(&mockBackend{}, nil)
 	err = m4.History.Load()
 	if err != nil {
@@ -257,7 +261,7 @@ func TestHistoryLoadSave(t *testing.T) {
 	}
 
 	// Case 6: Corrupt main file with no backup — should return error
-	_ = os.Remove(historyPath + ".bak")
+	_ = os.Remove(bakPath)
 	m5 := NewModel(&mockBackend{}, nil)
 	err = m5.History.Load()
 	if err == nil {
