@@ -7,6 +7,11 @@ import (
 	"path/filepath"
 )
 
+const (
+	backupSuffix = ".bak"
+	tmpSuffix    = ".tmp"
+)
+
 // HistoryStore manages speed test result persistence and in-memory history.
 type HistoryStore struct {
 	Results *SpeedTestResult
@@ -51,12 +56,12 @@ func (h *HistoryStore) Load() error {
 
 	if err := json.Unmarshal(data, &h.Entries); err != nil {
 		// Main file is corrupted — attempt recovery from backup
-		bakData, bakErr := os.ReadFile(path + ".bak")
+		bakData, bakErr := os.ReadFile(path + backupSuffix)
 		if bakErr != nil {
 			return fmt.Errorf("failed to parse history file: %v", err)
 		}
-		if json.Unmarshal(bakData, &h.Entries) != nil {
-			return fmt.Errorf("failed to parse history file (backup also corrupt): %v", err)
+		if bakUnmarshalErr := json.Unmarshal(bakData, &h.Entries); bakUnmarshalErr != nil {
+			return fmt.Errorf("failed to parse history file (backup also corrupt): main: %v, backup: %v", err, bakUnmarshalErr)
 		}
 	}
 
@@ -90,17 +95,19 @@ func (h *HistoryStore) Save() error {
 		return fmt.Errorf("failed to serialize history: %v", err)
 	}
 
-	// Back up current file before overwriting (best-effort)
-	if src, readErr := os.ReadFile(path); readErr == nil {
-		_ = os.WriteFile(path+".bak", src, 0600)
-	}
-
-	// Atomic write: temp file + rename prevents corruption from interrupted writes.
+	// Atomic write: temp file first, then backup, then rename.
+	// This ordering ensures the main file stays intact until the final rename.
 	// 0600: history contains the user's IP address (PII).
-	tmpPath := path + ".tmp"
+	tmpPath := path + tmpSuffix
 	if err := os.WriteFile(tmpPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write history file: %v", err)
 	}
+
+	// Back up current file before overwriting (best-effort, only if valid JSON)
+	if src, readErr := os.ReadFile(path); readErr == nil && json.Valid(src) {
+		_ = os.WriteFile(path+backupSuffix, src, 0600)
+	}
+
 	if err := os.Rename(tmpPath, path); err != nil {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("failed to commit history file: %v", err)
