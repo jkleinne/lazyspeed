@@ -169,14 +169,145 @@ func TestRenderDiagExpandedEmptyHops(t *testing.T) {
 	}
 }
 
-func TestTruncateMultiByteRunes(t *testing.T) {
-	// "日本語テスト" is 6 runes but 18 bytes. The old byte-based truncate(s, 4)
-	// would slice at byte 3, corrupting the string. The rune-based fix
-	// correctly keeps 3 full runes + "…".
-	got := Truncate("日本語テスト", 4)
-	want := "日本語…"
-	if got != want {
-		t.Errorf("Truncate(CJK, 4) = %q, want %q", got, want)
+func TestTruncate(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		maxLen int
+		want   string
+	}{
+		{"no truncation needed", "hello", 10, "hello"},
+		{"exact length", "hello", 5, "hello"},
+		{"standard ASCII truncation", "hello world", 6, "hello…"},
+		{"multi-byte runes", "日本語テスト", 4, "日本語…"},
+		{"maxLen 1 returns first rune", "hello", 1, "h"},
+		{"maxLen 0 returns empty", "hello", 0, ""},
+		{"empty string", "", 5, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Truncate(tt.input, tt.maxLen)
+			if got != tt.want {
+				t.Errorf("Truncate(%q, %d) = %q, want %q", tt.input, tt.maxLen, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFindAnomalies(t *testing.T) {
+	tests := []struct {
+		name      string
+		hops      []diag.Hop
+		wantCount int
+	}{
+		{
+			"no anomalies with uniform latency",
+			[]diag.Hop{
+				{Number: 1, Latency: 10 * time.Millisecond},
+				{Number: 2, Latency: 12 * time.Millisecond},
+				{Number: 3, Latency: 11 * time.Millisecond},
+			},
+			0,
+		},
+		{
+			"anomaly exceeds both thresholds",
+			[]diag.Hop{
+				{Number: 1, Latency: 10 * time.Millisecond},
+				{Number: 2, Latency: 12 * time.Millisecond},
+				{Number: 3, Latency: 200 * time.Millisecond}, // >2x median(10,11,12) and >50ms
+			},
+			1,
+		},
+		{
+			"high multiplier but below absolute floor",
+			[]diag.Hop{
+				{Number: 1, Latency: 5 * time.Millisecond},
+				{Number: 2, Latency: 6 * time.Millisecond},
+				{Number: 3, Latency: 20 * time.Millisecond}, // >2x median but <50ms
+			},
+			0,
+		},
+		{
+			"all hops timeout returns nil",
+			[]diag.Hop{
+				{Number: 1, Timeout: true},
+				{Number: 2, Timeout: true},
+			},
+			0,
+		},
+		{
+			"mixed timeouts with anomaly",
+			[]diag.Hop{
+				{Number: 1, Latency: 10 * time.Millisecond},
+				{Number: 2, Timeout: true},
+				{Number: 3, Latency: 12 * time.Millisecond},
+				{Number: 4, Latency: 150 * time.Millisecond}, // >2x median(10,12)=11 and >50ms
+			},
+			1,
+		},
+		{
+			"even number of latencies for median",
+			[]diag.Hop{
+				{Number: 1, Latency: 10 * time.Millisecond},
+				{Number: 2, Latency: 20 * time.Millisecond},
+				{Number: 3, Latency: 30 * time.Millisecond},
+				{Number: 4, Latency: 200 * time.Millisecond}, // median of 10,20,30,200 = (20+30)/2=25, 200 > 2*25 and >50
+			},
+			1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := findAnomalies(tt.hops)
+			if len(got) != tt.wantCount {
+				t.Errorf("findAnomalies() returned %d anomalies, want %d", len(got), tt.wantCount)
+			}
+		})
+	}
+}
+
+func TestRenderDiagCompactAnomalyWarnings(t *testing.T) {
+	result := &diag.DiagResult{
+		Target: "example.com",
+		Method: "udp",
+		Hops: []diag.Hop{
+			{Number: 1, IP: "10.0.0.1", Host: "gw", Latency: 10 * time.Millisecond},
+			{Number: 2, IP: "10.0.0.2", Host: "isp", Latency: 12 * time.Millisecond},
+			{Number: 3, IP: "10.0.0.3", Host: "slow-hop", Latency: 200 * time.Millisecond},
+		},
+		DNS:     &diag.DNSResult{Host: "example.com", IP: "93.184.216.34", Latency: 20 * time.Millisecond},
+		Quality: diag.QualityScore{Score: 70, Grade: "B", Label: "Good for most activities"},
+	}
+
+	out := RenderDiagCompact(result, 120)
+	if !strings.Contains(out, "Warning") {
+		t.Error("expected anomaly warning in output")
+	}
+	if !strings.Contains(out, "hop 3") {
+		t.Error("expected hop number in anomaly warning")
+	}
+	if !strings.Contains(out, "10.0.0.3") {
+		t.Error("expected hop IP in anomaly warning")
+	}
+}
+
+func TestDnsDisplayStr(t *testing.T) {
+	tests := []struct {
+		name string
+		dns  *diag.DNSResult
+		want string
+	}{
+		{"nil DNS", nil, "N/A"},
+		{"cold DNS", &diag.DNSResult{Latency: 20 * time.Millisecond}, "20ms (cold)"},
+		{"cached DNS", &diag.DNSResult{Latency: 2 * time.Millisecond, Cached: true}, "2ms (cached)"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := dnsDisplayStr(tt.dns)
+			if !strings.Contains(got, tt.want) {
+				t.Errorf("dnsDisplayStr() = %q, want to contain %q", got, tt.want)
+			}
+		})
 	}
 }
 

@@ -155,6 +155,72 @@ func TestLabelFromGrade(t *testing.T) {
 	}
 }
 
+func TestNormalizeMetric(t *testing.T) {
+	tests := []struct {
+		name      string
+		value     float64
+		excellent float64
+		terrible  float64
+		want      float64
+	}{
+		{"at excellent returns 1.0", 20, 20, 200, 1.0},
+		{"below excellent returns 1.0", 5, 20, 200, 1.0},
+		{"at terrible returns 0.0", 200, 20, 200, 0.0},
+		{"above terrible returns 0.0", 500, 20, 200, 0.0},
+		{"midpoint returns 0.5", 110, 20, 200, 0.5},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := normalizeMetric(tt.value, tt.excellent, tt.terrible)
+			if got < tt.want-0.001 || got > tt.want+0.001 {
+				t.Errorf("normalizeMetric(%v, %v, %v) = %f, want %f", tt.value, tt.excellent, tt.terrible, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHopJitter(t *testing.T) {
+	tests := []struct {
+		name string
+		hops []Hop
+		want float64
+	}{
+		{"fewer than 2 latencies returns 0", []Hop{
+			{Number: 1, Latency: 10 * time.Millisecond},
+		}, 0},
+		{"all timeouts returns 0", []Hop{
+			{Number: 1, Timeout: true},
+			{Number: 2, Timeout: true},
+		}, 0},
+		{"uniform latencies returns 0", []Hop{
+			{Number: 1, Latency: 10 * time.Millisecond},
+			{Number: 2, Latency: 10 * time.Millisecond},
+			{Number: 3, Latency: 10 * time.Millisecond},
+		}, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := hopJitter(tt.hops)
+			if got < tt.want-0.001 || got > tt.want+0.001 {
+				t.Errorf("hopJitter() = %f, want %f", got, tt.want)
+			}
+		})
+	}
+
+	// Separate test for non-zero jitter to verify the computation
+	t.Run("varied latencies produce positive jitter", func(t *testing.T) {
+		hops := []Hop{
+			{Number: 1, Latency: 10 * time.Millisecond},
+			{Number: 2, Latency: 30 * time.Millisecond},
+			{Number: 3, Latency: 20 * time.Millisecond},
+		}
+		got := hopJitter(hops)
+		if got <= 0 {
+			t.Errorf("hopJitter() = %f, want > 0 for varied latencies", got)
+		}
+	})
+}
+
 func TestHopPacketLoss(t *testing.T) {
 	tests := []struct {
 		name string

@@ -2112,3 +2112,127 @@ func TestMeasurePingAllFailPreservesError(t *testing.T) {
 		t.Errorf("lastErr = %q, want %q", result.lastErr, "connection refused")
 	}
 }
+
+func TestMeasurePingPartialFailure(t *testing.T) {
+	callIdx := 0
+	backend := &mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			callIdx++
+			if callIdx == 2 {
+				return errors.New("transient failure")
+			}
+			fn(10 * time.Millisecond)
+			return nil
+		},
+	}
+	server := &speedtest.Server{}
+
+	result, err := measurePing(context.Background(), backend, server, 3, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Rounds 1 and 3 succeed, round 2 fails
+	if len(result.pings) != 2 {
+		t.Fatalf("got %d pings, want 2 (1 of 3 rounds failed)", len(result.pings))
+	}
+	if result.lastErr == nil {
+		t.Error("expected lastErr to be set from the failed round")
+	}
+	if result.avgPing != 10 {
+		t.Errorf("avgPing = %f, want 10", result.avgPing)
+	}
+}
+
+func TestPerformSpeedTestSaveHistoryFailure(t *testing.T) {
+	// Use an unwritable directory so History.Save() fails
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	unwritable := filepath.Join(tmpDir, "no-write")
+	if err := os.MkdirAll(unwritable, 0555); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	cfg := DefaultConfig()
+	cfg.History.Path = filepath.Join(unwritable, "subdir", "history.json")
+	cfg.Test.PingCount = 1
+
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(10 * time.Millisecond)
+			return nil
+		},
+		downloadTestFn: func(s *speedtest.Server) error {
+			s.DLSpeed = 100 * bytesPerMbit
+			return nil
+		},
+		uploadTestFn: func(s *speedtest.Server) error {
+			s.ULSpeed = 50 * bytesPerMbit
+			return nil
+		},
+	}, cfg)
+
+	err := m.PerformSpeedTest(context.Background(), &speedtest.Server{}, make(chan ProgressUpdate, 100))
+	if err != nil {
+		t.Fatalf("PerformSpeedTest should succeed even when save fails: %v", err)
+	}
+	if !strings.Contains(m.Warning, "failed to save history") {
+		t.Errorf("expected save-history warning, got %q", m.Warning)
+	}
+}
+
+func TestLoadConfigFullFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("XDG_CONFIG_HOME", "")
+
+	configDir := filepath.Join(tmpDir, ".config", "lazyspeed")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("Could not create config dir: %v", err)
+	}
+
+	configYAML := `history:
+  max_entries: 100
+  path: /tmp/test-history.json
+test:
+  ping_count: 3
+  fetch_timeout: 15
+  test_timeout: 60
+export:
+  directory: /tmp/test-exports
+diagnostics:
+  max_hops: 20
+  timeout: 45
+  max_entries: 10
+  path: /tmp/test-diag.json
+`
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(configYAML), 0644); err != nil {
+		t.Fatalf("Could not write config file: %v", err)
+	}
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	tests := []struct {
+		name string
+		got  any
+		want any
+	}{
+		{"History.MaxEntries", cfg.History.MaxEntries, 100},
+		{"History.Path", cfg.History.Path, "/tmp/test-history.json"},
+		{"Test.PingCount", cfg.Test.PingCount, 3},
+		{"Test.FetchTimeout", cfg.Test.FetchTimeout, 15},
+		{"Test.TestTimeout", cfg.Test.TestTimeout, 60},
+		{"Export.Directory", cfg.Export.Directory, "/tmp/test-exports"},
+		{"Diagnostics.MaxHops", cfg.Diagnostics.MaxHops, 20},
+		{"Diagnostics.Timeout", cfg.Diagnostics.Timeout, 45},
+		{"Diagnostics.MaxEntries", cfg.Diagnostics.MaxEntries, 10},
+		{"Diagnostics.Path", cfg.Diagnostics.Path, "/tmp/test-diag.json"},
+	}
+	for _, tt := range tests {
+		if fmt.Sprintf("%v", tt.got) != fmt.Sprintf("%v", tt.want) {
+			t.Errorf("%s = %v, want %v", tt.name, tt.got, tt.want)
+		}
+	}
+}
