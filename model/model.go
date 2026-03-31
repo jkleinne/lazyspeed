@@ -238,6 +238,35 @@ func callProgressFn(fn func(string), phase string) {
 	}
 }
 
+// runPingPhase measures ping/jitter and reports TUI progress updates.
+func runPingPhase(ctx context.Context, backend Backend, server *speedtest.Server, pingCount int, updateChan chan<- ProgressUpdate) (*pingResult, error) {
+	sendUpdate(progressPingStart, "Measuring ping and jitter...", updateChan)
+	return measurePing(ctx, backend, server, pingCount, func(pingNum int, ping, jitter float64) {
+		pingProgress := min(progressPingStart+float64(pingNum)*progressPingIncrement, progressDownloadStart)
+		if jitter > 0 {
+			sendUpdate(pingProgress,
+				fmt.Sprintf("Ping: %.1f ms, Jitter: %.1f ms", ping, jitter), updateChan)
+		} else {
+			sendUpdate(pingProgress,
+				fmt.Sprintf("Ping: %.1f ms", ping), updateChan)
+		}
+	})
+}
+
+// finalizeTest records results, saves history, and sends the completion update.
+func (m *Model) finalizeTest(server *speedtest.Server, pr *pingResult, download, upload float64, updateChan chan<- ProgressUpdate) {
+	userIP, userISP := m.userInfo()
+	result := buildResult(server, pr, download, upload, userIP, userISP)
+
+	m.History.Append(result)
+	if saveErr := m.History.Save(); saveErr != nil {
+		m.Warning = fmt.Sprintf("failed to save history: %v", saveErr)
+	}
+
+	sendUpdate(progressComplete, "Test completed", updateChan)
+	m.State = StateIdle
+}
+
 // FetchServers fetches the server list from the backend.
 func (m *Model) FetchServers(ctx context.Context) error {
 	return m.Servers.Fetch(ctx, m.backend)
@@ -340,7 +369,6 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	} else {
 		m.Warning = fmt.Sprintf("could not fetch network info: %v", userErr)
 	}
-
 	if ctx.Err() != nil {
 		m.State = StateIdle
 		return ctx.Err()
@@ -348,41 +376,26 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 
 	sendUpdate(progressServer, fmt.Sprintf("Testing with server: %s", server.Name), updateChan)
 
-	pingCount := m.Config.PingCount()
-
-	sendUpdate(progressPingStart, "Measuring ping and jitter...", updateChan)
-	pingResult, err := measurePing(ctx, m.backend, server, pingCount, func(pingNum int, ping, jitter float64) {
-		pingProgress := min(progressPingStart+float64(pingNum)*progressPingIncrement, progressDownloadStart)
-		if jitter > 0 {
-			sendUpdate(pingProgress,
-				fmt.Sprintf("Ping: %.1f ms, Jitter: %.1f ms", ping, jitter), updateChan)
-		} else {
-			sendUpdate(pingProgress,
-				fmt.Sprintf("Ping: %.1f ms", ping), updateChan)
-		}
-	})
+	pr, err := runPingPhase(ctx, m.backend, server, m.Config.PingCount(), updateChan)
 	if err != nil {
 		m.State = StateIdle
 		return fmt.Errorf("failed to measure ping: %v", err)
 	}
-	if len(pingResult.pings) == 0 {
+	if len(pr.pings) == 0 {
 		msg := "all ping measurements failed; ping and jitter are reported as 0"
-		if pingResult.lastErr != nil {
-			msg = fmt.Sprintf("%s (last error: %v)", msg, pingResult.lastErr)
+		if pr.lastErr != nil {
+			msg = fmt.Sprintf("%s (last error: %v)", msg, pr.lastErr)
 		}
 		m.Warning = msg
 	}
 
 	sendUpdate(progressDownloadStart, "Starting download test...", updateChan)
 	downloadSpeed, err := runTransferPhase(ctx, transferPhase{
-		start:   progressDownloadStart,
-		span:    progressDownloadSpan,
-		maxProg: progressDownloadMax,
-		label:   "download",
-		rateFn:  func() float64 { return server.Context.GetEWMADownloadRate() },
+		start: progressDownloadStart, span: progressDownloadSpan,
+		maxProg: progressDownloadMax, label: "download",
+		rateFn: func() float64 { return server.Context.GetEWMADownloadRate() },
 	}, func() error { return m.backend.DownloadTest(server) },
-		func() float64 { return float64(server.DLSpeed) },
-		updateChan)
+		func() float64 { return float64(server.DLSpeed) }, updateChan)
 	if err != nil {
 		m.State = StateIdle
 		return err
@@ -391,31 +404,18 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 
 	sendUpdate(progressUploadStart, "Starting upload test...", updateChan)
 	uploadSpeed, err := runTransferPhase(ctx, transferPhase{
-		start:   progressUploadStart,
-		span:    progressUploadSpan,
-		maxProg: progressUploadMax,
-		label:   "upload",
-		rateFn:  func() float64 { return server.Context.GetEWMAUploadRate() },
+		start: progressUploadStart, span: progressUploadSpan,
+		maxProg: progressUploadMax, label: "upload",
+		rateFn: func() float64 { return server.Context.GetEWMAUploadRate() },
 	}, func() error { return m.backend.UploadTest(server) },
-		func() float64 { return float64(server.ULSpeed) },
-		updateChan)
+		func() float64 { return float64(server.ULSpeed) }, updateChan)
 	if err != nil {
 		m.State = StateIdle
 		return err
 	}
 	sendUpdate(progressUploadDone, fmt.Sprintf("Upload complete: %.2f Mbps", uploadSpeed), updateChan)
 
-	userIP, userISP := m.userInfo()
-
-	result := buildResult(server, pingResult, downloadSpeed, uploadSpeed, userIP, userISP)
-
-	m.History.Append(result)
-	if saveErr := m.History.Save(); saveErr != nil {
-		m.Warning = fmt.Sprintf("failed to save history: %v", saveErr)
-	}
-
-	sendUpdate(progressComplete, "Test completed", updateChan)
-	m.State = StateIdle
+	m.finalizeTest(server, pr, downloadSpeed, uploadSpeed, updateChan)
 	return nil
 }
 
