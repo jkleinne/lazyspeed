@@ -261,10 +261,10 @@ func (s *speedTest) handleExportKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "j":
 		s.model.State = model.StateIdle
-		return s, exportCmd(s.model.History.Results, "json", s.model)
+		return s, exportCmd(s.model.History.Results, formatJSON, s.model)
 	case "c":
 		s.model.State = model.StateIdle
-		return s, exportCmd(s.model.History.Results, "csv", s.model)
+		return s, exportCmd(s.model.History.Results, formatCSV, s.model)
 	case keyEsc, "q", keyCtrlC:
 		s.model.State = model.StateIdle
 	}
@@ -503,36 +503,44 @@ func (s *speedTest) renderMainView() string {
 		b.WriteString("\n\n")
 
 	case model.StateExporting, model.StateIdle:
-		if s.model.History.Results != nil || len(s.model.History.Entries) > 0 {
-			b.WriteString(ui.RenderResults(s.model.History.Entries, ui.Viewport{
-				Width:  s.model.Width,
-				Height: s.model.Height,
-				Offset: s.historyOffset,
-			}))
-			b.WriteString("\n")
-		}
+		b.WriteString(s.renderIdleView())
+	}
 
-		if s.model.Error != nil {
-			b.WriteString("\n")
-			b.WriteString(ui.RenderError(s.model.Error, s.model.Width))
-		}
+	return b.String()
+}
 
-		if s.model.Warning != "" {
-			b.WriteString("\n")
-			b.WriteString(ui.RenderWarning(s.model.Warning, s.model.Width))
-		}
+func (s *speedTest) renderIdleView() string {
+	var b strings.Builder
 
-		if s.model.State == model.StateExporting {
-			b.WriteString("\n")
-			b.WriteString(ui.RenderExportPrompt(s.model.Width))
-		} else if s.model.ExportMessage != "" {
-			b.WriteString("\n")
-			b.WriteString(ui.RenderExportMessage(s.model.ExportMessage, s.model.Width))
-		}
+	if s.model.History.Results != nil || len(s.model.History.Entries) > 0 {
+		b.WriteString(ui.RenderResults(s.model.History.Entries, ui.Viewport{
+			Width:  s.model.Width,
+			Height: s.model.Height,
+			Offset: s.historyOffset,
+		}))
+		b.WriteString("\n")
+	}
 
-		if s.showHelp {
-			b.WriteString(ui.RenderHelp(s.model.Width, s.model.History.Results != nil))
-		}
+	if s.model.Error != nil {
+		b.WriteString("\n")
+		b.WriteString(ui.RenderError(s.model.Error, s.model.Width))
+	}
+
+	if s.model.Warning != "" {
+		b.WriteString("\n")
+		b.WriteString(ui.RenderWarning(s.model.Warning, s.model.Width))
+	}
+
+	if s.model.State == model.StateExporting {
+		b.WriteString("\n")
+		b.WriteString(ui.RenderExportPrompt(s.model.Width))
+	} else if s.model.ExportMessage != "" {
+		b.WriteString("\n")
+		b.WriteString(ui.RenderExportMessage(s.model.ExportMessage, s.model.Width))
+	}
+
+	if s.showHelp {
+		b.WriteString(ui.RenderHelp(s.model.Width, s.model.History.Results != nil))
 	}
 
 	return b.String()

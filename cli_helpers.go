@@ -11,6 +11,19 @@ import (
 	"github.com/jkleinne/lazyspeed/model"
 )
 
+const (
+	formatJSON = "json"
+	formatCSV  = "csv"
+)
+
+// validateFormat returns an error if format is non-empty and not "json" or "csv".
+func validateFormat(format string) error {
+	if format != "" && format != formatJSON && format != formatCSV {
+		return fmt.Errorf("invalid --format %q: must be %q or %q", format, formatJSON, formatCSV)
+	}
+	return nil
+}
+
 // fetchServersOrExit fetches the server list with timeout, exiting on failure.
 func fetchServersOrExit(m *model.Model) {
 	ctx, cancel := context.WithTimeout(context.Background(), m.Config.FetchTimeoutDuration())
