@@ -50,51 +50,76 @@ func runIsInteractive() bool {
 	return !runJSON && !runCSV && !runSimple
 }
 
-func runHeadlessTest() {
-	m := model.NewDefaultModel()
-
-	if runIsInteractive() {
+// prepareRunServer fetches the server list and resolves the target server index.
+// It exits the process on failure (no servers found, server ID not found).
+func prepareRunServer(m *model.Model, serverID string, interactive bool) int {
+	if interactive {
 		fmt.Println("Fetching server list...")
 	}
 	fetchServersOrExit(m)
 
 	if m.Servers.Len() == 0 {
-		fmt.Fprintf(os.Stderr, "Error: no servers found\n")
-		os.Exit(1)
+		exitWithError("no servers found")
 	}
 
 	serverIdx := 0
-	if runServerID != "" {
-		idx, found := m.Servers.FindIndex(runServerID)
+	if serverID != "" {
+		idx, found := m.Servers.FindIndex(serverID)
 		if !found {
-			fmt.Fprintf(os.Stderr, "Error: server %s not found\n", runServerID)
-			os.Exit(1)
+			exitWithError("server %s not found", serverID)
 		}
 		serverIdx = idx
 	}
-	server := m.Servers.Raw()[serverIdx]
 
-	if runIsInteractive() {
+	if interactive {
+		server := m.Servers.Raw()[serverIdx]
 		fmt.Printf("Selected server: %s (%s)\n", server.Name, server.Country)
 	}
+	return serverIdx
+}
+
+// writeRunResults emits collected JSON or CSV results after all test runs complete.
+// JSON is emitted once after all runs so that --count N>1 produces valid JSON
+// (emitting per-iteration would produce concatenated bare objects).
+func writeRunResults(jsonResults []*model.SpeedTestResult, csvRows [][]string, outputJSON, outputCSV bool) {
+	if !outputJSON && !outputCSV {
+		return
+	}
+
+	if outputJSON {
+		data, err := marshalJSONResults(jsonResults)
+		if err != nil {
+			exitWithError("serialising results: %v", err)
+		}
+		fmt.Println(string(data))
+	}
+
+	if outputCSV {
+		writeCSVRows(model.SpeedTestCSVHeader, csvRows)
+	}
+}
+
+func runHeadlessTest() {
+	m := model.NewDefaultModel()
+	interactive := runIsInteractive()
+	serverIdx := prepareRunServer(m, runServerID, interactive)
+	server := m.Servers.Raw()[serverIdx]
 
 	opts := model.RunOptions{
 		SkipDownload: runNoDownload,
 		SkipUpload:   runNoUpload,
 	}
-	if runIsInteractive() {
+	if interactive {
 		opts.ProgressFn = func(phase string) {
 			fmt.Fprintf(os.Stderr, "  %s\n", phase)
 		}
 	}
 
-	// Load history once before the loop so results accumulate correctly
+	// Load before the loop so results from each iteration accumulate correctly.
 	if err := m.History.Load(); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load history: %v\n", err)
 	}
 
-	// Collect results for JSON mode so we can emit valid JSON after all runs.
-	// (Printing one object per iteration produces invalid JSON when --count > 1.)
 	var jsonResults []*model.SpeedTestResult
 	var csvRows [][]string
 
@@ -107,8 +132,7 @@ func runHeadlessTest() {
 		res, err := m.RunHeadless(testCtx, server, opts)
 		testCancel()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error running test: %v\n", err)
-			os.Exit(1)
+			exitWithError("running test: %v", err)
 		}
 
 		if m.Warning != "" {
@@ -116,7 +140,6 @@ func runHeadlessTest() {
 			m.Warning = ""
 		}
 
-		// Persist result to history
 		m.History.Append(res)
 		if err := m.History.Save(); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to save history: %v\n", err)
@@ -134,26 +157,12 @@ func runHeadlessTest() {
 		}
 	}
 
-	// Emit JSON output after all runs so the result is always valid JSON.
-	// --count 1 → bare object (backward-compatible with existing scripts).
-	// --count N → JSON array.
-	if runJSON {
-		data, err := marshalJSONResults(jsonResults)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error serialising results: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Println(string(data))
-	}
-
-	if runCSV {
-		writeCSVRows(model.SpeedTestCSVHeader, csvRows)
-	}
+	writeRunResults(jsonResults, csvRows, runJSON, runCSV)
 }
 
 // formatSimpleResult formats a speed test result as a one-line string.
 func formatSimpleResult(res *model.SpeedTestResult) string {
-	return fmt.Sprintf("DL: %.2f Mbps | UL: %.2f Mbps | Ping: %.2f ms", res.DownloadSpeed, res.UploadSpeed, res.Ping)
+	return fmt.Sprintf("Download: %.2f Mbps | Upload: %.2f Mbps | Ping: %.2f ms", res.DownloadSpeed, res.UploadSpeed, res.Ping)
 }
 
 // formatDefaultResult formats a speed test result for terminal output.

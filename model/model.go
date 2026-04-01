@@ -349,15 +349,19 @@ func buildResult(server *speedtest.Server, pr *pingResult, download, upload floa
 	}
 }
 
-func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, updateChan chan<- ProgressUpdate) error {
+// initTestState clears model fields and sends the initialization progress update.
+func (m *Model) initTestState(updateChan chan<- ProgressUpdate) {
 	m.State = StateTesting
 	m.Progress = 0
 	m.Error = nil
 	m.Warning = ""
 	m.History.Results = nil
-
 	sendUpdate(progressInit, "Initializing speed test...", updateChan)
+}
 
+// fetchNetworkInfo fetches user IP/ISP and sets a warning on failure.
+// Returns a non-nil error only if the context is cancelled.
+func (m *Model) fetchNetworkInfo(ctx context.Context, updateChan chan<- ProgressUpdate) error {
 	sendUpdate(progressFetchNet, "Fetching network information...", updateChan)
 	user, userErr := m.backend.FetchUserInfo()
 	if userErr == nil {
@@ -368,6 +372,15 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 	if ctx.Err() != nil {
 		m.State = StateIdle
 		return ctx.Err()
+	}
+	return nil
+}
+
+func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, updateChan chan<- ProgressUpdate) error {
+	m.initTestState(updateChan)
+
+	if err := m.fetchNetworkInfo(ctx, updateChan); err != nil {
+		return err
 	}
 
 	sendUpdate(progressServer, fmt.Sprintf("Testing with server: %s", server.Name), updateChan)

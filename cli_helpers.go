@@ -16,6 +16,12 @@ const (
 	formatCSV  = "csv"
 )
 
+// exitWithError prints a formatted error to stderr and exits with code 1.
+func exitWithError(format string, args ...any) {
+	fmt.Fprintf(os.Stderr, "Error: "+format+"\n", args...)
+	os.Exit(1)
+}
+
 // validateFormat returns an error if format is non-empty and not "json" or "csv".
 func validateFormat(format string) error {
 	if format != "" && format != formatJSON && format != formatCSV {
@@ -29,8 +35,7 @@ func fetchServersOrExit(m *model.Model) {
 	ctx, cancel := context.WithTimeout(context.Background(), m.Config.FetchTimeoutDuration())
 	defer cancel()
 	if err := m.FetchServers(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "Error fetching servers: %v\n", err)
-		os.Exit(1)
+		exitWithError("fetching servers: %v", err)
 	}
 }
 
@@ -38,8 +43,7 @@ func fetchServersOrExit(m *model.Model) {
 func printJSON(v any) {
 	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error serialising JSON: %v\n", err)
-		os.Exit(1)
+		exitWithError("serialising JSON: %v", err)
 	}
 	fmt.Println(string(data))
 }
@@ -63,7 +67,6 @@ func writeCSVRows(header []string, rows [][]string) {
 	}
 	w.Flush()
 	if err := w.Error(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error writing CSV: %v\n", err)
-		os.Exit(1)
+		exitWithError("writing CSV: %v", err)
 	}
 }

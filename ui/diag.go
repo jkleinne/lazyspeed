@@ -147,12 +147,10 @@ func RenderDiagCompact(result *diag.DiagResult, width int) string {
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, b.String())
 }
 
-// RenderDiagExpanded renders the full scrollable hop table.
-// The title is rendered by the main View(); this function begins with score + label inline.
-func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) string {
+// renderDiagHeader renders the score/label inline header and meta line.
+func renderDiagHeader(result *diag.DiagResult, width int) string {
 	var b strings.Builder
 
-	// Compact header: score inline (title comes from main View())
 	scoreText := scoreStyle(result.Quality.Grade).Render(
 		fmt.Sprintf("%d/100 (%s)", result.Quality.Score, result.Quality.Grade))
 	labelText := diagLabelStyle.Render(result.Quality.Label)
@@ -160,7 +158,6 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, header))
 	b.WriteString("\n")
 
-	// Meta line
 	dnsStr := dnsDisplayStr(result.DNS)
 	meta := diagSummaryLabelStyle.Render("Target: ") +
 		diagTargetStyle.Render(result.Target) +
@@ -173,7 +170,12 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, meta))
 	b.WriteString("\n\n")
 
-	// Column headers
+	return b.String()
+}
+
+// renderDiagColumnHeader renders the column header row and separator.
+func renderDiagColumnHeader(width int) string {
+	var b strings.Builder
 	colHeader := diagHeaderLightStyle.Render(
 		fmt.Sprintf("%-6s %-18s %-30s %s", "Hop", "IP", "Host", "Latency"),
 	)
@@ -182,81 +184,110 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center,
 		diagSeparatorStyle.Render(strings.Repeat("─", hopTableWidth))))
 	b.WriteString("\n")
+	return b.String()
+}
 
-	// Viewport windowing
-	totalRows := len(result.Hops)
-	maxVisible := min(totalRows, max(diagMinVisible, height-diagExpandedOverhead))
-
-	var end int
-	offset, end = clampViewport(totalRows, maxVisible, offset)
-
-	// Up indicator
-	if offset > 0 {
-		b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center,
-			dimStyle.Render(fmt.Sprintf("^ %d more above", offset))))
-		b.WriteString("\n")
+// renderHopRow renders a single hop row with latency styling and alternating background.
+func renderHopRow(hop diag.Hop, absoluteIndex int) string {
+	var latStr string
+	if hop.Timeout {
+		latStr = latencyRedStyle.Render("timeout")
+	} else {
+		latStr = renderLatency(hop.Latency)
 	}
 
-	// Hop rows
-	for i, hop := range result.Hops[offset:end] {
-		var latStr string
-		if hop.Timeout {
-			latStr = latencyRedStyle.Render("timeout")
-		} else {
-			latStr = renderLatency(hop.Latency)
-		}
-
-		ipStr := hop.IP
-		if ipStr == "" {
-			ipStr = "*"
-		}
-		hostStr := hop.Host
-		if hostStr == "" {
-			hostStr = "*"
-		}
-
-		row := fmt.Sprintf("%-6d %-18s %-30s %s",
-			hop.Number,
-			Truncate(ipStr, ipColWidth-1),
-			Truncate(hostStr, hostColWidth-1),
-			latStr,
-		)
-
-		// Pad to fixed width for consistent background fill
-		rowRunes := []rune(row)
-		if len(rowRunes) < hopTableWidth {
-			row += strings.Repeat(" ", hopTableWidth-len(rowRunes))
-		}
-
-		// Alternate by absolute hop position so color is stable when scrolling
-		var styledRow string
-		if (offset+i)%2 == 0 {
-			styledRow = diagEvenRowStyle.Render(row)
-		} else {
-			styledRow = diagOddRowStyle.Render(row)
-		}
-		b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, styledRow))
-		b.WriteString("\n")
+	ipStr := hop.IP
+	if ipStr == "" {
+		ipStr = "*"
+	}
+	hostStr := hop.Host
+	if hostStr == "" {
+		hostStr = "*"
 	}
 
-	// Down indicator / pagination
-	remaining := totalRows - end
+	row := fmt.Sprintf("%-6d %-18s %-30s %s",
+		hop.Number,
+		Truncate(ipStr, ipColWidth-1),
+		Truncate(hostStr, hostColWidth-1),
+		latStr,
+	)
+
+	rowRunes := []rune(row)
+	if len(rowRunes) < hopTableWidth {
+		row += strings.Repeat(" ", hopTableWidth-len(rowRunes))
+	}
+
+	if absoluteIndex%2 == 0 {
+		return diagEvenRowStyle.Render(row)
+	}
+	return diagOddRowStyle.Render(row)
+}
+
+// renderScrollHeader renders the "N more above" indicator.
+func renderScrollHeader(offset, width int) string {
+	if offset <= 0 {
+		return ""
+	}
+	return lipgloss.PlaceHorizontal(width, lipgloss.Center,
+		dimStyle.Render(fmt.Sprintf("^ %d more above", offset))) + "\n"
+}
+
+// scrollState holds viewport pagination state for scrollable content.
+type scrollState struct {
+	offset     int
+	end        int
+	total      int
+	maxVisible int
+}
+
+// renderScrollFooter renders the down indicator and pagination count.
+func renderScrollFooter(scroll scrollState, width int) string {
+	var b strings.Builder
+
+	remaining := scroll.total - scroll.end
 	if remaining > 0 {
 		b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center,
 			dimStyle.Render(fmt.Sprintf("v %d more below", remaining))))
 		b.WriteString("\n")
 	}
 
-	if totalRows > maxVisible {
+	if scroll.total > scroll.maxVisible {
 		b.WriteString("\n")
 		b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center,
-			dimStyle.Render(fmt.Sprintf("Showing %d-%d of %d hops", offset+1, end, totalRows))))
+			dimStyle.Render(fmt.Sprintf("Showing %d-%d of %d hops", scroll.offset+1, scroll.end, scroll.total))))
 		b.WriteString("\n")
 	}
 
-	b.WriteString("\n")
+	return b.String()
+}
 
-	// Hint
+// RenderDiagExpanded renders the full scrollable hop table.
+// The title is rendered by the main View(); this function begins with score + label inline.
+func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) string {
+	var b strings.Builder
+
+	b.WriteString(renderDiagHeader(result, width))
+	b.WriteString(renderDiagColumnHeader(width))
+
+	totalRows := len(result.Hops)
+	maxVisible := min(totalRows, max(diagMinVisible, height-diagExpandedOverhead))
+	offset, end := clampViewport(totalRows, maxVisible, offset)
+
+	b.WriteString(renderScrollHeader(offset, width))
+
+	for i, hop := range result.Hops[offset:end] {
+		b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, renderHopRow(hop, offset+i)))
+		b.WriteString("\n")
+	}
+
+	b.WriteString(renderScrollFooter(scrollState{
+		offset:     offset,
+		end:        end,
+		total:      totalRows,
+		maxVisible: maxVisible,
+	}, width))
+
+	b.WriteString("\n")
 	hint := formatHint(ContextDiagExpanded)
 	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, hint))
 

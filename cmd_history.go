@@ -41,16 +41,14 @@ func runHistory() {
 		m.History.Entries = nil
 		m.History.Results = nil
 		if err := m.History.Save(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error clearing history: %v\n", err)
-			os.Exit(1)
+			exitWithError("clearing history: %v", err)
 		}
 		fmt.Println("History cleared.")
 		return
 	}
 
 	if err := m.History.Load(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading history: %v\n", err)
-		os.Exit(1)
+		exitWithError("loading history: %v", err)
 	}
 
 	if len(m.History.Entries) == 0 {
