@@ -89,48 +89,39 @@ func RenderSpinner(s spinner.Model, width int, phase string, progressAmount floa
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, sized)
 }
 
-func RenderResults(history []*model.SpeedTestResult, vp Viewport) string {
-	if len(history) == 0 {
-		return ""
-	}
-
-	latest := history[len(history)-1]
-
-	latestBox := strings.Builder{}
-	latestBox.WriteString(sectionLabelStyle.Render("Latest Results"))
-	latestBox.WriteString("\n")
-	latestBox.WriteString(diagSeparatorStyle.Render("──────────────────────"))
-	latestBox.WriteString("\n")
-	fmt.Fprintf(&latestBox, "Download  %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f Mbps", latest.DownloadSpeed)))
-	fmt.Fprintf(&latestBox, "Upload    %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f Mbps", latest.UploadSpeed)))
-	fmt.Fprintf(&latestBox, "Ping      %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f ms", latest.Ping)))
-	fmt.Fprintf(&latestBox, "Jitter    %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f ms", latest.Jitter)))
-	fmt.Fprintf(&latestBox, "Server    %s\n", infoStyle.Render(fmt.Sprintf("%s (%s)", latest.ServerName, latest.ServerCountry)))
+// renderLatestResult renders the "Latest Results" detail box.
+func renderLatestResult(latest *model.SpeedTestResult) string {
+	var b strings.Builder
+	b.WriteString(sectionLabelStyle.Render("Latest Results"))
+	b.WriteString("\n")
+	b.WriteString(diagSeparatorStyle.Render("──────────────────────"))
+	b.WriteString("\n")
+	fmt.Fprintf(&b, "Download  %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f Mbps", latest.DownloadSpeed)))
+	fmt.Fprintf(&b, "Upload    %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f Mbps", latest.UploadSpeed)))
+	fmt.Fprintf(&b, "Ping      %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f ms", latest.Ping)))
+	fmt.Fprintf(&b, "Jitter    %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f ms", latest.Jitter)))
+	fmt.Fprintf(&b, "Server    %s\n", infoStyle.Render(fmt.Sprintf("%s (%s)", latest.ServerName, latest.ServerCountry)))
 	if latest.ServerSponsor != "" {
-		fmt.Fprintf(&latestBox, "Sponsor   %s\n", infoStyle.Render(latest.ServerSponsor))
+		fmt.Fprintf(&b, "Sponsor   %s\n", infoStyle.Render(latest.ServerSponsor))
 	}
 	if latest.Distance > 0 {
-		fmt.Fprintf(&latestBox, "Distance  %s\n", infoStyle.Render(fmt.Sprintf("%.1f km", latest.Distance)))
+		fmt.Fprintf(&b, "Distance  %s\n", infoStyle.Render(fmt.Sprintf("%.1f km", latest.Distance)))
 	}
-	fmt.Fprintf(&latestBox, "%s\n", metadataStyle.Render(latest.Timestamp.Format("03:04:05 PM")))
+	fmt.Fprintf(&b, "%s\n", metadataStyle.Render(latest.Timestamp.Format("03:04:05 PM")))
 	if latest.UserIP != "" {
 		ispInfo := latest.UserIP
 		if latest.UserISP != "" {
 			ispInfo = fmt.Sprintf("%s (%s)", latest.UserIP, latest.UserISP)
 		}
-		fmt.Fprintf(&latestBox, "%s\n", metadataStyle.Render(ispInfo))
+		fmt.Fprintf(&b, "%s\n", metadataStyle.Render(ispInfo))
 	}
+	return boxStyle.Render(b.String())
+}
 
-	latestContent := boxStyle.Render(latestBox.String())
-
-	if len(history) == 1 {
-		return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, latestContent)
-	}
-
-	headers := []string{"#", "Time", "Server", "Sponsor", "Dist (km)", "DL (Mbps)", "UL (Mbps)", "Ping (ms)", "Jitter (ms)"}
-
-	// Build rows newest-first (omitting the latest which is at index len-1)
-	allRows := make([][]string, 0, len(history)-1)
+// buildHistoryRows builds table rows newest-first, skipping the last entry
+// (which is displayed in the latest-result box).
+func buildHistoryRows(history []*model.SpeedTestResult) [][]string {
+	rows := make([][]string, 0, len(history)-1)
 	for i := len(history) - 2; i >= 0; i-- {
 		test := history[i]
 		rowNum := i + 1
@@ -144,7 +135,7 @@ func RenderResults(history []*model.SpeedTestResult, vp Viewport) string {
 			distStr = fmt.Sprintf("%.1f", test.Distance)
 		}
 
-		allRows = append(allRows, []string{
+		rows = append(rows, []string{
 			fmt.Sprintf("%d", rowNum),
 			test.Timestamp.Format("Jan 02 03:04 PM"),
 			fmt.Sprintf("%s (%s)", test.ServerName, test.ServerCountry),
@@ -156,17 +147,21 @@ func RenderResults(history []*model.SpeedTestResult, vp Viewport) string {
 			fmt.Sprintf("%.1f", test.Jitter),
 		})
 	}
+	return rows
+}
+
+// renderHistoryTable renders the "Previous Tests" table with viewport pagination.
+func renderHistoryTable(history []*model.SpeedTestResult, vp Viewport) string {
+	headers := []string{"#", "Time", "Server", "Sponsor", "Dist (km)", "DL (Mbps)", "UL (Mbps)", "Ping (ms)", "Jitter (ms)"}
+	allRows := buildHistoryRows(history)
 
 	totalRows := len(allRows)
 	maxVisible := HistoryVisibleRows(vp.Height, totalRows)
-
 	offset, end := clampViewport(totalRows, maxVisible, vp.Offset)
-
-	visibleRows := allRows[offset:end]
 
 	t := table.New().
 		Headers(headers...).
-		Rows(visibleRows...).
+		Rows(allRows[offset:end]...).
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(tableBorderStyle).
 		StyleFunc(func(row, _ int) lipgloss.Style {
@@ -179,11 +174,8 @@ func RenderResults(history []*model.SpeedTestResult, vp Viewport) string {
 			return oddRowStyle
 		})
 
-	tableStr := t.Render()
-
 	label := sectionLabelStyle.Render("Previous Tests")
-
-	historyContent := lipgloss.JoinVertical(lipgloss.Left, label, "", tableStr)
+	historyContent := lipgloss.JoinVertical(lipgloss.Left, label, "", t.Render())
 
 	if totalRows > maxVisible {
 		paginationStr := dimStyle.Render(
@@ -191,6 +183,21 @@ func RenderResults(history []*model.SpeedTestResult, vp Viewport) string {
 		historyContent = lipgloss.JoinVertical(lipgloss.Left, historyContent, paginationStr)
 	}
 
+	return historyContent
+}
+
+func RenderResults(history []*model.SpeedTestResult, vp Viewport) string {
+	if len(history) == 0 {
+		return ""
+	}
+
+	latestContent := renderLatestResult(history[len(history)-1])
+
+	if len(history) == 1 {
+		return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, latestContent)
+	}
+
+	historyContent := renderHistoryTable(history, vp)
 	content := lipgloss.JoinVertical(lipgloss.Center, latestContent, "\n", historyContent)
 
 	return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, content)
