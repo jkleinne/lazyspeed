@@ -75,9 +75,16 @@ func TestSaveHistoryRetention(t *testing.T) {
 	}
 }
 
-func TestSaveHistoryMaxEntriesZero(t *testing.T) {
+func TestSaveHistoryMaxEntriesZero_NoTruncation(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "diagnostics.json")
-	results := []*DiagResult{{Target: testExampleHost, Timestamp: testTimestamp}}
+
+	var results []*DiagResult
+	for i := range 25 {
+		results = append(results, &DiagResult{
+			Target:    "target",
+			Timestamp: testTimestamp.Add(time.Duration(i) * time.Minute),
+		})
+	}
 
 	if err := SaveHistory(path, results, 0); err != nil {
 		t.Fatalf("save failed: %v", err)
@@ -87,8 +94,8 @@ func TestSaveHistoryMaxEntriesZero(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load failed: %v", err)
 	}
-	if len(loaded) != 0 {
-		t.Errorf("expected 0 entries with maxEntries=0, got %d", len(loaded))
+	if len(loaded) != 25 {
+		t.Errorf("expected 25 entries (no truncation with maxEntries=0), got %d", len(loaded))
 	}
 }
 
