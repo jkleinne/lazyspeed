@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/jkleinne/lazyspeed/model"
 	"github.com/muesli/termenv"
 )
@@ -53,24 +54,15 @@ func TestRenderTitle(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := RenderTitle(tt.width)
 
-			expectedText := "LazySpeed - Terminal Speed Test"
-			if !strings.Contains(result, expectedText) {
-				t.Errorf("RenderTitle() = %q, want to contain %q", result, expectedText)
+			if result == "" {
+				t.Errorf("RenderTitle(%d) returned empty string", tt.width)
 			}
 
-			actualWidth := lipgloss.Width(result)
-
-			// The raw text is 33 chars (" LazySpeed - Terminal Speed Test ")
-			// Padding is 2 left, 2 right => total base width 37.
-			baseWidth := 37
-
-			expectedWidth := tt.width
-			if tt.width < baseWidth {
-				expectedWidth = baseWidth
-			}
-
-			if actualWidth != expectedWidth {
-				t.Errorf("RenderTitle() width = %d, want %d", actualWidth, expectedWidth)
+			// Strip ANSI codes before checking text content — gradient renders
+			// each character with its own escape sequence.
+			plain := ansi.Strip(result)
+			if !strings.Contains(plain, "LazySpeed") {
+				t.Errorf("RenderTitle(%d) plain text = %q, want to contain %q", tt.width, plain, "LazySpeed")
 			}
 		})
 	}

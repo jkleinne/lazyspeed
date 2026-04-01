@@ -47,7 +47,14 @@ var DefaultSpinner = spinner.New(
 )
 
 func RenderTitle(width int) string {
-	title := titleStyle.Render(" LazySpeed - Terminal Speed Test ")
+	bolt := lipgloss.NewStyle().Foreground(lipgloss.Color(colorPurpleDark)).Render("⚡")
+	name := gradientText("LazySpeed", gradientColors)
+	banner := bannerBoxStyle.Render(bolt + " " + name)
+
+	bannerWidth := lipgloss.Width(banner)
+	separator := gradientText(strings.Repeat("─", bannerWidth), gradientColors)
+
+	title := lipgloss.JoinVertical(lipgloss.Center, banner, separator)
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, title)
 }
 
