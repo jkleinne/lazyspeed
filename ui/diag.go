@@ -99,31 +99,33 @@ func routeStatusStyled(hops []diag.Hop) string {
 func RenderDiagCompact(result *diag.DiagResult, width int) string {
 	var b strings.Builder
 
-	// Title
-	title := titleStyle.Render("~ Network Diagnostics ~")
-	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, title))
-	b.WriteString("\n\n")
-
 	// Target
-	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, infoStyle.Render(fmt.Sprintf("Target: %s", result.Target))))
+	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center,
+		diagTargetStyle.Render(result.Target)))
 	b.WriteString("\n\n")
 
 	// Score line
-	scoreStr := scoreStyle(result.Quality.Grade).Render(fmt.Sprintf("%d/100 (%s)", result.Quality.Score, result.Quality.Grade))
+	scoreStr := scoreStyle(result.Quality.Grade).Render(
+		fmt.Sprintf("%d/100 (%s)", result.Quality.Score, result.Quality.Grade))
 	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, scoreStr))
 	b.WriteString("\n")
 
 	// Label
-	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, infoStyle.Render(result.Quality.Label)))
+	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center,
+		diagLabelStyle.Render(result.Quality.Label)))
 	b.WriteString("\n\n")
 
-	// Summary line
+	// Summary line with split label/value colors
 	dnsStr := dnsDisplayStr(result.DNS)
-	summaryPrefix := fmt.Sprintf("DNS: %s | Hops: %d | Route: ",
-		dnsStr,
-		len(result.Hops),
-	)
-	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, helpStyle.Render(summaryPrefix)+routeStatusStyled(result.Hops)))
+	summary := diagSummaryLabelStyle.Render("DNS: ") +
+		infoStyle.Render(dnsStr) +
+		diagSummarySepStyle.Render(" │ ") +
+		diagSummaryLabelStyle.Render("Hops: ") +
+		infoStyle.Render(fmt.Sprintf("%d", len(result.Hops))) +
+		diagSummarySepStyle.Render(" │ ") +
+		diagSummaryLabelStyle.Render("Route: ") +
+		routeStatusStyled(result.Hops)
+	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, summary))
 	b.WriteString("\n")
 
 	// Anomaly warnings
@@ -131,7 +133,8 @@ func RenderDiagCompact(result *diag.DiagResult, width int) string {
 	for _, a := range anomalies {
 		warn := fmt.Sprintf("Warning: hop %d (%s) has unusually high latency: %dms",
 			a.Number, a.IP, a.Latency.Milliseconds())
-		b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, warningStyle.Render(warn)))
+		b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center,
+			warningStyle.Render(warn)))
 		b.WriteString("\n")
 	}
 
@@ -139,7 +142,7 @@ func RenderDiagCompact(result *diag.DiagResult, width int) string {
 
 	// Hint
 	hint := formatHint(ContextDiagCompact)
-	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, helpStyle.Render(hint)))
+	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, hint))
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, b.String())
 }
