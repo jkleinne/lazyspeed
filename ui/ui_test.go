@@ -164,42 +164,42 @@ func TestRenderWarning(t *testing.T) {
 
 func TestRenderHelp(t *testing.T) {
 	// Without a result: no export or scroll hint
-	res := RenderHelp(100, false)
-	if !strings.Contains(res, "Controls:") || !strings.Contains(res, "n: New Test") {
+	plain := ansi.Strip(RenderHelp(100, false))
+	if !strings.Contains(plain, "Controls:") || !strings.Contains(plain, "n: New Test") {
 		t.Errorf("Expected help controls to be present")
 	}
-	if strings.Contains(res, "e: Export") {
+	if strings.Contains(plain, "e: Export") {
 		t.Errorf("Did not expect export hint when hasResult is false")
 	}
-	if strings.Contains(res, "Scroll History") {
+	if strings.Contains(plain, "Scroll History") {
 		t.Errorf("Did not expect scroll hint when hasResult is false")
 	}
 
 	// With a result: export and scroll hints shown
-	res = RenderHelp(100, true)
-	if !strings.Contains(res, "e: Export Result") {
+	plain = ansi.Strip(RenderHelp(100, true))
+	if !strings.Contains(plain, "e: Export Result") {
 		t.Errorf("Expected export hint when hasResult is true")
 	}
-	if !strings.Contains(res, "Scroll History") {
+	if !strings.Contains(plain, "Scroll History") {
 		t.Errorf("Expected scroll history hint when hasResult is true")
 	}
 }
 
 func TestRenderExportPrompt(t *testing.T) {
-	res := RenderExportPrompt(100)
-	if !strings.Contains(res, "[j] JSON") {
+	plain := ansi.Strip(RenderExportPrompt(100))
+	if !strings.Contains(plain, "[j] JSON") {
 		t.Errorf("Expected JSON option in export prompt")
 	}
-	if !strings.Contains(res, "[c] CSV") {
+	if !strings.Contains(plain, "[c] CSV") {
 		t.Errorf("Expected CSV option in export prompt")
 	}
-	if !strings.Contains(res, "[Esc] Cancel") {
+	if !strings.Contains(plain, "[Esc] Cancel") {
 		t.Errorf("Expected cancel option in export prompt")
 	}
 
 	// Zero width should not panic
-	res = RenderExportPrompt(0)
-	if !strings.Contains(res, "[j] JSON") {
+	plain = ansi.Strip(RenderExportPrompt(0))
+	if !strings.Contains(plain, "[j] JSON") {
 		t.Errorf("Expected JSON option even at zero width")
 	}
 }

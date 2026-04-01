@@ -168,17 +168,6 @@ var (
 
 	diagSummarySepStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(colorPurpleDark))
-
-	// Deprecated aliases — keep until all render functions are migrated
-	// (removed in Task 9 after all callers are updated)
-	titleStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color(colorTextPrimary)).
-		Background(lipgloss.Color(colorPurple)).
-		PaddingLeft(2).
-		PaddingRight(2)
-
-	helpStyle = hintDescStyle
 )
 
 var (

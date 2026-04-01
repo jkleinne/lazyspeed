@@ -217,20 +217,26 @@ func RenderWarning(warning string, width int) string {
 func RenderHelp(width int, hasResult bool) string {
 	help := strings.Builder{}
 	help.WriteString("\n")
-	help.WriteString("Controls:\n")
+	help.WriteString(sectionLabelStyle.Render("Controls:"))
+	help.WriteString("\n")
 	for _, b := range BindingsForContext(ContextHome) {
 		if b.ResultOnly && !hasResult {
 			continue
 		}
-		fmt.Fprintf(&help, "  %s: %s\n", b.Key, b.Description)
+		fmt.Fprintf(&help, "  %s: %s\n",
+			hintKeyStyle.Render(b.Key),
+			hintDescStyle.Render(b.Description))
 	}
-	help.WriteString("\nIn Server Selection:\n")
+	help.WriteString("\n")
+	help.WriteString(sectionLabelStyle.Render("In Server Selection:"))
+	help.WriteString("\n")
 	for _, b := range BindingsForContext(ContextServerSelection) {
-		fmt.Fprintf(&help, "  %s: %s\n", b.Key, b.Description)
+		fmt.Fprintf(&help, "  %s: %s\n",
+			hintKeyStyle.Render(b.Key),
+			hintDescStyle.Render(b.Description))
 	}
 
-	return lipgloss.PlaceHorizontal(width, lipgloss.Center,
-		helpStyle.Render(help.String()))
+	return lipgloss.PlaceHorizontal(width, lipgloss.Center, help.String())
 }
 
 // RenderExportPrompt renders the inline format selection prompt shown when the
@@ -239,9 +245,11 @@ func RenderExportPrompt(width int) string {
 	bindings := BindingsForContext(ContextExport)
 	parts := make([]string, 0, len(bindings))
 	for _, b := range bindings {
-		parts = append(parts, fmt.Sprintf("[%s] %s", b.Key, b.Description))
+		parts = append(parts, fmt.Sprintf("[%s] %s",
+			hintKeyStyle.Render(b.Key),
+			hintDescStyle.Render(b.Description)))
 	}
-	prompt := helpStyle.Render("Export result:  " + strings.Join(parts, "  "))
+	prompt := hintDescStyle.Render("Export result:  ") + strings.Join(parts, "  ")
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, prompt)
 }
 
