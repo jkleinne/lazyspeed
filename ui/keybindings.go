@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -72,11 +71,14 @@ func BindingsForContext(ctx BindingContext) []Binding {
 }
 
 // formatHint builds a " | "-separated hint line from all bindings in a context.
+// Keys are rendered in purple (hintKeyStyle) and descriptions in secondary gray (hintDescStyle).
 func formatHint(ctx BindingContext) string {
 	bindings := BindingsForContext(ctx)
 	parts := make([]string, 0, len(bindings))
 	for _, b := range bindings {
-		parts = append(parts, fmt.Sprintf("%s: %s", b.Key, strings.ToLower(b.Description)))
+		key := hintKeyStyle.Render(b.Key)
+		desc := hintDescStyle.Render(strings.ToLower(b.Description))
+		parts = append(parts, key+hintDescStyle.Render(": ")+desc)
 	}
-	return strings.Join(parts, " | ")
+	return strings.Join(parts, hintDescStyle.Render(" | "))
 }

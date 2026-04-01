@@ -161,8 +161,11 @@ func TestRenderDiagExpandedEmptyHops(t *testing.T) {
 	out := RenderDiagExpanded(result, 100, 30, 0)
 
 	// Should not panic and should still contain header elements
-	if !strings.Contains(out, "Network Diagnostics") {
-		t.Error("expected title in output")
+	if out == "" {
+		t.Error("expected non-empty output")
+	}
+	if !strings.Contains(out, "50") {
+		t.Error("expected score in output")
 	}
 	if !strings.Contains(out, "example.com") {
 		t.Error("expected target in output")

@@ -48,20 +48,20 @@ func TestFormatHint(t *testing.T) {
 	tests := []struct {
 		name     string
 		context  BindingContext
-		wantSep  string
-		wantSubs []string // substrings that must appear (lowercased descriptions)
+		wantKeys []string
+		wantDesc []string
 	}{
 		{
-			name:     "DiagCompact contains all bindings pipe-separated",
+			name:     "DiagCompact contains all bindings",
 			context:  ContextDiagCompact,
-			wantSep:  " | ",
-			wantSubs: []string{"Enter: expand trace", "Esc: back", "d: new diagnostic", "n: speed test", "q: quit"},
+			wantKeys: []string{"Enter", "Esc", "d", "n", "q"},
+			wantDesc: []string{"expand trace", "back", "new diagnostic", "speed test", "quit"},
 		},
 		{
-			name:     "DiagExpanded contains all bindings pipe-separated",
+			name:     "DiagExpanded contains all bindings",
 			context:  ContextDiagExpanded,
-			wantSep:  " | ",
-			wantSubs: []string{"↑/↓: scroll", "Esc: compact view", "d: new diagnostic", "q: quit"},
+			wantKeys: []string{"↑/↓", "Esc", "d", "q"},
+			wantDesc: []string{"scroll", "compact view", "new diagnostic", "quit"},
 		},
 		{
 			name:    "Unknown context returns empty string",
@@ -73,25 +73,22 @@ func TestFormatHint(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := formatHint(tt.context)
 
-			if len(tt.wantSubs) == 0 {
+			if len(tt.wantKeys) == 0 {
 				if got != "" {
 					t.Errorf("formatHint(%q) = %q, want empty string", tt.context, got)
 				}
 				return
 			}
 
-			for _, sub := range tt.wantSubs {
-				if !strings.Contains(got, sub) {
-					t.Errorf("formatHint(%q) = %q, missing %q", tt.context, got, sub)
+			for _, key := range tt.wantKeys {
+				if !strings.Contains(got, key) {
+					t.Errorf("formatHint(%q) missing key %q", tt.context, key)
 				}
 			}
-
-			// Verify pipe separator count matches binding count - 1
-			bindings := BindingsForContext(tt.context)
-			expectedPipes := len(bindings) - 1
-			actualPipes := strings.Count(got, tt.wantSep)
-			if actualPipes != expectedPipes {
-				t.Errorf("formatHint(%q) has %d pipes, want %d", tt.context, actualPipes, expectedPipes)
+			for _, desc := range tt.wantDesc {
+				if !strings.Contains(got, desc) {
+					t.Errorf("formatHint(%q) missing description %q", tt.context, desc)
+				}
 			}
 		})
 	}

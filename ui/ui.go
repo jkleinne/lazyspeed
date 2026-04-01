@@ -47,13 +47,27 @@ var DefaultSpinner = spinner.New(
 )
 
 func RenderTitle(width int) string {
-	title := titleStyle.Render(" LazySpeed - Terminal Speed Test ")
+	bolt := lipgloss.NewStyle().Foreground(lipgloss.Color(colorPurpleDark)).Render("⚡")
+	name := gradientText("LazySpeed", gradientColors)
+	banner := bannerBoxStyle.Render(bolt + " " + name)
+
+	bannerWidth := lipgloss.Width(banner)
+	separator := gradientText(strings.Repeat("─", bannerWidth), gradientColors)
+
+	title := lipgloss.JoinVertical(lipgloss.Center, banner, separator)
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, title)
 }
 
 func RenderSpinner(s spinner.Model, width int, phase string, progressAmount float64) string {
 	spinnerView := spinnerStyle.Render(s.View())
-	phaseText := fmt.Sprintf("⏳ %s", phase)
+
+	// Split phase into label and value if it contains a colon with trailing data
+	var phaseText string
+	if parts := strings.SplitN(phase, ":", 2); len(parts) == 2 && strings.TrimSpace(parts[1]) != "" {
+		phaseText = phaseStyle.Render("⏳ "+parts[0]+":") + " " + phaseValueStyle.Render(strings.TrimSpace(parts[1]))
+	} else {
+		phaseText = phaseStyle.Render("⏳ " + phase)
+	}
 
 	bw := spinnerBoxWidth(width)
 	prog := newProgress(bw)
@@ -84,29 +98,31 @@ func RenderResults(history []*model.SpeedTestResult, vp Viewport) string {
 	latest := history[len(history)-1]
 
 	latestBox := strings.Builder{}
-	latestBox.WriteString("Latest Test Results:\n")
-	latestBox.WriteString("──────────────────────\n")
-	fmt.Fprintf(&latestBox, "📥 Download: %.2f Mbps\n", latest.DownloadSpeed)
-	fmt.Fprintf(&latestBox, "📤 Upload: %.2f Mbps\n", latest.UploadSpeed)
-	fmt.Fprintf(&latestBox, "🔄 Ping: %.2f ms\n", latest.Ping)
-	fmt.Fprintf(&latestBox, "📊 Jitter: %.2f ms\n", latest.Jitter)
-	fmt.Fprintf(&latestBox, "🌍 Server: %s (%s)\n", latest.ServerName, latest.ServerCountry)
+	latestBox.WriteString(sectionLabelStyle.Render("Latest Results"))
+	latestBox.WriteString("\n")
+	latestBox.WriteString(diagSeparatorStyle.Render("──────────────────────"))
+	latestBox.WriteString("\n")
+	fmt.Fprintf(&latestBox, "📥 Download: %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f Mbps", latest.DownloadSpeed)))
+	fmt.Fprintf(&latestBox, "📤 Upload: %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f Mbps", latest.UploadSpeed)))
+	fmt.Fprintf(&latestBox, "🔄 Ping: %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f ms", latest.Ping)))
+	fmt.Fprintf(&latestBox, "📊 Jitter: %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f ms", latest.Jitter)))
+	fmt.Fprintf(&latestBox, "🌍 Server: %s\n", infoStyle.Render(fmt.Sprintf("%s (%s)", latest.ServerName, latest.ServerCountry)))
 	if latest.ServerSponsor != "" {
-		fmt.Fprintf(&latestBox, "🏢 Sponsor: %s\n", latest.ServerSponsor)
+		fmt.Fprintf(&latestBox, "🏢 Sponsor: %s\n", infoStyle.Render(latest.ServerSponsor))
 	}
 	if latest.Distance > 0 {
-		fmt.Fprintf(&latestBox, "📍 Distance: %.1f km\n", latest.Distance)
+		fmt.Fprintf(&latestBox, "📍 Distance: %s\n", infoStyle.Render(fmt.Sprintf("%.1f km", latest.Distance)))
 	}
-	fmt.Fprintf(&latestBox, "🕒 Timestamp: %s\n", latest.Timestamp.Format("03:04:05 PM"))
+	fmt.Fprintf(&latestBox, "%s\n", metadataStyle.Render(fmt.Sprintf("🕒 %s", latest.Timestamp.Format("03:04:05 PM"))))
 	if latest.UserIP != "" {
 		ispInfo := latest.UserIP
 		if latest.UserISP != "" {
 			ispInfo = fmt.Sprintf("%s (%s)", latest.UserIP, latest.UserISP)
 		}
-		fmt.Fprintf(&latestBox, "👤 IP: %s\n", ispInfo)
+		fmt.Fprintf(&latestBox, "%s\n", metadataStyle.Render(fmt.Sprintf("👤 %s", ispInfo)))
 	}
 
-	latestContent := infoStyle.Render(latestBox.String())
+	latestContent := boxStyle.Render(latestBox.String())
 
 	if len(history) == 1 {
 		return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, latestContent)
@@ -171,7 +187,7 @@ func RenderResults(history []*model.SpeedTestResult, vp Viewport) string {
 	historyContent := lipgloss.JoinVertical(lipgloss.Left, label, "", tableStr)
 
 	if totalRows > maxVisible {
-		paginationStr := helpStyle.Render(
+		paginationStr := dimStyle.Render(
 			fmt.Sprintf("  Showing %d-%d of %d (↑/↓ to scroll)", offset+1, end, totalRows))
 		historyContent = lipgloss.JoinVertical(lipgloss.Left, historyContent, paginationStr)
 	}
@@ -201,20 +217,26 @@ func RenderWarning(warning string, width int) string {
 func RenderHelp(width int, hasResult bool) string {
 	help := strings.Builder{}
 	help.WriteString("\n")
-	help.WriteString("Controls:\n")
+	help.WriteString(sectionLabelStyle.Render("Controls:"))
+	help.WriteString("\n")
 	for _, b := range BindingsForContext(ContextHome) {
 		if b.ResultOnly && !hasResult {
 			continue
 		}
-		fmt.Fprintf(&help, "  %s: %s\n", b.Key, b.Description)
+		fmt.Fprintf(&help, "  %s: %s\n",
+			hintKeyStyle.Render(b.Key),
+			hintDescStyle.Render(b.Description))
 	}
-	help.WriteString("\nIn Server Selection:\n")
+	help.WriteString("\n")
+	help.WriteString(sectionLabelStyle.Render("In Server Selection:"))
+	help.WriteString("\n")
 	for _, b := range BindingsForContext(ContextServerSelection) {
-		fmt.Fprintf(&help, "  %s: %s\n", b.Key, b.Description)
+		fmt.Fprintf(&help, "  %s: %s\n",
+			hintKeyStyle.Render(b.Key),
+			hintDescStyle.Render(b.Description))
 	}
 
-	return lipgloss.PlaceHorizontal(width, lipgloss.Center,
-		helpStyle.Render(help.String()))
+	return lipgloss.PlaceHorizontal(width, lipgloss.Center, help.String())
 }
 
 // RenderExportPrompt renders the inline format selection prompt shown when the
@@ -223,9 +245,11 @@ func RenderExportPrompt(width int) string {
 	bindings := BindingsForContext(ContextExport)
 	parts := make([]string, 0, len(bindings))
 	for _, b := range bindings {
-		parts = append(parts, fmt.Sprintf("[%s] %s", b.Key, b.Description))
+		parts = append(parts, fmt.Sprintf("[%s] %s",
+			hintKeyStyle.Render(b.Key),
+			hintDescStyle.Render(b.Description)))
 	}
-	prompt := helpStyle.Render("Export result:  " + strings.Join(parts, "  "))
+	prompt := hintDescStyle.Render("Export result:  ") + strings.Join(parts, "  ")
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, prompt)
 }
 
@@ -249,38 +273,54 @@ func ServerListVisibleLines(height, total int) int {
 }
 
 // RenderServerSelection renders the server list with viewport-based windowing.
+// The selected row is highlighted with a purple accent; unselected rows are dimmed.
+// Latency is color-coded green/amber/red based on duration thresholds.
 func RenderServerSelection(servers []model.Server, vp Viewport) string {
 	var b strings.Builder
-	b.WriteString("Select a server:\n\n")
+	b.WriteString(sectionLabelStyle.Render("Select a server:"))
+	b.WriteString("\n\n")
 
 	total := len(servers)
 	if total == 0 {
-		b.WriteString("  No servers available.\n")
-		return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, infoStyle.Render(b.String()))
+		b.WriteString(hintDescStyle.Render("  No servers available."))
+		b.WriteString("\n")
+		return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, b.String())
 	}
 
 	visible := ServerListVisibleLines(vp.Height, total)
 	offset, end := clampViewport(total, visible, vp.Offset)
 
 	if offset > 0 {
-		fmt.Fprintf(&b, "  ↑ %d more\n", offset)
+		b.WriteString(dimStyle.Render(fmt.Sprintf("  ↑ %d more", offset)))
+		b.WriteString("\n")
 	}
 
 	for i := offset; i < end; i++ {
 		server := servers[i]
-		prefix := "  "
+		latencyMs := diag.DurationMs(server.Latency)
+		latencyStr := latencyStyle(server.Latency).Render(fmt.Sprintf("%.2f ms", latencyMs))
+
+		line := fmt.Sprintf("%s: %s (%s) — %s",
+			server.Sponsor, server.Name, server.Country, latencyStr)
+
 		if vp.Cursor == i {
-			prefix = "> "
+			accent := selectedAccentStyle.Render("▸ ")
+			row := selectedRowStyle.Render(line)
+			b.WriteString(accent + row)
+		} else {
+			b.WriteString(unselectedRowStyle.Render("  " + line))
 		}
-		fmt.Fprintf(&b, "%s%s: %s (%s) - %.2f ms\n",
-			prefix, server.Sponsor, server.Name, server.Country,
-			diag.DurationMs(server.Latency))
+		b.WriteString("\n")
 	}
 
 	remaining := total - end
 	if remaining > 0 {
-		fmt.Fprintf(&b, "  ↓ %d more\n", remaining)
+		b.WriteString(dimStyle.Render(fmt.Sprintf("  ↓ %d more", remaining)))
+		b.WriteString("\n")
 	}
 
-	return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, infoStyle.Render(b.String()))
+	b.WriteString("\n")
+	b.WriteString(formatHint(ContextServerSelection))
+
+	return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, b.String())
 }
