@@ -47,9 +47,8 @@ var DefaultSpinner = spinner.New(
 )
 
 func RenderTitle(width int) string {
-	bolt := lipgloss.NewStyle().Foreground(lipgloss.Color(colorPurpleDark)).Render("⚡")
 	name := gradientText("LazySpeed", gradientColors)
-	banner := bannerBoxStyle.Render(bolt + " " + name)
+	banner := bannerBoxStyle.Render(name)
 
 	bannerWidth := lipgloss.Width(banner)
 	separator := gradientText(strings.Repeat("─", bannerWidth), gradientColors)
@@ -64,9 +63,9 @@ func RenderSpinner(s spinner.Model, width int, phase string, progressAmount floa
 	// Split phase into label and value if it contains a colon with trailing data
 	var phaseText string
 	if parts := strings.SplitN(phase, ":", 2); len(parts) == 2 && strings.TrimSpace(parts[1]) != "" {
-		phaseText = phaseStyle.Render("⏳ "+parts[0]+":") + " " + phaseValueStyle.Render(strings.TrimSpace(parts[1]))
+		phaseText = phaseStyle.Render(parts[0]+":") + " " + phaseValueStyle.Render(strings.TrimSpace(parts[1]))
 	} else {
-		phaseText = phaseStyle.Render("⏳ " + phase)
+		phaseText = phaseStyle.Render(phase)
 	}
 
 	bw := spinnerBoxWidth(width)
@@ -102,24 +101,24 @@ func RenderResults(history []*model.SpeedTestResult, vp Viewport) string {
 	latestBox.WriteString("\n")
 	latestBox.WriteString(diagSeparatorStyle.Render("──────────────────────"))
 	latestBox.WriteString("\n")
-	fmt.Fprintf(&latestBox, "📥 Download: %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f Mbps", latest.DownloadSpeed)))
-	fmt.Fprintf(&latestBox, "📤 Upload: %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f Mbps", latest.UploadSpeed)))
-	fmt.Fprintf(&latestBox, "🔄 Ping: %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f ms", latest.Ping)))
-	fmt.Fprintf(&latestBox, "📊 Jitter: %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f ms", latest.Jitter)))
-	fmt.Fprintf(&latestBox, "🌍 Server: %s\n", infoStyle.Render(fmt.Sprintf("%s (%s)", latest.ServerName, latest.ServerCountry)))
+	fmt.Fprintf(&latestBox, "Download  %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f Mbps", latest.DownloadSpeed)))
+	fmt.Fprintf(&latestBox, "Upload    %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f Mbps", latest.UploadSpeed)))
+	fmt.Fprintf(&latestBox, "Ping      %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f ms", latest.Ping)))
+	fmt.Fprintf(&latestBox, "Jitter    %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f ms", latest.Jitter)))
+	fmt.Fprintf(&latestBox, "Server    %s\n", infoStyle.Render(fmt.Sprintf("%s (%s)", latest.ServerName, latest.ServerCountry)))
 	if latest.ServerSponsor != "" {
-		fmt.Fprintf(&latestBox, "🏢 Sponsor: %s\n", infoStyle.Render(latest.ServerSponsor))
+		fmt.Fprintf(&latestBox, "Sponsor   %s\n", infoStyle.Render(latest.ServerSponsor))
 	}
 	if latest.Distance > 0 {
-		fmt.Fprintf(&latestBox, "📍 Distance: %s\n", infoStyle.Render(fmt.Sprintf("%.1f km", latest.Distance)))
+		fmt.Fprintf(&latestBox, "Distance  %s\n", infoStyle.Render(fmt.Sprintf("%.1f km", latest.Distance)))
 	}
-	fmt.Fprintf(&latestBox, "%s\n", metadataStyle.Render(fmt.Sprintf("🕒 %s", latest.Timestamp.Format("03:04:05 PM"))))
+	fmt.Fprintf(&latestBox, "%s\n", metadataStyle.Render(latest.Timestamp.Format("03:04:05 PM")))
 	if latest.UserIP != "" {
 		ispInfo := latest.UserIP
 		if latest.UserISP != "" {
 			ispInfo = fmt.Sprintf("%s (%s)", latest.UserIP, latest.UserISP)
 		}
-		fmt.Fprintf(&latestBox, "%s\n", metadataStyle.Render(fmt.Sprintf("👤 %s", ispInfo)))
+		fmt.Fprintf(&latestBox, "%s\n", metadataStyle.Render(ispInfo))
 	}
 
 	latestContent := boxStyle.Render(latestBox.String())
@@ -182,7 +181,7 @@ func RenderResults(history []*model.SpeedTestResult, vp Viewport) string {
 
 	tableStr := t.Render()
 
-	label := sectionLabelStyle.Render("📊 Previous Tests")
+	label := sectionLabelStyle.Render("Previous Tests")
 
 	historyContent := lipgloss.JoinVertical(lipgloss.Left, label, "", tableStr)
 
@@ -202,7 +201,7 @@ func RenderError(err error, width int) string {
 		return ""
 	}
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center,
-		errorStyle.Render(fmt.Sprintf("❌ Error: %v", err)))
+		errorStyle.Render(fmt.Sprintf("Error: %v", err)))
 }
 
 func RenderWarning(warning string, width int) string {
@@ -210,7 +209,7 @@ func RenderWarning(warning string, width int) string {
 		return ""
 	}
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center,
-		warningStyle.Render(fmt.Sprintf("⚠️ Warning: %s", warning)))
+		warningStyle.Render(fmt.Sprintf("Warning: %s", warning)))
 }
 
 // RenderHelp renders the help overlay. Pass hasResult=true to include the export hint.

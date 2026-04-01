@@ -156,9 +156,9 @@ func formatSimpleResult(res *model.SpeedTestResult) string {
 	return fmt.Sprintf("DL: %.2f Mbps | UL: %.2f Mbps | Ping: %.2f ms", res.DownloadSpeed, res.UploadSpeed, res.Ping)
 }
 
-// formatDefaultResult formats a speed test result with emoji prefixes.
+// formatDefaultResult formats a speed test result for terminal output.
 func formatDefaultResult(res *model.SpeedTestResult) string {
-	return fmt.Sprintf("\n📥 Download: %.2f Mbps\n📤 Upload: %.2f Mbps\n🔄 Ping: %.2f ms\n📊 Jitter: %.2f ms",
+	return fmt.Sprintf("\nDownload  %.2f Mbps\nUpload    %.2f Mbps\nPing      %.2f ms\nJitter    %.2f ms",
 		res.DownloadSpeed, res.UploadSpeed, res.Ping, res.Jitter)
 }
 
