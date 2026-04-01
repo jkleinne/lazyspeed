@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/jkleinne/lazyspeed/model"
+	"github.com/showwin/speedtest-go/speedtest"
 	"github.com/spf13/cobra"
 )
 
@@ -50,9 +51,9 @@ func runIsInteractive() bool {
 	return !runJSON && !runCSV && !runSimple
 }
 
-func runHeadlessTest() {
-	m := model.NewDefaultModel()
-
+// prepareRunServer fetches the server list and resolves the target server.
+// It exits the process on failure (no servers found, --server not found).
+func prepareRunServer(m *model.Model) *speedtest.Server {
 	if runIsInteractive() {
 		fmt.Println("Fetching server list...")
 	}
@@ -70,11 +71,32 @@ func runHeadlessTest() {
 		}
 		serverIdx = idx
 	}
-	server := m.Servers.Raw()[serverIdx]
 
+	server := m.Servers.Raw()[serverIdx]
 	if runIsInteractive() {
 		fmt.Printf("Selected server: %s (%s)\n", server.Name, server.Country)
 	}
+	return server
+}
+
+// writeRunResults emits collected JSON or CSV results after all test runs complete.
+func writeRunResults(jsonResults []*model.SpeedTestResult, csvRows [][]string) {
+	if runJSON {
+		data, err := marshalJSONResults(jsonResults)
+		if err != nil {
+			exitWithError("Error serialising results: %v", err)
+		}
+		fmt.Println(string(data))
+	}
+
+	if runCSV {
+		writeCSVRows(model.SpeedTestCSVHeader, csvRows)
+	}
+}
+
+func runHeadlessTest() {
+	m := model.NewDefaultModel()
+	server := prepareRunServer(m)
 
 	opts := model.RunOptions{
 		SkipDownload: runNoDownload,
@@ -86,13 +108,10 @@ func runHeadlessTest() {
 		}
 	}
 
-	// Load history once before the loop so results accumulate correctly
 	if err := m.History.Load(); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load history: %v\n", err)
 	}
 
-	// Collect results for JSON mode so we can emit valid JSON after all runs.
-	// (Printing one object per iteration produces invalid JSON when --count > 1.)
 	var jsonResults []*model.SpeedTestResult
 	var csvRows [][]string
 
@@ -113,7 +132,6 @@ func runHeadlessTest() {
 			m.Warning = ""
 		}
 
-		// Persist result to history
 		m.History.Append(res)
 		if err := m.History.Save(); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to save history: %v\n", err)
@@ -131,25 +149,12 @@ func runHeadlessTest() {
 		}
 	}
 
-	// Emit JSON output after all runs so the result is always valid JSON.
-	// --count 1 → bare object (backward-compatible with existing scripts).
-	// --count N → JSON array.
-	if runJSON {
-		data, err := marshalJSONResults(jsonResults)
-		if err != nil {
-			exitWithError("Error serialising results: %v", err)
-		}
-		fmt.Println(string(data))
-	}
-
-	if runCSV {
-		writeCSVRows(model.SpeedTestCSVHeader, csvRows)
-	}
+	writeRunResults(jsonResults, csvRows)
 }
 
 // formatSimpleResult formats a speed test result as a one-line string.
 func formatSimpleResult(res *model.SpeedTestResult) string {
-	return fmt.Sprintf("DL: %.2f Mbps | UL: %.2f Mbps | Ping: %.2f ms", res.DownloadSpeed, res.UploadSpeed, res.Ping)
+	return fmt.Sprintf("Download: %.2f Mbps | Upload: %.2f Mbps | Ping: %.2f ms", res.DownloadSpeed, res.UploadSpeed, res.Ping)
 }
 
 // formatDefaultResult formats a speed test result for terminal output.

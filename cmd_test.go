@@ -541,7 +541,7 @@ func TestRunSimpleOutputFormat(t *testing.T) {
 		Ping:          12.40,
 	}
 	got := formatSimpleResult(res)
-	expected := "DL: 95.12 Mbps | UL: 45.23 Mbps | Ping: 12.40 ms"
+	expected := "Download: 95.12 Mbps | Upload: 45.23 Mbps | Ping: 12.40 ms"
 	if got != expected {
 		t.Errorf("Expected %q, got %q", expected, got)
 	}
