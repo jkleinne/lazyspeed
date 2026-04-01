@@ -234,11 +234,15 @@ func TestRenderServerSelection(t *testing.T) {
 	}
 
 	res = RenderServerSelection(servers, Viewport{Width: 100, Height: m.Height, Cursor: 1})
-	if !strings.Contains(res, "> Sponsor 2") {
-		t.Errorf("Expected cursor on Server 2")
+	plain := ansi.Strip(res)
+	if !strings.Contains(plain, "▸") {
+		t.Errorf("Expected cursor indicator '▸' on selected row")
 	}
-	if !strings.Contains(res, "  Sponsor 1") {
-		t.Errorf("Expected no cursor on Server 1")
+	if !strings.Contains(plain, "Sponsor 2") {
+		t.Errorf("Expected selected sponsor 'Sponsor 2' to be present")
+	}
+	if !strings.Contains(plain, "Sponsor 1") {
+		t.Errorf("Expected unselected sponsor 'Sponsor 1' to be present")
 	}
 }
 
@@ -298,17 +302,20 @@ func TestRenderServerSelectionViewport(t *testing.T) {
 			}
 
 			res := RenderServerSelection(servers, Viewport{Width: 100, Height: tt.height, Offset: tt.offset, Cursor: tt.cursor})
+			plain := ansi.Strip(res)
 
-			if tt.wantUpArrow && !strings.Contains(res, "↑") {
+			// Scroll indicators include a count: "↑ N more" / "↓ N more".
+			// The hint bar always contains "↑/↓" so we match on the indicator pattern.
+			if tt.wantUpArrow && !strings.Contains(plain, "↑") {
 				t.Errorf("Expected up arrow scroll indicator")
 			}
-			if !tt.wantUpArrow && strings.Contains(res, "↑") {
+			if !tt.wantUpArrow && strings.Contains(plain, "↑ ") {
 				t.Errorf("Did not expect up arrow scroll indicator")
 			}
-			if tt.wantDownArrow && !strings.Contains(res, "↓") {
+			if tt.wantDownArrow && !strings.Contains(plain, "↓") {
 				t.Errorf("Expected down arrow scroll indicator")
 			}
-			if !tt.wantDownArrow && strings.Contains(res, "↓") {
+			if !tt.wantDownArrow && strings.Contains(plain, "↓ ") {
 				t.Errorf("Did not expect down arrow scroll indicator")
 			}
 		})

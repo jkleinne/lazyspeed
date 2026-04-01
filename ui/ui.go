@@ -258,38 +258,54 @@ func ServerListVisibleLines(height, total int) int {
 }
 
 // RenderServerSelection renders the server list with viewport-based windowing.
+// The selected row is highlighted with a purple accent; unselected rows are dimmed.
+// Latency is color-coded green/amber/red based on duration thresholds.
 func RenderServerSelection(servers []model.Server, vp Viewport) string {
 	var b strings.Builder
-	b.WriteString("Select a server:\n\n")
+	b.WriteString(sectionLabelStyle.Render("Select a server:"))
+	b.WriteString("\n\n")
 
 	total := len(servers)
 	if total == 0 {
-		b.WriteString("  No servers available.\n")
-		return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, infoStyle.Render(b.String()))
+		b.WriteString(hintDescStyle.Render("  No servers available."))
+		b.WriteString("\n")
+		return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, b.String())
 	}
 
 	visible := ServerListVisibleLines(vp.Height, total)
 	offset, end := clampViewport(total, visible, vp.Offset)
 
 	if offset > 0 {
-		fmt.Fprintf(&b, "  ↑ %d more\n", offset)
+		b.WriteString(dimStyle.Render(fmt.Sprintf("  ↑ %d more", offset)))
+		b.WriteString("\n")
 	}
 
 	for i := offset; i < end; i++ {
 		server := servers[i]
-		prefix := "  "
+		latencyMs := diag.DurationMs(server.Latency)
+		latencyStr := latencyStyle(server.Latency).Render(fmt.Sprintf("%.2f ms", latencyMs))
+
+		line := fmt.Sprintf("%s: %s (%s) — %s",
+			server.Sponsor, server.Name, server.Country, latencyStr)
+
 		if vp.Cursor == i {
-			prefix = "> "
+			accent := selectedAccentStyle.Render("▸ ")
+			row := selectedRowStyle.Render(line)
+			b.WriteString(accent + row)
+		} else {
+			b.WriteString(unselectedRowStyle.Render("  " + line))
 		}
-		fmt.Fprintf(&b, "%s%s: %s (%s) - %.2f ms\n",
-			prefix, server.Sponsor, server.Name, server.Country,
-			diag.DurationMs(server.Latency))
+		b.WriteString("\n")
 	}
 
 	remaining := total - end
 	if remaining > 0 {
-		fmt.Fprintf(&b, "  ↓ %d more\n", remaining)
+		b.WriteString(dimStyle.Render(fmt.Sprintf("  ↓ %d more", remaining)))
+		b.WriteString("\n")
 	}
 
-	return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, infoStyle.Render(b.String()))
+	b.WriteString("\n")
+	b.WriteString(formatHint(ContextServerSelection))
+
+	return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, b.String())
 }
