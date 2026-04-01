@@ -557,10 +557,10 @@ func TestRunDefaultOutputFormat(t *testing.T) {
 	got := formatDefaultResult(res)
 
 	for _, want := range []string{
-		"📥 Download: 95.12 Mbps",
-		"📤 Upload: 45.23 Mbps",
-		"🔄 Ping: 12.40 ms",
-		"📊 Jitter: 1.50 ms",
+		"Download  95.12 Mbps",
+		"Upload    45.23 Mbps",
+		"Ping      12.40 ms",
+		"Jitter    1.50 ms",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("Expected output to contain %q, got %q", want, got)
