@@ -559,7 +559,7 @@ func exportCmd(result *model.SpeedTestResult, format string, m *model.Model) tea
 		if err != nil {
 			return exportDoneMsg{err: err}
 		}
-		path, err := model.ExportResult(result, format, dir)
+		path, err := ExportResult(result, format, dir)
 		return exportDoneMsg{path: path, err: err}
 	}
 }
