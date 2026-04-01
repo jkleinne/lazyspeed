@@ -4,6 +4,8 @@ import (
 	"github.com/jkleinne/lazyspeed/internal/jsonstore"
 )
 
+const historyFilePerm = 0600
+
 // HistoryStore manages speed test result persistence and in-memory history.
 type HistoryStore struct {
 	Results    *SpeedTestResult
@@ -24,7 +26,7 @@ func NewHistoryStore(cfg HistoryConfig) *HistoryStore {
 	}
 	return &HistoryStore{
 		Entries:    make([]*SpeedTestResult, 0),
-		store:      jsonstore.New[SpeedTestResult](path, maxEntries, 0600),
+		store:      jsonstore.New[SpeedTestResult](path, maxEntries, historyFilePerm),
 		maxEntries: maxEntries,
 	}
 }
