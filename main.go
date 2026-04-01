@@ -250,8 +250,10 @@ func (s *speedTest) handleDiagComplete(msg diagCompleteMsg) (tea.Model, tea.Cmd)
 		s.diagResult = msg.result
 		s.viewState = ViewDiagCompact
 		cfg := diagConfig(s.model.Config.Diagnostics)
-		if err := diag.AppendHistory(cfg.Path, msg.result, cfg.MaxEntries); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to persist diagnostics history: %v\n", err)
+		if cfg.MaxEntries > 0 {
+			if err := diag.AppendHistory(cfg.Path, msg.result, cfg.MaxEntries); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to persist diagnostics history: %v\n", err)
+			}
 		}
 	}
 	return s, nil

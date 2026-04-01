@@ -125,8 +125,10 @@ func runDiag(args []string) {
 		exitWithError("running diagnostics: %v", err)
 	}
 
-	if err := diag.AppendHistory(cfg.Path, result, cfg.MaxEntries); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to persist diagnostics history: %v\n", err)
+	if cfg.MaxEntries > 0 {
+		if err := diag.AppendHistory(cfg.Path, result, cfg.MaxEntries); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to persist diagnostics history: %v\n", err)
+		}
 	}
 
 	// Output

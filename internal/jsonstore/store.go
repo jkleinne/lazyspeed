@@ -10,6 +10,7 @@ import (
 const (
 	backupSuffix = ".bak"
 	tmpSuffix    = ".tmp"
+	dirPerm      = 0700
 )
 
 // Store[T] manages atomic JSON file persistence with backup and recovery.
@@ -45,7 +46,7 @@ func (s *Store[T]) Load() ([]*T, error) {
 	if err := json.Unmarshal(data, &entries); err != nil {
 		bakData, bakErr := os.ReadFile(s.path + backupSuffix)
 		if bakErr != nil {
-			return nil, fmt.Errorf("failed to parse data file: %v", err)
+			return nil, fmt.Errorf("failed to parse data file (backup unreadable): %v", err)
 		}
 		if bakUnmarshalErr := json.Unmarshal(bakData, &entries); bakUnmarshalErr != nil {
 			return nil, fmt.Errorf("failed to parse data file (backup also corrupt): main: %v, backup: %v", err, bakUnmarshalErr)
@@ -61,7 +62,7 @@ func (s *Store[T]) Load() ([]*T, error) {
 // most recent), and writes atomically (temp file -> backup current -> rename).
 // Skips backup if the current file contains invalid JSON.
 func (s *Store[T]) Save(entries []*T) error {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(s.path), dirPerm); err != nil {
 		return fmt.Errorf("failed to create directory: %v", err)
 	}
 

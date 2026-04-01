@@ -107,9 +107,8 @@ func TestHistoryStore_SaveEnforcesMaxEntries(t *testing.T) {
 	}
 }
 
-func TestHistoryStore_LoadBackupRecovery(t *testing.T) {
+func TestHistoryStore_LoadBackupRecoverySetsResults(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "history.json")
-	bakPath := path + ".bak"
 	cfg := HistoryConfig{Path: path, MaxEntries: 50}
 
 	h := NewHistoryStore(cfg)
@@ -123,73 +122,13 @@ func TestHistoryStore_LoadBackupRecovery(t *testing.T) {
 		t.Fatalf("second save failed: %v", err)
 	}
 
-	// Corrupt main + valid backup — should recover
+	// Corrupt main + valid backup — verify wrapper sets Results from recovered data
 	_ = os.WriteFile(path, []byte("invalid json"), 0600)
 	h2 := NewHistoryStore(cfg)
 	if err := h2.Load(); err != nil {
 		t.Fatalf("expected backup recovery to succeed, got: %v", err)
 	}
-	if len(h2.Entries) != 1 {
-		t.Errorf("expected 1 entry recovered from backup, got %d", len(h2.Entries))
-	}
 	if h2.Results == nil || h2.Results.DownloadSpeed != 42 {
-		t.Errorf("expected Results.DownloadSpeed 42, got %v", h2.Results)
-	}
-
-	// Corrupt main + no backup — should return error
-	_ = os.Remove(bakPath)
-	h3 := NewHistoryStore(cfg)
-	if err := h3.Load(); err == nil {
-		t.Error("expected error loading corrupt file with no backup, got nil")
-	}
-
-	// Corrupt main + corrupt backup — should return error
-	_ = os.WriteFile(bakPath, []byte("also invalid"), 0600)
-	h4 := NewHistoryStore(cfg)
-	if err := h4.Load(); err == nil {
-		t.Error("expected error when both main and backup are corrupt, got nil")
-	}
-}
-
-func TestHistoryStore_SaveSkipsCorruptBackup(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "history.json")
-	bakPath := path + ".bak"
-	cfg := HistoryConfig{Path: path, MaxEntries: 50}
-
-	h := NewHistoryStore(cfg)
-	h.Append(&SpeedTestResult{DownloadSpeed: 42})
-	if err := h.Save(); err != nil {
-		t.Fatalf("save failed: %v", err)
-	}
-
-	// Corrupt the main file
-	_ = os.WriteFile(path, []byte("corrupt"), 0600)
-
-	// Save new data — should NOT back up the corrupt main file
-	h2 := NewHistoryStore(cfg)
-	h2.Append(&SpeedTestResult{DownloadSpeed: 99})
-	if err := h2.Save(); err != nil {
-		t.Fatalf("save over corrupt failed: %v", err)
-	}
-
-	if bakData, err := os.ReadFile(bakPath); err == nil {
-		if string(bakData) == "corrupt" {
-			t.Error("backup contains corrupt data — json.Valid guard did not prevent overwrite")
-		}
-	}
-}
-
-func TestHistoryStore_SaveCreatesDirectory(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "nested", "dir")
-	path := filepath.Join(dir, "history.json")
-	h := NewHistoryStore(HistoryConfig{Path: path})
-	h.Append(&SpeedTestResult{DownloadSpeed: 1})
-
-	if err := h.Save(); err != nil {
-		t.Fatalf("Save failed: %v", err)
-	}
-
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		t.Errorf("Expected history file to be created at %s", path)
+		t.Errorf("expected Results.DownloadSpeed 42 after backup recovery, got %v", h2.Results)
 	}
 }
