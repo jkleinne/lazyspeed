@@ -91,29 +91,31 @@ func RenderResults(history []*model.SpeedTestResult, vp Viewport) string {
 	latest := history[len(history)-1]
 
 	latestBox := strings.Builder{}
-	latestBox.WriteString("Latest Test Results:\n")
-	latestBox.WriteString("──────────────────────\n")
-	fmt.Fprintf(&latestBox, "📥 Download: %.2f Mbps\n", latest.DownloadSpeed)
-	fmt.Fprintf(&latestBox, "📤 Upload: %.2f Mbps\n", latest.UploadSpeed)
-	fmt.Fprintf(&latestBox, "🔄 Ping: %.2f ms\n", latest.Ping)
-	fmt.Fprintf(&latestBox, "📊 Jitter: %.2f ms\n", latest.Jitter)
-	fmt.Fprintf(&latestBox, "🌍 Server: %s (%s)\n", latest.ServerName, latest.ServerCountry)
+	latestBox.WriteString(sectionLabelStyle.Render("Latest Results"))
+	latestBox.WriteString("\n")
+	latestBox.WriteString(diagSeparatorStyle.Render("──────────────────────"))
+	latestBox.WriteString("\n")
+	fmt.Fprintf(&latestBox, "📥 Download: %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f Mbps", latest.DownloadSpeed)))
+	fmt.Fprintf(&latestBox, "📤 Upload: %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f Mbps", latest.UploadSpeed)))
+	fmt.Fprintf(&latestBox, "🔄 Ping: %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f ms", latest.Ping)))
+	fmt.Fprintf(&latestBox, "📊 Jitter: %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f ms", latest.Jitter)))
+	fmt.Fprintf(&latestBox, "🌍 Server: %s\n", infoStyle.Render(fmt.Sprintf("%s (%s)", latest.ServerName, latest.ServerCountry)))
 	if latest.ServerSponsor != "" {
-		fmt.Fprintf(&latestBox, "🏢 Sponsor: %s\n", latest.ServerSponsor)
+		fmt.Fprintf(&latestBox, "🏢 Sponsor: %s\n", infoStyle.Render(latest.ServerSponsor))
 	}
 	if latest.Distance > 0 {
-		fmt.Fprintf(&latestBox, "📍 Distance: %.1f km\n", latest.Distance)
+		fmt.Fprintf(&latestBox, "📍 Distance: %s\n", infoStyle.Render(fmt.Sprintf("%.1f km", latest.Distance)))
 	}
-	fmt.Fprintf(&latestBox, "🕒 Timestamp: %s\n", latest.Timestamp.Format("03:04:05 PM"))
+	fmt.Fprintf(&latestBox, "%s\n", metadataStyle.Render(fmt.Sprintf("🕒 %s", latest.Timestamp.Format("03:04:05 PM"))))
 	if latest.UserIP != "" {
 		ispInfo := latest.UserIP
 		if latest.UserISP != "" {
 			ispInfo = fmt.Sprintf("%s (%s)", latest.UserIP, latest.UserISP)
 		}
-		fmt.Fprintf(&latestBox, "👤 IP: %s\n", ispInfo)
+		fmt.Fprintf(&latestBox, "%s\n", metadataStyle.Render(fmt.Sprintf("👤 %s", ispInfo)))
 	}
 
-	latestContent := infoStyle.Render(latestBox.String())
+	latestContent := boxStyle.Render(latestBox.String())
 
 	if len(history) == 1 {
 		return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, latestContent)
@@ -178,7 +180,7 @@ func RenderResults(history []*model.SpeedTestResult, vp Viewport) string {
 	historyContent := lipgloss.JoinVertical(lipgloss.Left, label, "", tableStr)
 
 	if totalRows > maxVisible {
-		paginationStr := helpStyle.Render(
+		paginationStr := dimStyle.Render(
 			fmt.Sprintf("  Showing %d-%d of %d (↑/↓ to scroll)", offset+1, end, totalRows))
 		historyContent = lipgloss.JoinVertical(lipgloss.Left, historyContent, paginationStr)
 	}

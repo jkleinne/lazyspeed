@@ -103,7 +103,7 @@ func TestRenderResults(t *testing.T) {
 		},
 	}
 	res = RenderResults(m.History.Entries, Viewport{Width: 100})
-	if !strings.Contains(res, "Latest Test Results:") {
+	if !strings.Contains(res, "Latest Results") {
 		t.Errorf("Expected Latest Test Results block")
 	}
 	if strings.Contains(res, "Previous Tests") {
@@ -123,7 +123,7 @@ func TestRenderResults(t *testing.T) {
 		Timestamp:     testTimestamp,
 	})
 	res = RenderResults(m.History.Entries, Viewport{Width: 100})
-	if !strings.Contains(res, "Latest Test Results:") {
+	if !strings.Contains(res, "Latest Results") {
 		t.Errorf("Expected Latest Test Results block")
 	}
 	if !strings.Contains(res, "Previous Tests") {
