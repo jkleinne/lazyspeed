@@ -18,7 +18,7 @@ const (
 
 // exitWithError prints a formatted error to stderr and exits with code 1.
 func exitWithError(format string, args ...any) {
-	fmt.Fprintf(os.Stderr, format+"\n", args...)
+	fmt.Fprintf(os.Stderr, "Error: "+format+"\n", args...)
 	os.Exit(1)
 }
 
@@ -35,7 +35,7 @@ func fetchServersOrExit(m *model.Model) {
 	ctx, cancel := context.WithTimeout(context.Background(), m.Config.FetchTimeoutDuration())
 	defer cancel()
 	if err := m.FetchServers(ctx); err != nil {
-		exitWithError("Error fetching servers: %v", err)
+		exitWithError("fetching servers: %v", err)
 	}
 }
 
@@ -43,7 +43,7 @@ func fetchServersOrExit(m *model.Model) {
 func printJSON(v any) {
 	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
-		exitWithError("Error serialising JSON: %v", err)
+		exitWithError("serialising JSON: %v", err)
 	}
 	fmt.Println(string(data))
 }
@@ -67,6 +67,6 @@ func writeCSVRows(header []string, rows [][]string) {
 	}
 	w.Flush()
 	if err := w.Error(); err != nil {
-		exitWithError("Error writing CSV: %v", err)
+		exitWithError("writing CSV: %v", err)
 	}
 }

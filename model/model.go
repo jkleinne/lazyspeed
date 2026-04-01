@@ -349,8 +349,8 @@ func buildResult(server *speedtest.Server, pr *pingResult, download, upload floa
 	}
 }
 
-// resetTestState clears model fields and sends the initialization progress update.
-func (m *Model) resetTestState(updateChan chan<- ProgressUpdate) {
+// initTestState clears model fields and sends the initialization progress update.
+func (m *Model) initTestState(updateChan chan<- ProgressUpdate) {
 	m.State = StateTesting
 	m.Progress = 0
 	m.Error = nil
@@ -377,7 +377,7 @@ func (m *Model) fetchNetworkInfo(ctx context.Context, updateChan chan<- Progress
 }
 
 func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, updateChan chan<- ProgressUpdate) error {
-	m.resetTestState(updateChan)
+	m.initTestState(updateChan)
 
 	if err := m.fetchNetworkInfo(ctx, updateChan); err != nil {
 		return err

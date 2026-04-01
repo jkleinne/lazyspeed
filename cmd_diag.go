@@ -92,13 +92,13 @@ func resolveDiagTarget(m *model.Model, args []string) string {
 	if diagServer != "" {
 		idx, found := m.Servers.FindIndex(diagServer)
 		if !found {
-			exitWithError("Error: server %s not found", diagServer)
+			exitWithError("server %s not found", diagServer)
 		}
 		return stripPort(m.Servers.Raw()[idx].Host)
 	}
 
 	if m.Servers.Len() == 0 {
-		exitWithError("Error: no servers found")
+		exitWithError("no servers found")
 	}
 	if diagIsInteractive() {
 		fmt.Fprintf(os.Stderr, "Selected server: %s (%s)\n", m.Servers.Raw()[0].Name, m.Servers.Raw()[0].Country)
@@ -122,7 +122,7 @@ func runDiag(args []string) {
 	backend := &diag.RealDiagBackend{}
 	result, err := diag.Run(diagCtx, backend, target, cfg)
 	if err != nil {
-		exitWithError("Error running diagnostics: %v", err)
+		exitWithError("running diagnostics: %v", err)
 	}
 
 	if err := diag.AppendHistory(cfg.Path, result, cfg.MaxEntries); err != nil {
@@ -155,7 +155,7 @@ func runDiagHistory() {
 
 	history, err := diag.LoadHistory(cfg.Path)
 	if err != nil {
-		exitWithError("Error loading diagnostics history: %v", err)
+		exitWithError("loading diagnostics history: %v", err)
 	}
 
 	if len(history) == 0 {

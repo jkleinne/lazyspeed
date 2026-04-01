@@ -232,21 +232,29 @@ func renderScrollHeader(offset, width int) string {
 		dimStyle.Render(fmt.Sprintf("^ %d more above", offset))) + "\n"
 }
 
+// scrollState holds viewport pagination state for scrollable content.
+type scrollState struct {
+	offset     int
+	end        int
+	total      int
+	maxVisible int
+}
+
 // renderScrollFooter renders the down indicator and pagination count.
-func renderScrollFooter(offset, end, total, maxVisible, width int) string {
+func renderScrollFooter(scroll scrollState, width int) string {
 	var b strings.Builder
 
-	remaining := total - end
+	remaining := scroll.total - scroll.end
 	if remaining > 0 {
 		b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center,
 			dimStyle.Render(fmt.Sprintf("v %d more below", remaining))))
 		b.WriteString("\n")
 	}
 
-	if total > maxVisible {
+	if scroll.total > scroll.maxVisible {
 		b.WriteString("\n")
 		b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center,
-			dimStyle.Render(fmt.Sprintf("Showing %d-%d of %d hops", offset+1, end, total))))
+			dimStyle.Render(fmt.Sprintf("Showing %d-%d of %d hops", scroll.offset+1, scroll.end, scroll.total))))
 		b.WriteString("\n")
 	}
 
@@ -272,7 +280,12 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 		b.WriteString("\n")
 	}
 
-	b.WriteString(renderScrollFooter(offset, end, totalRows, maxVisible, width))
+	b.WriteString(renderScrollFooter(scrollState{
+		offset:     offset,
+		end:        end,
+		total:      totalRows,
+		maxVisible: maxVisible,
+	}, width))
 
 	b.WriteString("\n")
 	hint := formatHint(ContextDiagExpanded)

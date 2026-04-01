@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/jkleinne/lazyspeed/model"
-	"github.com/showwin/speedtest-go/speedtest"
 	"github.com/spf13/cobra"
 )
 
@@ -51,63 +50,72 @@ func runIsInteractive() bool {
 	return !runJSON && !runCSV && !runSimple
 }
 
-// prepareRunServer fetches the server list and resolves the target server.
-// It exits the process on failure (no servers found, --server not found).
-func prepareRunServer(m *model.Model) *speedtest.Server {
-	if runIsInteractive() {
+// prepareRunServer fetches the server list and resolves the target server index.
+// It exits the process on failure (no servers found, server ID not found).
+func prepareRunServer(m *model.Model, serverID string, interactive bool) int {
+	if interactive {
 		fmt.Println("Fetching server list...")
 	}
 	fetchServersOrExit(m)
 
 	if m.Servers.Len() == 0 {
-		exitWithError("Error: no servers found")
+		exitWithError("no servers found")
 	}
 
 	serverIdx := 0
-	if runServerID != "" {
-		idx, found := m.Servers.FindIndex(runServerID)
+	if serverID != "" {
+		idx, found := m.Servers.FindIndex(serverID)
 		if !found {
-			exitWithError("Error: server %s not found", runServerID)
+			exitWithError("server %s not found", serverID)
 		}
 		serverIdx = idx
 	}
 
-	server := m.Servers.Raw()[serverIdx]
-	if runIsInteractive() {
+	if interactive {
+		server := m.Servers.Raw()[serverIdx]
 		fmt.Printf("Selected server: %s (%s)\n", server.Name, server.Country)
 	}
-	return server
+	return serverIdx
 }
 
 // writeRunResults emits collected JSON or CSV results after all test runs complete.
-func writeRunResults(jsonResults []*model.SpeedTestResult, csvRows [][]string) {
-	if runJSON {
+// JSON is emitted once after all runs so that --count N>1 produces valid JSON
+// (emitting per-iteration would produce concatenated bare objects).
+func writeRunResults(jsonResults []*model.SpeedTestResult, csvRows [][]string, outputJSON, outputCSV bool) {
+	if !outputJSON && !outputCSV {
+		return
+	}
+
+	if outputJSON {
 		data, err := marshalJSONResults(jsonResults)
 		if err != nil {
-			exitWithError("Error serialising results: %v", err)
+			exitWithError("serialising results: %v", err)
 		}
 		fmt.Println(string(data))
 	}
 
-	if runCSV {
+	if outputCSV {
 		writeCSVRows(model.SpeedTestCSVHeader, csvRows)
 	}
 }
 
 func runHeadlessTest() {
 	m := model.NewDefaultModel()
-	server := prepareRunServer(m)
+	interactive := runIsInteractive()
+	serverIdx := prepareRunServer(m, runServerID, interactive)
+	server := m.Servers.Raw()[serverIdx]
 
 	opts := model.RunOptions{
 		SkipDownload: runNoDownload,
 		SkipUpload:   runNoUpload,
 	}
-	if runIsInteractive() {
+	if interactive {
 		opts.ProgressFn = func(phase string) {
 			fmt.Fprintf(os.Stderr, "  %s\n", phase)
 		}
 	}
 
+	// Load before the loop so results from each iteration accumulate correctly.
 	if err := m.History.Load(); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load history: %v\n", err)
 	}
@@ -124,7 +132,7 @@ func runHeadlessTest() {
 		res, err := m.RunHeadless(testCtx, server, opts)
 		testCancel()
 		if err != nil {
-			exitWithError("Error running test: %v", err)
+			exitWithError("running test: %v", err)
 		}
 
 		if m.Warning != "" {
@@ -149,7 +157,7 @@ func runHeadlessTest() {
 		}
 	}
 
-	writeRunResults(jsonResults, csvRows)
+	writeRunResults(jsonResults, csvRows, runJSON, runCSV)
 }
 
 // formatSimpleResult formats a speed test result as a one-line string.
