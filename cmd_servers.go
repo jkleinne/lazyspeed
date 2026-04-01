@@ -12,8 +12,6 @@ import (
 )
 
 const (
-	serversFormatJSON    = "json"
-	serversFormatCSV     = "csv"
 	serversNameMaxLen    = 30
 	serversSponsorMaxLen = 20
 )
@@ -35,8 +33,8 @@ var serversCmd = &cobra.Command{
 	Use:   "servers",
 	Short: "List available speed test servers",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		if serversFormat != "" && serversFormat != serversFormatJSON && serversFormat != serversFormatCSV {
-			return fmt.Errorf("invalid --format %q: must be %q or %q", serversFormat, serversFormatJSON, serversFormatCSV)
+		if err := validateFormat(serversFormat); err != nil {
+			return err
 		}
 		runServers()
 		return nil
@@ -56,7 +54,7 @@ func runServers() {
 	}
 
 	switch serversFormat {
-	case serversFormatJSON:
+	case formatJSON:
 		entries := make([]serverEntry, len(servers))
 		for i, s := range servers {
 			entries[i] = serverEntry{
@@ -70,7 +68,7 @@ func runServers() {
 		}
 		printJSON(entries)
 
-	case serversFormatCSV:
+	case formatCSV:
 		header := []string{"id", "name", "sponsor", "country", "latency_ms", "distance_km"}
 		rows := make([][]string, len(servers))
 		for i, s := range servers {

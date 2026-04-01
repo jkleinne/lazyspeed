@@ -17,7 +17,7 @@ const exportTimestampFormat = "20060102_150405_000000000"
 func ExportResult(result *model.SpeedTestResult, format string, dir string) (path string, err error) {
 	timestampStr := result.Timestamp.Format(exportTimestampFormat)
 	switch format {
-	case "json":
+	case formatJSON:
 		path = filepath.Join(dir, fmt.Sprintf("lazyspeed_%s.json", timestampStr))
 		data, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
@@ -28,7 +28,7 @@ func ExportResult(result *model.SpeedTestResult, format string, dir string) (pat
 		}
 		return path, nil
 
-	case "csv":
+	case formatCSV:
 		path = filepath.Join(dir, fmt.Sprintf("lazyspeed_%s.csv", timestampStr))
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {

@@ -10,11 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const (
-	historyFormatJSON   = "json"
-	historyFormatCSV    = "csv"
-	historyServerMaxLen = 20
-)
+const historyServerMaxLen = 20
 
 var (
 	historyClear  bool
@@ -26,8 +22,8 @@ var historyCmd = &cobra.Command{
 	Use:   "history",
 	Short: "View or export test history",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		if historyFormat != "" && historyFormat != historyFormatJSON && historyFormat != historyFormatCSV {
-			return fmt.Errorf("invalid --format %q: must be %q or %q", historyFormat, historyFormatJSON, historyFormatCSV)
+		if err := validateFormat(historyFormat); err != nil {
+			return err
 		}
 		if historyLast < 0 {
 			return fmt.Errorf("--last must be >= 0, got %d", historyLast)
@@ -69,10 +65,10 @@ func runHistory() {
 	}
 
 	switch historyFormat {
-	case historyFormatJSON:
+	case formatJSON:
 		printJSON(entries)
 
-	case historyFormatCSV:
+	case formatCSV:
 		rows := make([][]string, len(entries))
 		for i, res := range entries {
 			rows[i] = res.CSVRow()

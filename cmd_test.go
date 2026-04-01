@@ -279,7 +279,7 @@ func TestHistoryFormatJSON(t *testing.T) {
 		historyClear = origClear
 	}()
 
-	historyFormat = historyFormatJSON
+	historyFormat = formatJSON
 	historyLast = 0
 	historyClear = false
 
@@ -316,7 +316,7 @@ func TestHistoryFormatCSV(t *testing.T) {
 		historyClear = origClear
 	}()
 
-	historyFormat = historyFormatCSV
+	historyFormat = formatCSV
 	historyLast = 0
 	historyClear = false
 
@@ -362,7 +362,7 @@ func TestHistoryLastFlag(t *testing.T) {
 		historyClear = origClear
 	}()
 
-	historyFormat = historyFormatJSON
+	historyFormat = formatJSON
 	historyLast = 2
 	historyClear = false
 
@@ -396,7 +396,7 @@ func TestHistoryLastFlagExceedsLength(t *testing.T) {
 		historyClear = origClear
 	}()
 
-	historyFormat = historyFormatJSON
+	historyFormat = formatJSON
 	historyLast = 100 // more than available
 	historyClear = false
 
@@ -656,6 +656,84 @@ func TestRunCommandValidation(t *testing.T) {
 	err = runCmd.PreRunE(nil, nil)
 	if err != nil {
 		t.Errorf("Expected nil error for valid count, got %v", err)
+	}
+}
+
+func TestValidateFormat(t *testing.T) {
+	tests := []struct {
+		name    string
+		format  string
+		wantErr bool
+	}{
+		{"empty is valid", "", false},
+		{"json is valid", "json", false},
+		{"csv is valid", "csv", false},
+		{"xml is invalid", "xml", true},
+		{"yaml is invalid", "yaml", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateFormat(tt.format)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateFormat(%q) error = %v, wantErr %v", tt.format, err, tt.wantErr)
+			}
+			if err != nil && !strings.Contains(err.Error(), "invalid --format") {
+				t.Errorf("Expected error to contain 'invalid --format', got %q", err.Error())
+			}
+		})
+	}
+}
+
+func TestPrintJSONServerEntries(t *testing.T) {
+	entries := []serverEntry{
+		{ID: "1", Name: "Server A", Sponsor: "SpA", Country: "US", Latency: 12.5, Distance: 100.3},
+		{ID: "2", Name: "Server B", Sponsor: "SpB", Country: "DE", Latency: 25.0, Distance: 500.0},
+	}
+
+	out := captureStdout(func() { printJSON(entries) })
+
+	var got []serverEntry
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("Expected valid JSON, got parse error: %v\noutput: %s", err, out)
+	}
+	if len(got) != 2 {
+		t.Fatalf("Expected 2 entries, got %d", len(got))
+	}
+	if got[0].ID != "1" || got[0].Name != "Server A" {
+		t.Errorf("Unexpected first entry: %+v", got[0])
+	}
+	if got[1].Country != "DE" || got[1].Distance != 500.0 {
+		t.Errorf("Unexpected second entry: %+v", got[1])
+	}
+}
+
+func TestWriteCSVRowsServerData(t *testing.T) {
+	header := []string{"id", "name", "sponsor", "country", "latency_ms", "distance_km"}
+	rows := [][]string{
+		{"1", "Server A", "SpA", "US", "12.50", "100.3"},
+		{"2", "Server B", "SpB", "DE", "25.00", "500.0"},
+	}
+
+	out := captureStdout(func() { writeCSVRows(header, rows) })
+
+	r := csv.NewReader(strings.NewReader(out))
+	records, err := r.ReadAll()
+	if err != nil {
+		t.Fatalf("Expected valid CSV, got parse error: %v\noutput: %s", err, out)
+	}
+	if len(records) != 3 {
+		t.Fatalf("Expected 3 CSV records (header + 2 rows), got %d", len(records))
+	}
+	for i, h := range header {
+		if records[0][i] != h {
+			t.Errorf("Expected header[%d] = %q, got %q", i, h, records[0][i])
+		}
+	}
+	if records[1][0] != "1" || records[1][1] != "Server A" {
+		t.Errorf("Unexpected first data row: %v", records[1])
+	}
+	if records[2][3] != "DE" {
+		t.Errorf("Expected country 'DE' in second row, got %q", records[2][3])
 	}
 }
 
