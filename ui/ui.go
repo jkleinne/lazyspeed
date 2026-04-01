@@ -60,7 +60,14 @@ func RenderTitle(width int) string {
 
 func RenderSpinner(s spinner.Model, width int, phase string, progressAmount float64) string {
 	spinnerView := spinnerStyle.Render(s.View())
-	phaseText := fmt.Sprintf("⏳ %s", phase)
+
+	// Split phase into label and value if it contains a colon with trailing data
+	var phaseText string
+	if parts := strings.SplitN(phase, ":", 2); len(parts) == 2 && strings.TrimSpace(parts[1]) != "" {
+		phaseText = phaseStyle.Render("⏳ "+parts[0]+":") + " " + phaseValueStyle.Render(strings.TrimSpace(parts[1]))
+	} else {
+		phaseText = phaseStyle.Render("⏳ " + phase)
+	}
 
 	bw := spinnerBoxWidth(width)
 	prog := newProgress(bw)
