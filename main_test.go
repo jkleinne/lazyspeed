@@ -754,8 +754,8 @@ func TestViewResultsDisplay(t *testing.T) {
 		s := speedTest{model: m, spinner: ui.DefaultSpinner}
 
 		view := s.View()
-		if !strings.Contains(view, "Latest Test Results:") {
-			t.Errorf("Expected 'Latest Test Results:' in view")
+		if !strings.Contains(view, "Latest Results") {
+			t.Errorf("Expected 'Latest Results' in view")
 		}
 		if !strings.Contains(view, "95.50") {
 			t.Errorf("Expected '95.50' in view")
@@ -775,8 +775,8 @@ func TestViewResultsDisplay(t *testing.T) {
 		s := speedTest{model: m, spinner: ui.DefaultSpinner, showHelp: true}
 
 		view := s.View()
-		if !strings.Contains(view, "Latest Test Results:") {
-			t.Errorf("Expected 'Latest Test Results:' in view")
+		if !strings.Contains(view, "Latest Results") {
+			t.Errorf("Expected 'Latest Results' in view")
 		}
 		if !strings.Contains(view, "Controls:") {
 			t.Errorf("Expected 'Controls:' in view when ShowHelp is true")
