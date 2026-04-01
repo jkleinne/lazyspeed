@@ -59,16 +59,14 @@ func runHeadlessTest() {
 	fetchServersOrExit(m)
 
 	if m.Servers.Len() == 0 {
-		fmt.Fprintf(os.Stderr, "Error: no servers found\n")
-		os.Exit(1)
+		exitWithError("Error: no servers found")
 	}
 
 	serverIdx := 0
 	if runServerID != "" {
 		idx, found := m.Servers.FindIndex(runServerID)
 		if !found {
-			fmt.Fprintf(os.Stderr, "Error: server %s not found\n", runServerID)
-			os.Exit(1)
+			exitWithError("Error: server %s not found", runServerID)
 		}
 		serverIdx = idx
 	}
@@ -107,8 +105,7 @@ func runHeadlessTest() {
 		res, err := m.RunHeadless(testCtx, server, opts)
 		testCancel()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error running test: %v\n", err)
-			os.Exit(1)
+			exitWithError("Error running test: %v", err)
 		}
 
 		if m.Warning != "" {
@@ -140,8 +137,7 @@ func runHeadlessTest() {
 	if runJSON {
 		data, err := marshalJSONResults(jsonResults)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error serialising results: %v\n", err)
-			os.Exit(1)
+			exitWithError("Error serialising results: %v", err)
 		}
 		fmt.Println(string(data))
 	}
