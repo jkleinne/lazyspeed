@@ -62,19 +62,12 @@ func runHistory() {
 		entries = entries[len(entries)-historyLast:]
 	}
 
-	switch historyFormat {
-	case formatJSON:
-		printJSON(entries)
-
-	case formatCSV:
-		rows := make([][]string, len(entries))
-		for i, res := range entries {
-			rows[i] = res.CSVRow()
-		}
-		writeCSVRows(model.SpeedTestCSVHeader, rows)
-
-	default:
-		// Default: table view
+	format := resolveFormatString(historyFormat)
+	csvRows := make([][]string, len(entries))
+	for i, res := range entries {
+		csvRows[i] = res.CSVRow()
+	}
+	formatOutput(format, entries, model.SpeedTestCSVHeader, csvRows, func() {
 		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		_, _ = fmt.Fprintln(tw, "DATE\tSERVER\tDL (Mbps)\tUL (Mbps)\tPING (ms)")
 		for _, res := range entries {
@@ -83,7 +76,7 @@ func runHistory() {
 			_, _ = fmt.Fprintf(tw, "%s\t%s\t%.2f\t%.2f\t%.2f\n", dateStr, serverStr, res.DownloadSpeed, res.UploadSpeed, res.Ping)
 		}
 		_ = tw.Flush()
-	}
+	})
 }
 
 func init() {

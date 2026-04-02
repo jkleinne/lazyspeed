@@ -16,6 +16,51 @@ const (
 	formatCSV  = "csv"
 )
 
+type outputFormat int
+
+const (
+	outputTable outputFormat = iota
+	outputJSON
+	outputCSV
+)
+
+// resolveFormat maps bool flags (--json, --csv) to an outputFormat.
+func resolveFormat(isJSON, isCSV bool) outputFormat {
+	switch {
+	case isJSON:
+		return outputJSON
+	case isCSV:
+		return outputCSV
+	default:
+		return outputTable
+	}
+}
+
+// resolveFormatString maps a --format string flag to an outputFormat.
+func resolveFormatString(format string) outputFormat {
+	switch format {
+	case formatJSON:
+		return outputJSON
+	case formatCSV:
+		return outputCSV
+	default:
+		return outputTable
+	}
+}
+
+// formatOutput dispatches structured output (JSON, CSV, or default table) based on format flags.
+// tableRender is called for the human-readable table case.
+func formatOutput(format outputFormat, jsonData any, csvHeader []string, csvRows [][]string, tableRender func()) {
+	switch format {
+	case outputJSON:
+		printJSON(jsonData)
+	case outputCSV:
+		writeCSVRows(csvHeader, csvRows)
+	case outputTable:
+		tableRender()
+	}
+}
+
 // exitWithError prints a formatted error to stderr and exits with code 1.
 func exitWithError(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "Error: "+format+"\n", args...)

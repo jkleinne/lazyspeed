@@ -131,24 +131,14 @@ func runDiag(args []string) {
 		}
 	}
 
-	// Output
-	if diagJSON {
-		printJSON(result)
-		return
-	}
-
-	if diagCSV {
-		writeCSVRows(diagCSVHeader, [][]string{diagCSVRow(result)})
-		return
-	}
-
+	format := resolveFormat(diagJSON, diagCSV)
 	if diagSimple {
 		fmt.Println(diagSimpleLine(result))
 		return
 	}
-
-	// Default: human-readable with full hop table
-	fmt.Println(diagDefaultOutput(result))
+	formatOutput(format, result, diagCSVHeader, [][]string{diagCSVRow(result)}, func() {
+		fmt.Println(diagDefaultOutput(result))
+	})
 }
 
 func runDiagHistory() {
@@ -171,34 +161,26 @@ func runDiagHistory() {
 		entries = entries[len(entries)-diagLast:]
 	}
 
-	if diagJSON {
-		printJSON(entries)
-		return
+	format := resolveFormat(diagJSON, diagCSV)
+	csvRows := make([][]string, len(entries))
+	for i, r := range entries {
+		csvRows[i] = diagCSVRow(r)
 	}
-
-	if diagCSV {
-		rows := make([][]string, len(entries))
-		for i, r := range entries {
-			rows[i] = diagCSVRow(r)
+	formatOutput(format, entries, diagCSVHeader, csvRows, func() {
+		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		_, _ = fmt.Fprintln(tw, "DATE\tTARGET\tSCORE\tGRADE\tHOPS\tDNS (ms)")
+		for _, r := range entries {
+			dateStr := r.Timestamp.Format("2006-01-02 15:04")
+			targetStr := ui.Truncate(r.Target, diagTargetMaxLen)
+			dnsMs := "-"
+			if r.DNS != nil {
+				dnsMs = fmt.Sprintf("%.1f", diag.DurationMs(r.DNS.Latency))
+			}
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t%d\t%s\t%d\t%s\n",
+				dateStr, targetStr, r.Quality.Score, r.Quality.Grade, len(r.Hops), dnsMs)
 		}
-		writeCSVRows(diagCSVHeader, rows)
-		return
-	}
-
-	// Default: table view
-	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "DATE\tTARGET\tSCORE\tGRADE\tHOPS\tDNS (ms)")
-	for _, r := range entries {
-		dateStr := r.Timestamp.Format("2006-01-02 15:04")
-		targetStr := ui.Truncate(r.Target, diagTargetMaxLen)
-		dnsMs := "-"
-		if r.DNS != nil {
-			dnsMs = fmt.Sprintf("%.1f", diag.DurationMs(r.DNS.Latency))
-		}
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%d\t%s\t%d\t%s\n",
-			dateStr, targetStr, r.Quality.Score, r.Quality.Grade, len(r.Hops), dnsMs)
-	}
-	_ = tw.Flush()
+		_ = tw.Flush()
+	})
 }
 
 const diagTargetMaxLen = 30
