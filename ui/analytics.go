@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/jkleinne/lazyspeed/model"
 )
 
@@ -61,6 +62,36 @@ func renderPeakSection(pc model.PeakComparison, unit string, width int) string {
 		fmt.Fprintf(&b, "%s %s", offLabel, dimStyle.Render("no data"))
 	}
 
+	return b.String()
+}
+
+// centerBlock centers a multi-line block as a unit within the given width.
+// Each line gets the same left padding so internal alignment is preserved.
+func centerBlock(block string, width int) string {
+	lines := strings.Split(strings.TrimRight(block, "\n"), "\n")
+
+	maxW := 0
+	for _, line := range lines {
+		w := ansi.StringWidth(line)
+		if w > maxW {
+			maxW = w
+		}
+	}
+
+	pad := (width - maxW) / 2
+	if pad < 0 {
+		pad = 0
+	}
+	prefix := strings.Repeat(" ", pad)
+
+	var b strings.Builder
+	for i, line := range lines {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(prefix)
+		b.WriteString(line)
+	}
 	return b.String()
 }
 
@@ -142,7 +173,7 @@ func RenderAnalytics(summary *model.Summary, width int) string {
 		content.WriteString("\n")
 	}
 
-	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, content.String()))
+	b.WriteString(centerBlock(content.String(), width))
 
 	// Hints
 	b.WriteString("\n")
