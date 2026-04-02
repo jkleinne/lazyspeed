@@ -61,21 +61,9 @@ func runAnalytics() {
 
 func analyticsSimpleLine(s *model.Summary) string {
 	return fmt.Sprintf("DL: %.1f avg (%s) | UL: %.1f avg (%s) | Ping: %.1f avg (%s)",
-		s.Download.Average, trendLabel(s.Download),
-		s.Upload.Average, trendLabel(s.Upload),
-		s.Ping.Average, trendLabel(s.Ping))
-}
-
-func trendLabel(m model.MetricSummary) string {
-	switch m.Trend {
-	case model.TrendUp:
-		return fmt.Sprintf("↑%.1f%%", m.TrendPct)
-	case model.TrendDown:
-		return fmt.Sprintf("↓%.1f%%", -m.TrendPct)
-	case model.TrendStable:
-		return "stable"
-	}
-	return "stable"
+		s.Download.Average, s.Download.TrendLabel(),
+		s.Upload.Average, s.Upload.TrendLabel(),
+		s.Ping.Average, s.Ping.TrendLabel())
 }
 
 func analyticsDefaultOutput(s *model.Summary) string {
@@ -84,9 +72,9 @@ func analyticsDefaultOutput(s *model.Summary) string {
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "Analytics (%d tests, %s - %s)\n\n", s.TotalTests, dateFrom, dateTo)
-	fmt.Fprintf(&b, "Download  %s  %.1f Mbps avg  %s\n", s.Download.Sparkline, s.Download.Average, trendLabel(s.Download))
-	fmt.Fprintf(&b, "Upload    %s  %.1f Mbps avg  %s\n", s.Upload.Sparkline, s.Upload.Average, trendLabel(s.Upload))
-	fmt.Fprintf(&b, "Ping      %s  %.1f ms avg    %s\n", s.Ping.Sparkline, s.Ping.Average, trendLabel(s.Ping))
+	fmt.Fprintf(&b, "Download  %s  %.1f Mbps avg  %s\n", s.Download.Sparkline, s.Download.Average, s.Download.TrendLabel())
+	fmt.Fprintf(&b, "Upload    %s  %.1f Mbps avg  %s\n", s.Upload.Sparkline, s.Upload.Average, s.Upload.TrendLabel())
+	fmt.Fprintf(&b, "Ping      %s  %.1f ms avg    %s\n", s.Ping.Sparkline, s.Ping.Average, s.Ping.TrendLabel())
 
 	if s.TotalTests >= 2 {
 		fmt.Fprintf(&b, "\nPeak (%02d-%02d)     DL: %.1f Mbps  UL: %.1f Mbps  (%d tests)\n",

@@ -47,6 +47,20 @@ type MetricSummary struct {
 	Sparkline string         `json:"sparkline"`
 }
 
+// TrendLabel returns a plain-text trend indicator (e.g. "↑12.3%", "↓3.1%", "stable").
+func (ms MetricSummary) TrendLabel() string {
+	switch ms.Trend {
+	case TrendUp:
+		return fmt.Sprintf("↑%.1f%%", ms.TrendPct)
+	case TrendDown:
+		return fmt.Sprintf("↓%.1f%%", -ms.TrendPct)
+	case TrendStable:
+		return "stable"
+	default:
+		return "stable"
+	}
+}
+
 // PeakComparison holds peak vs off-peak averages for a metric.
 type PeakComparison struct {
 	PeakAvg      float64 `json:"peak_avg"`
@@ -109,6 +123,29 @@ func peakComparison(entries []*SpeedTestResult, extract func(*SpeedTestResult) f
 	return pc
 }
 
+// detectTrend compares the recent window average to the overall average
+// and returns the trend direction and percentage change.
+func detectTrend(values []float64, avg float64) (TrendDirection, float64) {
+	if len(values) < trendRecentWindow || avg == 0 {
+		return TrendStable, 0
+	}
+
+	var recentSum float64
+	for _, v := range values[len(values)-trendRecentWindow:] {
+		recentSum += v
+	}
+	recentAvg := recentSum / float64(trendRecentWindow)
+	pct := (recentAvg - avg) / avg * 100
+
+	if pct > trendThresholdPct {
+		return TrendUp, pct
+	}
+	if pct < -trendThresholdPct {
+		return TrendDown, pct
+	}
+	return TrendStable, pct
+}
+
 // metricSummary computes a MetricSummary for a single metric extracted from entries.
 func metricSummary(entries []*SpeedTestResult, extract func(*SpeedTestResult) float64) MetricSummary {
 	values := make([]float64, len(entries))
@@ -133,27 +170,10 @@ func metricSummary(entries []*SpeedTestResult, extract func(*SpeedTestResult) fl
 		Min:       lo,
 		Max:       hi,
 		Latest:    values[len(values)-1],
-		Trend:     TrendStable,
 		Sparkline: sparkline(values),
 	}
 
-	// Trend: compare the recent window average to the overall average.
-	if len(values) >= trendRecentWindow {
-		var recentSum float64
-		for _, v := range values[len(values)-trendRecentWindow:] {
-			recentSum += v
-		}
-		recentAvg := recentSum / float64(trendRecentWindow)
-		if avg != 0 {
-			pct := (recentAvg - avg) / avg * 100
-			ms.TrendPct = pct
-			if pct > trendThresholdPct {
-				ms.Trend = TrendUp
-			} else if pct < -trendThresholdPct {
-				ms.Trend = TrendDown
-			}
-		}
-	}
+	ms.Trend, ms.TrendPct = detectTrend(values, avg)
 
 	return ms
 }

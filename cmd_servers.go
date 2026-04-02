@@ -53,37 +53,31 @@ func runServers() {
 		return
 	}
 
-	switch serversFormat {
-	case formatJSON:
-		entries := make([]serverEntry, len(servers))
-		for i, s := range servers {
-			entries[i] = serverEntry{
-				ID:       s.ID,
-				Name:     s.Name,
-				Sponsor:  s.Sponsor,
-				Country:  s.Country,
-				Latency:  diag.DurationMs(s.Latency),
-				Distance: s.Distance,
-			}
-		}
-		printJSON(entries)
+	format := resolveFormatString(serversFormat)
 
-	case formatCSV:
-		header := []string{"id", "name", "sponsor", "country", "latency_ms", "distance_km"}
-		rows := make([][]string, len(servers))
-		for i, s := range servers {
-			rows[i] = []string{
-				s.ID,
-				s.Name,
-				s.Sponsor,
-				s.Country,
-				fmt.Sprintf("%.2f", diag.DurationMs(s.Latency)),
-				fmt.Sprintf("%.1f", s.Distance),
-			}
+	jsonEntries := make([]serverEntry, len(servers))
+	for i, s := range servers {
+		jsonEntries[i] = serverEntry{
+			ID:       s.ID,
+			Name:     s.Name,
+			Sponsor:  s.Sponsor,
+			Country:  s.Country,
+			Latency:  diag.DurationMs(s.Latency),
+			Distance: s.Distance,
 		}
-		writeCSVRows(header, rows)
+	}
 
-	default:
+	csvHeader := []string{"id", "name", "sponsor", "country", "latency_ms", "distance_km"}
+	csvRows := make([][]string, len(servers))
+	for i, s := range servers {
+		csvRows[i] = []string{
+			s.ID, s.Name, s.Sponsor, s.Country,
+			fmt.Sprintf("%.2f", diag.DurationMs(s.Latency)),
+			fmt.Sprintf("%.1f", s.Distance),
+		}
+	}
+
+	formatOutput(format, jsonEntries, csvHeader, csvRows, func() {
 		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		_, _ = fmt.Fprintln(tw, "ID\tNAME\tSPONSOR\tCOUNTRY\tLATENCY (ms)\tDISTANCE (km)")
 		for _, s := range servers {
@@ -94,7 +88,7 @@ func runServers() {
 				diag.DurationMs(s.Latency), s.Distance)
 		}
 		_ = tw.Flush()
-	}
+	})
 }
 
 func init() {

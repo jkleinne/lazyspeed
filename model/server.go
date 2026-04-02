@@ -63,12 +63,10 @@ func (s *ServerStore) List() []Server {
 // FindIndex returns the index of the server with the given ID,
 // or -1 and false if not found.
 func (s *ServerStore) FindIndex(id string) (int, bool) {
-	for i, srv := range s.servers {
-		if srv.ID == id {
-			return i, true
-		}
-	}
-	return -1, false
+	idx := slices.IndexFunc(s.servers, func(srv *speedtest.Server) bool {
+		return srv.ID == id
+	})
+	return idx, idx >= 0
 }
 
 // Raw returns the underlying speedtest.Servers slice for callers that need
