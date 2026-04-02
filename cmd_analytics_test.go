@@ -25,12 +25,14 @@ func TestAnalyticsCommandRegistered(t *testing.T) {
 }
 
 func TestAnalyticsLastFlagValidation(t *testing.T) {
+	origLast := analyticsLast
+	t.Cleanup(func() { analyticsLast = origLast })
+
 	analyticsLast = -1
 	err := analyticsCmd.RunE(analyticsCmd, nil)
 	if err == nil {
 		t.Error("expected error for negative --last")
 	}
-	analyticsLast = 0 // reset
 }
 
 func TestAnalyticsSimpleLine(t *testing.T) {

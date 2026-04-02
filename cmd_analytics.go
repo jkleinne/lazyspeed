@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/jkleinne/lazyspeed/model"
 	"github.com/spf13/cobra"
@@ -81,19 +82,22 @@ func analyticsDefaultOutput(s *model.Summary) string {
 	dateFrom := s.DateRange[0].Format("Jan 2")
 	dateTo := s.DateRange[1].Format("Jan 2")
 
-	out := fmt.Sprintf("Analytics (%d tests, %s - %s)\n\n", s.TotalTests, dateFrom, dateTo)
-	out += fmt.Sprintf("Download  %s  %.1f Mbps avg  %s\n", s.Download.Sparkline, s.Download.Average, trendLabel(s.Download))
-	out += fmt.Sprintf("Upload    %s  %.1f Mbps avg  %s\n", s.Upload.Sparkline, s.Upload.Average, trendLabel(s.Upload))
-	out += fmt.Sprintf("Ping      %s  %.1f ms avg    %s\n", s.Ping.Sparkline, s.Ping.Average, trendLabel(s.Ping))
+	var b strings.Builder
+	fmt.Fprintf(&b, "Analytics (%d tests, %s - %s)\n\n", s.TotalTests, dateFrom, dateTo)
+	fmt.Fprintf(&b, "Download  %s  %.1f Mbps avg  %s\n", s.Download.Sparkline, s.Download.Average, trendLabel(s.Download))
+	fmt.Fprintf(&b, "Upload    %s  %.1f Mbps avg  %s\n", s.Upload.Sparkline, s.Upload.Average, trendLabel(s.Upload))
+	fmt.Fprintf(&b, "Ping      %s  %.1f ms avg    %s\n", s.Ping.Sparkline, s.Ping.Average, trendLabel(s.Ping))
 
 	if s.TotalTests >= 2 {
-		out += fmt.Sprintf("\nPeak (09-21)     DL: %.1f Mbps  UL: %.1f Mbps  (%d tests)\n",
+		fmt.Fprintf(&b, "\nPeak (%02d-%02d)     DL: %.1f Mbps  UL: %.1f Mbps  (%d tests)\n",
+			model.PeakStartHour, model.PeakEndHour,
 			s.PeakDownload.PeakAvg, s.PeakUpload.PeakAvg, s.PeakDownload.PeakCount)
-		out += fmt.Sprintf("Off-Peak (21-09) DL: %.1f Mbps  UL: %.1f Mbps  (%d tests)",
+		fmt.Fprintf(&b, "Off-Peak (%02d-%02d) DL: %.1f Mbps  UL: %.1f Mbps  (%d tests)",
+			model.PeakEndHour, model.PeakStartHour,
 			s.PeakDownload.OffPeakAvg, s.PeakUpload.OffPeakAvg, s.PeakDownload.OffPeakCount)
 	}
 
-	return out
+	return b.String()
 }
 
 func init() {
