@@ -97,31 +97,8 @@ func centerBlock(block string, width int) string {
 	return b.String()
 }
 
-// RenderAnalytics renders the analytics view.
-// Returns a "no data" message when summary is nil.
-func RenderAnalytics(summary *model.Summary, width int) string {
-	if summary == nil {
-		msg := dimStyle.Render("No test data yet. Run a speed test first.")
-		return lipgloss.PlaceHorizontal(width, lipgloss.Center, msg)
-	}
-
-	var b strings.Builder
-
-	// Header
-	header := sectionLabelStyle.Render("Analytics")
-	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, header))
-	b.WriteString("\n")
-
-	// Date range + count
-	dateFrom := summary.DateRange[0].Format("Jan 2")
-	dateTo := summary.DateRange[1].Format("Jan 2")
-	meta := hintDescStyle.Render(fmt.Sprintf("%d tests from %s - %s", summary.TotalTests, dateFrom, dateTo))
-	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, meta))
-	b.WriteString("\n\n")
-
-	// Sparkline trends — build content block, then center it
-	var content strings.Builder
-
+// renderSparklineTrends renders the sparkline + average + trend row for each metric.
+func renderSparklineTrends(summary *model.Summary) string {
 	type metricRow struct {
 		label   string
 		summary model.MetricSummary
@@ -133,6 +110,7 @@ func RenderAnalytics(summary *model.Summary, width int) string {
 		{"Ping", summary.Ping, "ms"},
 	}
 
+	var b strings.Builder
 	for _, m := range metrics {
 		label := hintDescStyle.Render(fmt.Sprintf("%-10s", m.label))
 		spark := metricValueStyle.Render(m.summary.Sparkline)
@@ -142,42 +120,73 @@ func RenderAnalytics(summary *model.Summary, width int) string {
 		if summary.TotalTests >= 2 {
 			line += "  " + trendArrow(m.summary)
 		}
-		content.WriteString(line)
-		content.WriteString("\n")
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+// renderPeakComparison renders the peak vs off-peak section with bar charts.
+func renderPeakComparison(summary *model.Summary, width int) string {
+	var b strings.Builder
+
+	header := sectionLabelStyle.Render("Peak vs Off-Peak") +
+		hintDescStyle.Render(fmt.Sprintf("  (peak: %02d:00-%02d:00)", model.PeakStartHour, model.PeakEndHour))
+	b.WriteString(header)
+	b.WriteString("\n\n")
+
+	b.WriteString(hintDescStyle.Render("Download"))
+	b.WriteString("\n")
+	b.WriteString(renderPeakSection(summary.PeakDownload, "Mbps", width))
+	b.WriteString("\n\n")
+
+	b.WriteString(hintDescStyle.Render("Upload"))
+	b.WriteString("\n")
+	b.WriteString(renderPeakSection(summary.PeakUpload, "Mbps", width))
+	b.WriteString("\n\n")
+
+	peakTotal := summary.PeakDownload.PeakCount
+	offTotal := summary.PeakDownload.OffPeakCount
+	b.WriteString(dimStyle.Render(fmt.Sprintf("%d peak tests, %d off-peak tests", peakTotal, offTotal)))
+	b.WriteString("\n")
+
+	return b.String()
+}
+
+// RenderAnalytics renders the analytics view.
+// Returns a "no data" message when summary is nil.
+func RenderAnalytics(summary *model.Summary, width int) string {
+	if summary == nil {
+		msg := dimStyle.Render("No test data yet. Run a speed test first.")
+		return lipgloss.PlaceHorizontal(width, lipgloss.Center, msg)
 	}
 
-	// Minimum data guard
+	var b strings.Builder
+
+	header := sectionLabelStyle.Render("Analytics")
+	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, header))
+	b.WriteString("\n")
+
+	dateFrom := summary.DateRange[0].Format("Jan 2")
+	dateTo := summary.DateRange[1].Format("Jan 2")
+	meta := hintDescStyle.Render(fmt.Sprintf("%d tests from %s - %s", summary.TotalTests, dateFrom, dateTo))
+	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, meta))
+	b.WriteString("\n\n")
+
+	var content strings.Builder
+	content.WriteString(renderSparklineTrends(summary))
+
 	if summary.TotalTests < 2 {
 		content.WriteString("\n")
 		content.WriteString(dimStyle.Render("Run more tests to see trends."))
 		content.WriteString("\n")
 	} else {
-		// Peak vs off-peak
 		content.WriteString("\n")
-		peakHeader := sectionLabelStyle.Render("Peak vs Off-Peak") +
-			hintDescStyle.Render(fmt.Sprintf("  (peak: %02d:00-%02d:00)", model.PeakStartHour, model.PeakEndHour))
-		content.WriteString(peakHeader)
-		content.WriteString("\n\n")
-
-		content.WriteString(hintDescStyle.Render("Download"))
-		content.WriteString("\n")
-		content.WriteString(renderPeakSection(summary.PeakDownload, "Mbps", width))
-		content.WriteString("\n\n")
-
-		content.WriteString(hintDescStyle.Render("Upload"))
-		content.WriteString("\n")
-		content.WriteString(renderPeakSection(summary.PeakUpload, "Mbps", width))
-		content.WriteString("\n\n")
-
-		peakTotal := summary.PeakDownload.PeakCount
-		offTotal := summary.PeakDownload.OffPeakCount
-		content.WriteString(dimStyle.Render(fmt.Sprintf("%d peak tests, %d off-peak tests", peakTotal, offTotal)))
-		content.WriteString("\n")
+		content.WriteString(renderPeakComparison(summary, width))
 	}
 
 	b.WriteString(centerBlock(content.String(), width))
 
-	// Hints
 	b.WriteString("\n")
 	hint := formatHint(ContextAnalytics)
 	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, hint))
