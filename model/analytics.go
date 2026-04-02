@@ -74,9 +74,9 @@ const (
 	// PeakStartHour is the start of peak hours (inclusive). Exported for UI display.
 	PeakStartHour = 9
 	// PeakEndHour is the end of peak hours (exclusive). Exported for UI display.
-	PeakEndHour         = 21
-	trendRecentWindow   = 5
-	trendThresholdPct   = 5.0
+	PeakEndHour       = 21
+	trendRecentWindow = 5
+	trendThresholdPct = 5.0
 )
 
 // peakComparison splits entries into peak (09:00–20:59) and off-peak buckets

@@ -144,10 +144,10 @@ func TestPeakComparison(t *testing.T) {
 		{
 			name: "boundary hours: 9 is peak, 21 is off-peak",
 			entries: []*SpeedTestResult{
-				makePeakEntry(9, 50),   // peak (exactly 09:00)
-				makePeakEntry(20, 70),  // peak (20:59 range)
-				makePeakEntry(21, 90),  // off-peak (exactly 21:00)
-				makePeakEntry(8, 110),  // off-peak (08:xx)
+				makePeakEntry(9, 50),  // peak (exactly 09:00)
+				makePeakEntry(20, 70), // peak (20:59 range)
+				makePeakEntry(21, 90), // off-peak (exactly 21:00)
+				makePeakEntry(8, 110), // off-peak (08:xx)
 			},
 			wantPeakAvg: 60,
 			wantOffAvg:  100,

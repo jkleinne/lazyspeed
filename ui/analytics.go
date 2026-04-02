@@ -19,9 +19,10 @@ func trendArrow(trend model.TrendDirection, pct float64) string {
 		return latencyGreenStyle.Render(fmt.Sprintf("↑ %.1f%%", pct))
 	case model.TrendDown:
 		return latencyRedStyle.Render(fmt.Sprintf("↓ %.1f%%", -pct))
-	default:
+	case model.TrendStable:
 		return dimStyle.Render("stable")
 	}
+	return dimStyle.Render("stable")
 }
 
 // renderBar draws a horizontal bar scaled to maxVal.
@@ -48,16 +49,16 @@ func renderPeakSection(pc model.PeakComparison, unit string, width int) string {
 
 	if pc.PeakCount > 0 {
 		bar := renderBar(pc.PeakAvg, maxVal, barWidth)
-		b.WriteString(fmt.Sprintf("%s %s %s\n", peakLabel, bar, infoStyle.Render(fmt.Sprintf("%.1f %s", pc.PeakAvg, unit))))
+		fmt.Fprintf(&b, "%s %s %s\n", peakLabel, bar, infoStyle.Render(fmt.Sprintf("%.1f %s", pc.PeakAvg, unit)))
 	} else {
-		b.WriteString(fmt.Sprintf("%s %s\n", peakLabel, dimStyle.Render("no data")))
+		fmt.Fprintf(&b, "%s %s\n", peakLabel, dimStyle.Render("no data"))
 	}
 
 	if pc.OffPeakCount > 0 {
 		bar := renderBar(pc.OffPeakAvg, maxVal, barWidth)
-		b.WriteString(fmt.Sprintf("%s %s %s", offLabel, bar, infoStyle.Render(fmt.Sprintf("%.1f %s", pc.OffPeakAvg, unit))))
+		fmt.Fprintf(&b, "%s %s %s", offLabel, bar, infoStyle.Render(fmt.Sprintf("%.1f %s", pc.OffPeakAvg, unit)))
 	} else {
-		b.WriteString(fmt.Sprintf("%s %s", offLabel, dimStyle.Render("no data")))
+		fmt.Fprintf(&b, "%s %s", offLabel, dimStyle.Render("no data"))
 	}
 
 	return b.String()

@@ -71,9 +71,10 @@ func trendLabel(m model.MetricSummary) string {
 		return fmt.Sprintf("↑%.1f%%", m.TrendPct)
 	case model.TrendDown:
 		return fmt.Sprintf("↓%.1f%%", -m.TrendPct)
-	default:
+	case model.TrendStable:
 		return "stable"
 	}
+	return "stable"
 }
 
 func analyticsDefaultOutput(s *model.Summary) string {

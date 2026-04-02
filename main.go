@@ -44,6 +44,7 @@ const (
 	ViewDiagRunning                   // Diagnostics spinner
 	ViewDiagCompact                   // Compact diagnostics summary
 	ViewDiagExpanded                  // Full hop-by-hop trace table
+	ViewAnalytics                     // Analytics summary view
 )
 
 type speedTest struct {
@@ -57,6 +58,8 @@ type speedTest struct {
 	diagResult *diag.DiagResult
 	viewState  ViewState
 	diagOffset int
+
+	analyticsSummary *model.Summary
 
 	// Viewport / UI navigation state (not part of Model's business logic)
 	showHelp         bool
@@ -179,6 +182,8 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch s.viewState {
+		case ViewAnalytics:
+			return s.handleAnalyticsKeys(msg)
 		case ViewDiagExpanded:
 			return s.handleDiagExpandedKeys(msg)
 		case ViewDiagCompact:
@@ -417,6 +422,28 @@ func (s *speedTest) handleIdleKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "h":
 		s.showHelp = !s.showHelp
+	case "a":
+		if len(s.model.History.Entries) > 0 {
+			s.analyticsSummary = model.ComputeSummary(s.model.History.Entries)
+			s.viewState = ViewAnalytics
+			s.showHelp = false
+		}
+	}
+	return s, nil
+}
+
+func (s *speedTest) handleAnalyticsKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", keyCtrlC:
+		s.quitting = true
+		return s, tea.Quit
+	case keyEsc:
+		s.viewState = ViewMain
+		s.analyticsSummary = nil
+		s.showHelp = true
+	case "n":
+		s.analyticsSummary = nil
+		return s.startNewTest()
 	}
 	return s, nil
 }
@@ -429,6 +456,10 @@ func (s *speedTest) View() string {
 	b.WriteString("\n\n")
 
 	switch s.viewState {
+	case ViewAnalytics:
+		b.WriteString(ui.RenderAnalytics(s.analyticsSummary, s.model.Width))
+		b.WriteString("\n")
+
 	case ViewDiagRunning:
 		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, 0))
 		b.WriteString("\n\n")

@@ -60,11 +60,11 @@ func TestRenderAnalytics(t *testing.T) {
 			"Analytics",
 			"24 tests",
 			"▃▄▅▆▇", // download sparkline
-			"94.2",   // download avg
+			"94.2",  // download avg
 			"▂▃▃▄▅", // upload sparkline
-			"38.7",   // upload avg
+			"38.7",  // upload avg
 			"▆▅▄▃▂", // ping sparkline
-			"12.4",   // ping avg
+			"12.4",  // ping avg
 			"Peak",
 			"Off-Peak",
 		}
