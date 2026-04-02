@@ -44,8 +44,8 @@ func renderPeakSection(pc model.PeakComparison, unit string, width int) string {
 	maxVal := max(pc.PeakAvg, pc.OffPeakAvg)
 	barWidth := min(analyticsBarMaxWidth, width/3)
 
-	peakLabel := hintDescStyle.Render(fmt.Sprintf("  %-10s", "Peak"))
-	offLabel := hintDescStyle.Render(fmt.Sprintf("  %-10s", "Off-Peak"))
+	peakLabel := hintDescStyle.Render(fmt.Sprintf("%-10s", "Peak"))
+	offLabel := hintDescStyle.Render(fmt.Sprintf("%-10s", "Off-Peak"))
 
 	if pc.PeakCount > 0 {
 		bar := renderBar(pc.PeakAvg, maxVal, barWidth)
@@ -86,7 +86,9 @@ func RenderAnalytics(summary *model.Summary, width int) string {
 	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, meta))
 	b.WriteString("\n\n")
 
-	// Sparkline trends
+	// Sparkline trends — build content block, then center it
+	var content strings.Builder
+
 	type metricRow struct {
 		label   string
 		summary model.MetricSummary
@@ -99,7 +101,7 @@ func RenderAnalytics(summary *model.Summary, width int) string {
 	}
 
 	for _, m := range metrics {
-		label := hintDescStyle.Render(fmt.Sprintf("  %-10s", m.label))
+		label := hintDescStyle.Render(fmt.Sprintf("%-10s", m.label))
 		spark := metricValueStyle.Render(m.summary.Sparkline)
 		avg := infoStyle.Render(fmt.Sprintf("%.1f %s avg", m.summary.Average, m.unit))
 
@@ -107,40 +109,40 @@ func RenderAnalytics(summary *model.Summary, width int) string {
 		if summary.TotalTests >= 2 {
 			line += "  " + trendArrow(m.summary.Trend, m.summary.TrendPct)
 		}
-		b.WriteString(line)
-		b.WriteString("\n")
+		content.WriteString(line)
+		content.WriteString("\n")
 	}
 
 	// Minimum data guard
 	if summary.TotalTests < 2 {
-		b.WriteString("\n")
-		msg := dimStyle.Render("  Run more tests to see trends.")
-		b.WriteString(msg)
-		b.WriteString("\n")
+		content.WriteString("\n")
+		content.WriteString(dimStyle.Render("Run more tests to see trends."))
+		content.WriteString("\n")
 	} else {
 		// Peak vs off-peak
-		b.WriteString("\n")
-		peakHeader := sectionLabelStyle.Render("  Peak vs Off-Peak") +
+		content.WriteString("\n")
+		peakHeader := sectionLabelStyle.Render("Peak vs Off-Peak") +
 			hintDescStyle.Render(fmt.Sprintf("  (peak: %02d:00-%02d:00)", model.PeakStartHour, model.PeakEndHour))
-		b.WriteString(peakHeader)
-		b.WriteString("\n\n")
+		content.WriteString(peakHeader)
+		content.WriteString("\n\n")
 
-		b.WriteString(hintDescStyle.Render("  Download"))
-		b.WriteString("\n")
-		b.WriteString(renderPeakSection(summary.PeakDownload, "Mbps", width))
-		b.WriteString("\n\n")
+		content.WriteString(hintDescStyle.Render("Download"))
+		content.WriteString("\n")
+		content.WriteString(renderPeakSection(summary.PeakDownload, "Mbps", width))
+		content.WriteString("\n\n")
 
-		b.WriteString(hintDescStyle.Render("  Upload"))
-		b.WriteString("\n")
-		b.WriteString(renderPeakSection(summary.PeakUpload, "Mbps", width))
-		b.WriteString("\n\n")
+		content.WriteString(hintDescStyle.Render("Upload"))
+		content.WriteString("\n")
+		content.WriteString(renderPeakSection(summary.PeakUpload, "Mbps", width))
+		content.WriteString("\n\n")
 
 		peakTotal := summary.PeakDownload.PeakCount
 		offTotal := summary.PeakDownload.OffPeakCount
-		counts := dimStyle.Render(fmt.Sprintf("  %d peak tests, %d off-peak tests", peakTotal, offTotal))
-		b.WriteString(counts)
-		b.WriteString("\n")
+		content.WriteString(dimStyle.Render(fmt.Sprintf("%d peak tests, %d off-peak tests", peakTotal, offTotal)))
+		content.WriteString("\n")
 	}
+
+	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, content.String()))
 
 	// Hints
 	b.WriteString("\n")
