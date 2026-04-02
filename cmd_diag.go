@@ -132,12 +132,12 @@ func runDiag(args []string) {
 	}
 
 	format := resolveFormat(diagJSON, diagCSV)
-	if diagSimple {
-		fmt.Println(diagSimpleLine(result))
-		return
-	}
 	formatOutput(format, result, diagCSVHeader, [][]string{diagCSVRow(result)}, func() {
-		fmt.Println(diagDefaultOutput(result))
+		if diagSimple {
+			fmt.Println(diagSimpleLine(result))
+		} else {
+			fmt.Println(diagDefaultOutput(result))
+		}
 	})
 }
 
