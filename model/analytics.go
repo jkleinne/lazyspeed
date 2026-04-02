@@ -65,3 +65,40 @@ type Summary struct {
 	TotalTests   int            `json:"total_tests"`
 	DateRange    [2]time.Time   `json:"date_range"`
 }
+
+const sparkBlocks = "▁▂▃▄▅▆▇█"
+
+var sparkRunes = []rune(sparkBlocks)
+
+// sparkline maps values to a Unicode block-element sparkline string.
+// Each value becomes one character. All-equal values render as mid-level (▄).
+func sparkline(values []float64) string {
+	if len(values) == 0 {
+		return ""
+	}
+
+	lo, hi := values[0], values[0]
+	for _, v := range values[1:] {
+		if v < lo {
+			lo = v
+		}
+		if v > hi {
+			hi = v
+		}
+	}
+
+	levels := len(sparkRunes)
+	midLevel := (levels - 1) / 2
+	rng := hi - lo
+
+	runes := make([]rune, len(values))
+	for i, v := range values {
+		if rng == 0 {
+			runes[i] = sparkRunes[midLevel]
+		} else {
+			idx := int((v - lo) / rng * float64(levels-1))
+			runes[i] = sparkRunes[idx]
+		}
+	}
+	return string(runes)
+}
