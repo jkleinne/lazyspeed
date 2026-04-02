@@ -14,16 +14,18 @@ const (
 )
 
 // trendArrow returns a styled trend indicator string.
-func trendArrow(trend model.TrendDirection, pct float64) string {
-	switch trend {
+func trendArrow(ms model.MetricSummary) string {
+	label := ms.TrendLabel()
+	switch ms.Trend {
 	case model.TrendUp:
-		return latencyGreenStyle.Render(fmt.Sprintf("↑ %.1f%%", pct))
+		return latencyGreenStyle.Render(label)
 	case model.TrendDown:
-		return latencyRedStyle.Render(fmt.Sprintf("↓ %.1f%%", -pct))
+		return latencyRedStyle.Render(label)
 	case model.TrendStable:
-		return dimStyle.Render("stable")
+		return dimStyle.Render(label)
+	default:
+		return dimStyle.Render(label)
 	}
-	return dimStyle.Render("stable")
 }
 
 // renderBar draws a horizontal bar scaled to maxVal.
@@ -138,7 +140,7 @@ func RenderAnalytics(summary *model.Summary, width int) string {
 
 		line := fmt.Sprintf("%s %s  %s", label, spark, avg)
 		if summary.TotalTests >= 2 {
-			line += "  " + trendArrow(m.summary.Trend, m.summary.TrendPct)
+			line += "  " + trendArrow(m.summary)
 		}
 		content.WriteString(line)
 		content.WriteString("\n")

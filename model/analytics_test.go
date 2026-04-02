@@ -186,6 +186,27 @@ func TestPeakComparison(t *testing.T) {
 	}
 }
 
+func TestMetricSummaryTrendLabel(t *testing.T) {
+	tests := []struct {
+		name string
+		ms   MetricSummary
+		want string
+	}{
+		{"up", MetricSummary{Trend: TrendUp, TrendPct: 12.3}, "↑12.3%"},
+		{"down", MetricSummary{Trend: TrendDown, TrendPct: -3.1}, "↓3.1%"},
+		{"stable", MetricSummary{Trend: TrendStable}, "stable"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.ms.TrendLabel()
+			if got != tt.want {
+				t.Errorf("TrendLabel() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestComputeSummary(t *testing.T) {
 	t.Run("nil entries returns nil", func(t *testing.T) {
 		if got := ComputeSummary(nil); got != nil {

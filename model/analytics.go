@@ -47,6 +47,20 @@ type MetricSummary struct {
 	Sparkline string         `json:"sparkline"`
 }
 
+// TrendLabel returns a plain-text trend indicator (e.g. "↑12.3%", "↓3.1%", "stable").
+func (ms MetricSummary) TrendLabel() string {
+	switch ms.Trend {
+	case TrendUp:
+		return fmt.Sprintf("↑%.1f%%", ms.TrendPct)
+	case TrendDown:
+		return fmt.Sprintf("↓%.1f%%", -ms.TrendPct)
+	case TrendStable:
+		return "stable"
+	default:
+		return "stable"
+	}
+}
+
 // PeakComparison holds peak vs off-peak averages for a metric.
 type PeakComparison struct {
 	PeakAvg      float64 `json:"peak_avg"`
