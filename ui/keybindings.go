@@ -13,6 +13,7 @@ const (
 	ContextExport          BindingContext = "Export"
 	ContextDiagCompact     BindingContext = "Diagnostics"
 	ContextDiagExpanded    BindingContext = "Diagnostics (Expanded)"
+	ContextAnalytics       BindingContext = "Analytics"
 )
 
 // Binding describes a single keybinding shown in help text.
@@ -30,6 +31,7 @@ var bindings = []Binding{
 	// Home
 	{Key: "n", Description: "New Test", Context: ContextHome},
 	{Key: "d", Description: "Diagnostics", Context: ContextHome},
+	{Key: "a", Description: "Analytics", Context: ContextHome, ResultOnly: true},
 	{Key: "e", Description: "Export Result", Context: ContextHome, ResultOnly: true},
 	{Key: "↑/↓", Description: "Scroll History", Context: ContextHome, ResultOnly: true},
 	{Key: "h", Description: "Toggle Help", Context: ContextHome},
@@ -57,6 +59,11 @@ var bindings = []Binding{
 	{Key: "Esc", Description: "Compact View", Context: ContextDiagExpanded},
 	{Key: "d", Description: "New Diagnostic", Context: ContextDiagExpanded},
 	{Key: "q", Description: "Quit", Context: ContextDiagExpanded},
+
+	// Analytics
+	{Key: "Esc", Description: "Back", Context: ContextAnalytics},
+	{Key: "n", Description: "New Test", Context: ContextAnalytics},
+	{Key: "q", Description: "Quit", Context: ContextAnalytics},
 }
 
 // BindingsForContext returns all bindings matching the given context.
