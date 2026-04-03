@@ -222,7 +222,7 @@ func TestRenderServerSelection(t *testing.T) {
 	m.Height = 40
 
 	// Case 1: Empty list
-	res := RenderServerSelection([]model.Server{}, Viewport{Width: 100, Height: m.Height}, nil)
+	res := RenderServerSelection([]model.Server{}, Viewport{Width: 100, Height: m.Height}, nil, nil)
 	if !strings.Contains(res, "No servers available") {
 		t.Errorf("Expected 'No servers available' for empty list")
 	}
@@ -233,7 +233,7 @@ func TestRenderServerSelection(t *testing.T) {
 		{Name: "Server 2", Sponsor: "Sponsor 2", Country: "Country 2", Latency: 20 * time.Millisecond},
 	}
 
-	res = RenderServerSelection(servers, Viewport{Width: 100, Height: m.Height, Cursor: 1}, nil)
+	res = RenderServerSelection(servers, Viewport{Width: 100, Height: m.Height, Cursor: 1}, nil, nil)
 	plain := ansi.Strip(res)
 	if !strings.Contains(plain, "▸") {
 		t.Errorf("Expected cursor indicator '▸' on selected row")
@@ -301,7 +301,7 @@ func TestRenderServerSelectionViewport(t *testing.T) {
 				}
 			}
 
-			res := RenderServerSelection(servers, Viewport{Width: 100, Height: tt.height, Offset: tt.offset, Cursor: tt.cursor}, nil)
+			res := RenderServerSelection(servers, Viewport{Width: 100, Height: tt.height, Offset: tt.offset, Cursor: tt.cursor}, nil, nil)
 			plain := ansi.Strip(res)
 
 			// Scroll indicators include a count: "↑ N more" / "↓ N more".
@@ -591,7 +591,7 @@ func TestRenderServerSelection_WithSelected(t *testing.T) {
 	}
 	selected := map[int]bool{0: true, 2: true}
 
-	res := RenderServerSelection(servers, Viewport{Width: 100, Height: 40, Cursor: 1}, selected)
+	res := RenderServerSelection(servers, Viewport{Width: 100, Height: 40, Cursor: 1}, selected, nil)
 	plain := ansi.Strip(res)
 
 	if !strings.Contains(plain, "✓") {
@@ -613,7 +613,7 @@ func TestRenderServerSelection_NilSelected(t *testing.T) {
 		{Name: "Solo", Sponsor: "Only Sponsor", Country: "US", Latency: 15 * time.Millisecond},
 	}
 
-	res := RenderServerSelection(servers, Viewport{Width: 100, Height: 40, Cursor: 0}, nil)
+	res := RenderServerSelection(servers, Viewport{Width: 100, Height: 40, Cursor: 0}, nil, nil)
 	plain := ansi.Strip(res)
 
 	if strings.Contains(plain, "✓") {

@@ -121,6 +121,7 @@ func TestUpdateKeyMsgNavigation(t *testing.T) {
 	})
 	m.State = model.StateSelectingServer
 	s := speedTest{model: m}
+	s.computeDisplayOrder()
 
 	// Initial cursor is 0. Move down.
 	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
@@ -907,6 +908,7 @@ func TestAdjustServerListOffset(t *testing.T) {
 			m.Servers.SetRaw(servers)
 
 			s := speedTest{model: m, spinner: ui.DefaultSpinner, cursor: tt.cursor, serverListOffset: tt.offset}
+			s.computeDisplayOrder()
 			s.adjustServerListOffset()
 
 			if s.serverListOffset != tt.expectedOffset {
@@ -926,6 +928,7 @@ func TestServerSelectionViewportNavigation(t *testing.T) {
 	}
 	m.Servers.SetRaw(servers)
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+	s.computeDisplayOrder()
 
 	// Move cursor down past visible area
 	for i := 0; i < 10; i++ {
@@ -1814,6 +1817,7 @@ func TestServerSelectionLargeListViewport(t *testing.T) {
 	m.State = model.StateSelectingServer
 	m.Servers.SetRaw(servers)
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+	s.computeDisplayOrder()
 
 	// Navigate down 20 times
 	for i := 0; i < 20; i++ {
