@@ -948,28 +948,37 @@ func TestRunFavoritesMutualExclusivity(t *testing.T) {
 		serverID    string
 		serverIDs   string
 		best        int
+		count       int
 		wantErrFrag string
 	}{
 		{
 			name:        "favorites and server are mutually exclusive",
 			serverID:    "123",
+			count:       1,
 			wantErrFrag: "--favorites and --server are mutually exclusive",
 		},
 		{
 			name:        "favorites and servers are mutually exclusive",
 			serverIDs:   "1,2",
+			count:       1,
 			wantErrFrag: "--favorites and --servers are mutually exclusive",
 		},
 		{
 			name:        "favorites and best are mutually exclusive",
 			best:        3,
+			count:       1,
 			wantErrFrag: "--favorites and --best are mutually exclusive",
+		},
+		{
+			name:        "favorites and count are mutually exclusive",
+			count:       3,
+			wantErrFrag: "--favorites and --count are mutually exclusive",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			runCount = 1
+			runCount = tt.count
 			runFavorites = true
 			runServerID = tt.serverID
 			runServerIDs = tt.serverIDs

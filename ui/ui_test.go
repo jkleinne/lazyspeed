@@ -621,6 +621,42 @@ func TestRenderServerSelection_NilSelected(t *testing.T) {
 	}
 }
 
+func TestRenderServerSelection_WithFavorites(t *testing.T) {
+	// Favorites must be grouped at front per RenderServerSelection precondition.
+	servers := []model.Server{
+		{ID: "fav1", Name: "Fav Server", Sponsor: "Fav Sponsor", Country: "JP", Latency: 10 * time.Millisecond},
+		{ID: "other1", Name: "Other Server", Sponsor: "Other Sponsor", Country: "US", Latency: 20 * time.Millisecond},
+	}
+	favIDs := map[string]bool{"fav1": true}
+
+	res := RenderServerSelection(servers, Viewport{Width: 100, Height: 40, Cursor: 1}, nil, favIDs)
+	plain := ansi.Strip(res)
+
+	if !strings.Contains(plain, "★") {
+		t.Errorf("expected ★ marker on favorite server, got: %s", plain)
+	}
+	if !strings.Contains(plain, "───") {
+		t.Errorf("expected divider between favorites and non-favorites, got: %s", plain)
+	}
+}
+
+func TestRenderServerSelection_NoFavorites_NoDivider(t *testing.T) {
+	servers := []model.Server{
+		{ID: "a", Name: "ServerA", Sponsor: "SponsorA", Country: "US", Latency: 10 * time.Millisecond},
+		{ID: "b", Name: "ServerB", Sponsor: "SponsorB", Country: "DE", Latency: 20 * time.Millisecond},
+	}
+
+	res := RenderServerSelection(servers, Viewport{Width: 100, Height: 40, Cursor: 0}, nil, nil)
+	plain := ansi.Strip(res)
+
+	if strings.Contains(plain, "★") {
+		t.Errorf("expected no ★ marker when no favorites, got: %s", plain)
+	}
+	if strings.Contains(plain, "───") {
+		t.Errorf("expected no divider when no favorites, got: %s", plain)
+	}
+}
+
 func TestRenderComparison(t *testing.T) {
 	results := []*model.SpeedTestResult{
 		{

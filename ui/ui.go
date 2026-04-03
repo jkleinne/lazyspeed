@@ -283,6 +283,7 @@ func ServerListVisibleLines(height, total int) int {
 // with a ✓; favorite servers show a ★ prefix. Latency is color-coded green/amber/red.
 // A nil selected map is treated as empty — no rows are marked as selected.
 // A divider separates favorites from non-favorites when favorites exist.
+// Precondition: servers must be ordered with favorites grouped at the front.
 func RenderServerSelection(servers []model.Server, vp Viewport, selected map[int]bool, favoriteIDs map[string]bool) string {
 	var b strings.Builder
 	b.WriteString(sectionLabelStyle.Render("Select a server:"))
