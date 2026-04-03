@@ -40,6 +40,7 @@ var bindings = []Binding{
 
 	// Server Selection
 	{Key: "↑/↓", Description: "Navigate", Context: ContextServerSelection},
+	{Key: "Space", Description: "Toggle Select", Context: ContextServerSelection},
 	{Key: "Enter", Description: "Select Server", Context: ContextServerSelection},
 	{Key: "Esc", Description: "Back to Home", Context: ContextServerSelection},
 
