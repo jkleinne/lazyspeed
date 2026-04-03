@@ -1209,6 +1209,71 @@ func TestRunMultiServerHeadless_AllFail(t *testing.T) {
 	}
 }
 
+func TestRunMultiServerHeadless_ContextCancellation(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	serverA := &speedtest.Server{Name: testServerNameA, Country: "US"}
+	serverB := &speedtest.Server{Name: testServerNameB, Country: "DE"}
+	serverC := &speedtest.Server{Name: testServerNameC, Country: "JP"}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	pingCallCount := 0
+
+	// Skip download and upload so the ping phase is the only work per server.
+	// Cancel after the first server's ping completes; testSingleServerHeadless
+	// returns a result before checking ctx.Err() (only checked before transfer
+	// phases, which are both skipped here).
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			pingCallCount++
+			fn(10 * time.Millisecond)
+			// Cancel after the first server's ping completes.
+			if pingCallCount == 1 {
+				cancel()
+			}
+			return nil
+		},
+	}, nil)
+
+	results, serverErrors := m.RunMultiServerHeadless(ctx, []*speedtest.Server{serverA, serverB, serverC}, RunOptions{
+		SkipDownload: true,
+		SkipUpload:   true,
+	})
+
+	// Server A completed before cancellation; its result must be present.
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 completed result, got %d", len(results))
+	}
+	if results[0].ServerName != testServerNameA {
+		t.Errorf("Expected completed result for %q, got %q", testServerNameA, results[0].ServerName)
+	}
+
+	// Remaining servers (B and C) must appear as ServerErrors with a context error.
+	if len(serverErrors) != 2 {
+		t.Fatalf("Expected 2 ServerErrors for cancelled servers, got %d", len(serverErrors))
+	}
+	for _, se := range serverErrors {
+		if se.Err == nil {
+			t.Errorf("Expected non-nil Err in ServerError for %q", se.ServerName)
+			continue
+		}
+		if !errors.Is(se.Err, context.Canceled) {
+			t.Errorf("Expected context.Canceled error for %q, got %v", se.ServerName, se.Err)
+		}
+	}
+
+	cancelledNames := make([]string, len(serverErrors))
+	for i, se := range serverErrors {
+		cancelledNames[i] = se.ServerName
+	}
+	if !strings.Contains(strings.Join(cancelledNames, ","), testServerNameB) {
+		t.Errorf("Expected ServerError for %q, got errors: %v", testServerNameB, cancelledNames)
+	}
+	if !strings.Contains(strings.Join(cancelledNames, ","), testServerNameC) {
+		t.Errorf("Expected ServerError for %q, got errors: %v", testServerNameC, cancelledNames)
+	}
+}
+
 func TestPerformSpeedTestContextCancellation(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 

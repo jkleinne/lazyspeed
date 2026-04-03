@@ -454,8 +454,12 @@ func (m *Model) testSingleServerHeadless(
 	if err != nil {
 		return nil, fmt.Errorf("failed to measure ping: %v", err)
 	}
-	if len(pr.pings) == 0 && pr.lastErr != nil {
-		return nil, fmt.Errorf("failed to measure ping: %v", pr.lastErr)
+	if len(pr.pings) == 0 {
+		errMsg := "all ping measurements failed"
+		if pr.lastErr != nil {
+			errMsg = fmt.Sprintf("%s (last error: %v)", errMsg, pr.lastErr)
+		}
+		return nil, fmt.Errorf("failed to measure ping: %s", errMsg)
 	}
 
 	var downloadSpeed, uploadSpeed float64
