@@ -36,6 +36,7 @@ var (
 	runCount      int
 	runBest       int
 	runServerIDs  string
+	runFavorites  bool
 )
 
 var runCmd = &cobra.Command{
@@ -66,6 +67,17 @@ var runCmd = &cobra.Command{
 				return fmt.Errorf("--servers requires at least 2 server IDs, got %d", len(ids))
 			}
 		}
+		if runFavorites {
+			if runServerID != "" {
+				return fmt.Errorf("--favorites and --server are mutually exclusive")
+			}
+			if runServerIDs != "" {
+				return fmt.Errorf("--favorites and --servers are mutually exclusive")
+			}
+			if runBest > 0 {
+				return fmt.Errorf("--favorites and --best are mutually exclusive")
+			}
+		}
 		return nil
 	},
 	Run: func(_ *cobra.Command, _ []string) {
@@ -83,6 +95,7 @@ func init() {
 	runCmd.Flags().IntVar(&runCount, "count", 1, "Run multiple tests sequentially")
 	runCmd.Flags().IntVar(&runBest, "best", 0, "Auto-select the N closest servers for comparison (minimum 2)")
 	runCmd.Flags().StringVar(&runServerIDs, "servers", "", "Test specific servers by ID (comma-separated, minimum 2)")
+	runCmd.Flags().BoolVar(&runFavorites, "favorites", false, "Test all favorited servers (multi-server comparison)")
 
 	rootCmd.AddCommand(runCmd)
 }
@@ -172,6 +185,24 @@ func resolveMultiServers(m *model.Model, interactive bool) []*speedtest.Server {
 			count = available
 		}
 		return m.Servers.Raw()[:count]
+	}
+
+	if runFavorites {
+		favIDs := m.Config.Servers.FavoriteIDs
+		if len(favIDs) == 0 {
+			exitWithError("no favorites configured; use 'lazyspeed servers --pin <id>' to add favorites")
+		}
+		servers := make([]*speedtest.Server, 0, len(favIDs))
+		for _, id := range favIDs {
+			idx, found := m.Servers.FindIndex(id)
+			if found {
+				servers = append(servers, m.Servers.Raw()[idx])
+			}
+		}
+		if len(servers) == 0 {
+			exitWithError("none of the favorited servers were found in the server list")
+		}
+		return servers
 	}
 
 	// --servers path: parse and resolve each ID.
@@ -376,7 +407,7 @@ func runHeadlessTest() {
 	m := model.NewDefaultModel()
 	interactive := runIsInteractive()
 
-	if runBest > 0 || runServerIDs != "" {
+	if runBest > 0 || runServerIDs != "" || runFavorites {
 		runMultiServerHeadless(m, interactive)
 		return
 	}
