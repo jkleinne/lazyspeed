@@ -753,3 +753,156 @@ func TestServersCommandValidation(t *testing.T) {
 		t.Errorf("Expected 'invalid --format' error for yaml, got %v", err)
 	}
 }
+
+func TestRunCommandValidation_BestAndServersMutuallyExclusive(t *testing.T) {
+	origBest := runBest
+	origServers := runServerIDs
+	origCount := runCount
+	defer func() { runBest = origBest; runServerIDs = origServers; runCount = origCount }()
+
+	runCount = 1
+	runBest = 3
+	runServerIDs = "1,2"
+	err := runCmd.PreRunE(nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "--best and --servers are mutually exclusive") {
+		t.Errorf("Expected '--best and --servers are mutually exclusive' error, got %v", err)
+	}
+}
+
+func TestRunCommandValidation_BestMinimumTwo(t *testing.T) {
+	origBest := runBest
+	origServers := runServerIDs
+	origCount := runCount
+	defer func() { runBest = origBest; runServerIDs = origServers; runCount = origCount }()
+
+	runCount = 1
+	runServerIDs = ""
+	runBest = 1
+	err := runCmd.PreRunE(nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "--best must be at least 2") {
+		t.Errorf("Expected '--best must be at least 2' error, got %v", err)
+	}
+}
+
+func TestRunCommandValidation_CountAndBestMutuallyExclusive(t *testing.T) {
+	origBest := runBest
+	origServers := runServerIDs
+	origCount := runCount
+	defer func() { runBest = origBest; runServerIDs = origServers; runCount = origCount }()
+
+	runCount = 3
+	runBest = 2
+	runServerIDs = ""
+	err := runCmd.PreRunE(nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "--count and --best are mutually exclusive") {
+		t.Errorf("Expected '--count and --best are mutually exclusive' error, got %v", err)
+	}
+}
+
+func TestRunCommandValidation_CountAndServersMutuallyExclusive(t *testing.T) {
+	origBest := runBest
+	origServers := runServerIDs
+	origCount := runCount
+	defer func() { runBest = origBest; runServerIDs = origServers; runCount = origCount }()
+
+	runCount = 3
+	runBest = 0
+	runServerIDs = "1,2"
+	err := runCmd.PreRunE(nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "--count and --servers are mutually exclusive") {
+		t.Errorf("Expected '--count and --servers are mutually exclusive' error, got %v", err)
+	}
+}
+
+func TestRunCommandValidation_ServersMinimumTwo(t *testing.T) {
+	origBest := runBest
+	origServers := runServerIDs
+	origCount := runCount
+	defer func() { runBest = origBest; runServerIDs = origServers; runCount = origCount }()
+
+	runCount = 1
+	runBest = 0
+	runServerIDs = "123"
+	err := runCmd.PreRunE(nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "--servers requires at least 2 server IDs") {
+		t.Errorf("Expected '--servers requires at least 2 server IDs' error, got %v", err)
+	}
+}
+
+func TestFormatComparisonTable(t *testing.T) {
+	results := []*model.SpeedTestResult{
+		{
+			ServerName:    "Tokyo Fiber",
+			ServerCountry: "Japan",
+			DownloadSpeed: 95.12,
+			UploadSpeed:   45.23,
+			Ping:          12.40,
+			Jitter:        1.20,
+		},
+		{
+			ServerName:    "London Edge",
+			ServerCountry: "UK",
+			DownloadSpeed: 80.00,
+			UploadSpeed:   60.00,
+			Ping:          20.00,
+			Jitter:        2.50,
+		},
+		{
+			ServerName:    "New York Hub",
+			ServerCountry: "USA",
+			DownloadSpeed: 110.00,
+			UploadSpeed:   40.00,
+			Ping:          8.00,
+			Jitter:        0.80,
+		},
+	}
+
+	out := formatComparisonTable(results)
+
+	// Headers must be present
+	for _, header := range []string{"SERVER", "COUNTRY", "DL (Mbps)", "UL (Mbps)", "PING (ms)", "JITTER (ms)"} {
+		if !strings.Contains(out, header) {
+			t.Errorf("Expected header %q in output, got:\n%s", header, out)
+		}
+	}
+
+	// Server names must be present
+	for _, name := range []string{"Tokyo Fiber", "London Edge", "New York Hub"} {
+		if !strings.Contains(out, name) {
+			t.Errorf("Expected server name %q in output, got:\n%s", name, out)
+		}
+	}
+
+	// Star marker must appear (best values get marked)
+	if !strings.Contains(out, "★") {
+		t.Errorf("Expected star marker '★' in output, got:\n%s", out)
+	}
+}
+
+func TestFormatComparisonTable_IdenticalValues(t *testing.T) {
+	results := []*model.SpeedTestResult{
+		{
+			ServerName:    "Server A",
+			ServerCountry: "US",
+			DownloadSpeed: 100.00,
+			UploadSpeed:   50.00,
+			Ping:          10.00,
+			Jitter:        1.00,
+		},
+		{
+			ServerName:    "Server B",
+			ServerCountry: "US",
+			DownloadSpeed: 100.00,
+			UploadSpeed:   50.00,
+			Ping:          10.00,
+			Jitter:        1.00,
+		},
+	}
+
+	// Must not panic with identical values
+	out := formatComparisonTable(results)
+
+	if !strings.Contains(out, "Server A") || !strings.Contains(out, "Server B") {
+		t.Errorf("Expected both server names in output, got:\n%s", out)
+	}
+}
