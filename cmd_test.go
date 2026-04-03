@@ -928,3 +928,80 @@ func TestFormatComparisonTable_IdenticalValues(t *testing.T) {
 		t.Errorf("Expected both server names in output, got:\n%s", out)
 	}
 }
+
+func TestRunFavoritesMutualExclusivity(t *testing.T) {
+	origFavorites := runFavorites
+	origServerID := runServerID
+	origServerIDs := runServerIDs
+	origBest := runBest
+	origCount := runCount
+	defer func() {
+		runFavorites = origFavorites
+		runServerID = origServerID
+		runServerIDs = origServerIDs
+		runBest = origBest
+		runCount = origCount
+	}()
+
+	tests := []struct {
+		name        string
+		serverID    string
+		serverIDs   string
+		best        int
+		wantErrFrag string
+	}{
+		{
+			name:        "favorites and server are mutually exclusive",
+			serverID:    "123",
+			wantErrFrag: "--favorites and --server are mutually exclusive",
+		},
+		{
+			name:        "favorites and servers are mutually exclusive",
+			serverIDs:   "1,2",
+			wantErrFrag: "--favorites and --servers are mutually exclusive",
+		},
+		{
+			name:        "favorites and best are mutually exclusive",
+			best:        3,
+			wantErrFrag: "--favorites and --best are mutually exclusive",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runCount = 1
+			runFavorites = true
+			runServerID = tt.serverID
+			runServerIDs = tt.serverIDs
+			runBest = tt.best
+
+			err := runCmd.PreRunE(nil, nil)
+			if err == nil {
+				t.Fatal("expected mutual exclusivity error, got nil")
+			}
+			if !strings.Contains(err.Error(), tt.wantErrFrag) {
+				t.Errorf("expected error containing %q, got %q", tt.wantErrFrag, err.Error())
+			}
+		})
+	}
+}
+
+func TestServersPinUnpinMutualExclusivity(t *testing.T) {
+	origPin := serversPin
+	origUnpin := serversUnpin
+	defer func() {
+		serversPin = origPin
+		serversUnpin = origUnpin
+	}()
+
+	serversPin = "123"
+	serversUnpin = "456"
+
+	err := serversCmd.RunE(nil, nil)
+	if err == nil {
+		t.Fatal("expected mutual exclusivity error, got nil")
+	}
+	if !strings.Contains(err.Error(), "--pin and --unpin are mutually exclusive") {
+		t.Errorf("expected '--pin and --unpin are mutually exclusive' error, got %q", err.Error())
+	}
+}
