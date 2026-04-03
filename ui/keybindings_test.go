@@ -16,6 +16,7 @@ func TestBindingsForContext(t *testing.T) {
 		{"Export", ContextExport, 3},
 		{"Diagnostics compact", ContextDiagCompact, 4},
 		{"Diagnostics expanded", ContextDiagExpanded, 3},
+		{"Comparison", ContextComparison, 3},
 	}
 
 	for _, tt := range tests {
@@ -41,6 +42,28 @@ func TestBindingsForContextUnknown(t *testing.T) {
 	bindings := BindingsForContext("nonexistent")
 	if len(bindings) != 0 {
 		t.Errorf("expected 0 bindings for unknown context, got %d", len(bindings))
+	}
+}
+
+func TestBindingsForContextComparison(t *testing.T) {
+	bindings := BindingsForContext(ContextComparison)
+	if len(bindings) != 3 {
+		t.Errorf("BindingsForContext(ContextComparison) returned %d bindings, want 3", len(bindings))
+	}
+
+	keys := make(map[string]bool)
+	for _, b := range bindings {
+		keys[b.Key] = true
+		if b.Context != ContextComparison {
+			t.Errorf("binding context = %q, want %q", b.Context, ContextComparison)
+		}
+	}
+
+	expectedKeys := []string{"Esc", "n", "q"}
+	for _, key := range expectedKeys {
+		if !keys[key] {
+			t.Errorf("BindingsForContext(ContextComparison) missing key %q", key)
+		}
 	}
 }
 

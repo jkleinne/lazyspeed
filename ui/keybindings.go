@@ -14,6 +14,7 @@ const (
 	ContextDiagCompact     BindingContext = "Diagnostics"
 	ContextDiagExpanded    BindingContext = "Diagnostics (Expanded)"
 	ContextAnalytics       BindingContext = "Analytics"
+	ContextComparison      BindingContext = "Comparison"
 )
 
 // Binding describes a single keybinding shown in help text.
@@ -64,6 +65,11 @@ var bindings = []Binding{
 	{Key: "Esc", Description: "Back", Context: ContextAnalytics},
 	{Key: "n", Description: "New Test", Context: ContextAnalytics},
 	{Key: "q", Description: "Quit", Context: ContextAnalytics},
+
+	// Comparison
+	{Key: "Esc", Description: "Back", Context: ContextComparison},
+	{Key: "n", Description: "New Test", Context: ContextComparison},
+	{Key: "q", Description: "Quit", Context: ContextComparison},
 }
 
 // BindingsForContext returns all bindings matching the given context.
