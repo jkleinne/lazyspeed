@@ -47,18 +47,12 @@ type DiagnosticsConfig struct {
 	Path       string `yaml:"path"`
 }
 
-// ServersConfig holds server preference configuration.
-type ServersConfig struct {
-	FavoriteIDs []string `yaml:"favorite_ids"`
-}
-
 // Config holds all configurable options for lazyspeed.
 type Config struct {
 	History     HistoryConfig     `yaml:"history"`
 	Test        TestConfig        `yaml:"test"`
 	Export      ExportConfig      `yaml:"export"`
 	Diagnostics DiagnosticsConfig `yaml:"diagnostics"`
-	Servers     ServersConfig     `yaml:"servers"`
 }
 
 // DefaultConfig returns a Config with all defaults filled in.
@@ -191,9 +185,6 @@ func LoadConfig() (*Config, error) {
 	if partial.Diagnostics.Path != "" {
 		cfg.Diagnostics.Path = partial.Diagnostics.Path
 	}
-	if len(partial.Servers.FavoriteIDs) > 0 {
-		cfg.Servers.FavoriteIDs = deduplicateStrings(partial.Servers.FavoriteIDs)
-	}
 
 	return cfg, nil
 }
@@ -244,49 +235,4 @@ func LegacyHistoryPath() (string, error) {
 		return "", fmt.Errorf("failed to resolve legacy history path: %v", err)
 	}
 	return filepath.Join(homeDir, ".lazyspeed_history.json"), nil
-}
-
-const configFilePerm = 0644
-
-// SaveConfig writes the config to the XDG config file using atomic writes.
-// Creates the config directory if it does not exist.
-func SaveConfig(cfg *Config) error {
-	configPath, err := defaultConfigPath()
-	if err != nil {
-		return fmt.Errorf("failed to resolve config path: %v", err)
-	}
-
-	if err := os.MkdirAll(filepath.Dir(configPath), 0700); err != nil {
-		return fmt.Errorf("failed to create config directory: %v", err)
-	}
-
-	data, err := yaml.Marshal(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to serialize config: %v", err)
-	}
-
-	tmpPath := configPath + ".tmp"
-	if err := os.WriteFile(tmpPath, data, configFilePerm); err != nil {
-		return fmt.Errorf("failed to write config file: %v", err)
-	}
-
-	if err := os.Rename(tmpPath, configPath); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("failed to commit config file: %v", err)
-	}
-
-	return nil
-}
-
-// deduplicateStrings returns a new slice with duplicates removed, preserving order.
-func deduplicateStrings(s []string) []string {
-	seen := make(map[string]bool, len(s))
-	result := make([]string, 0, len(s))
-	for _, v := range s {
-		if !seen[v] {
-			seen[v] = true
-			result = append(result, v)
-		}
-	}
-	return result
 }
