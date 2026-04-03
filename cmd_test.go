@@ -833,43 +833,65 @@ func TestFormatComparisonTable(t *testing.T) {
 	results := []*model.SpeedTestResult{
 		{
 			ServerName:    "Tokyo Fiber",
+			ServerSponsor: "NTT",
 			ServerCountry: "Japan",
+			Distance:      150.50,
 			DownloadSpeed: 95.12,
 			UploadSpeed:   45.23,
 			Ping:          12.40,
 			Jitter:        1.20,
+			UserIP:        "1.2.3.4",
+			UserISP:       "Bell",
 		},
 		{
 			ServerName:    "London Edge",
+			ServerSponsor: "BT",
 			ServerCountry: "UK",
+			Distance:      5400.00,
 			DownloadSpeed: 80.00,
 			UploadSpeed:   60.00,
 			Ping:          20.00,
 			Jitter:        2.50,
+			UserIP:        "1.2.3.4",
+			UserISP:       "Bell",
 		},
 		{
 			ServerName:    "New York Hub",
+			ServerSponsor: "Comcast",
 			ServerCountry: "USA",
+			Distance:      600.25,
 			DownloadSpeed: 110.00,
 			UploadSpeed:   40.00,
 			Ping:          8.00,
 			Jitter:        0.80,
+			UserIP:        "1.2.3.4",
+			UserISP:       "Bell",
 		},
 	}
 
 	out := formatComparisonTable(results)
 
-	// Headers must be present
-	for _, header := range []string{"SERVER", "COUNTRY", "DL (Mbps)", "UL (Mbps)", "PING (ms)", "JITTER (ms)"} {
+	// IP header must be present
+	if !strings.Contains(out, "IP: 1.2.3.4 (Bell)") {
+		t.Errorf("Expected IP header in output, got:\n%s", out)
+	}
+
+	// Column headers must be present
+	for _, header := range []string{"SERVER", "SPONSOR", "DIST (km)", "DL (Mbps)", "UL (Mbps)", "PING (ms)", "JITTER (ms)"} {
 		if !strings.Contains(out, header) {
 			t.Errorf("Expected header %q in output, got:\n%s", header, out)
 		}
 	}
 
-	// Server names must be present
+	// Server names and sponsors must be present
 	for _, name := range []string{"Tokyo Fiber", "London Edge", "New York Hub"} {
 		if !strings.Contains(out, name) {
 			t.Errorf("Expected server name %q in output, got:\n%s", name, out)
+		}
+	}
+	for _, sponsor := range []string{"NTT", "BT", "Comcast"} {
+		if !strings.Contains(out, sponsor) {
+			t.Errorf("Expected sponsor %q in output, got:\n%s", sponsor, out)
 		}
 	}
 

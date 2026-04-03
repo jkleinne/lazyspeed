@@ -317,13 +317,22 @@ func findBestMetrics(results []*model.SpeedTestResult) bestMetrics {
 func formatComparisonTable(results []*model.SpeedTestResult) string {
 	const (
 		colServer  = 20
-		colCountry = 10
+		colSponsor = 20
+		colDist    = 10
 		colNum     = 10
 	)
 
-	header := fmt.Sprintf("%-*s  %-*s  %*s  %*s  %*s  %*s",
+	var sb strings.Builder
+
+	if len(results) > 0 {
+		first := results[0]
+		fmt.Fprintf(&sb, "IP: %s (%s)\n\n", first.UserIP, first.UserISP)
+	}
+
+	header := fmt.Sprintf("%-*s  %-*s  %*s  %*s  %*s  %*s  %*s",
 		colServer, "SERVER",
-		colCountry, "COUNTRY",
+		colSponsor, "SPONSOR",
+		colDist, "DIST (km)",
 		colNum, "DL (Mbps)",
 		colNum, "UL (Mbps)",
 		colNum, "PING (ms)",
@@ -333,7 +342,6 @@ func formatComparisonTable(results []*model.SpeedTestResult) string {
 
 	bm := findBestMetrics(results)
 
-	var sb strings.Builder
 	sb.WriteString(header)
 	sb.WriteByte('\n')
 	sb.WriteString(separator)
@@ -347,9 +355,10 @@ func formatComparisonTable(results []*model.SpeedTestResult) string {
 			star = comparisonStarMarker
 		}
 
-		row := fmt.Sprintf("%-*s  %-*s  %*.2f  %*.2f  %*.2f  %*.2f%s",
+		row := fmt.Sprintf("%-*s  %-*s  %*.2f  %*.2f  %*.2f  %*.2f  %*.2f%s",
 			colServer, ui.Truncate(res.ServerName, comparisonServerNameMaxLen),
-			colCountry, res.ServerCountry,
+			colSponsor, ui.Truncate(res.ServerSponsor, comparisonServerNameMaxLen),
+			colDist, res.Distance,
 			colNum, res.DownloadSpeed,
 			colNum, res.UploadSpeed,
 			colNum, res.Ping,
@@ -443,7 +452,9 @@ func formatSimpleResult(res *model.SpeedTestResult) string {
 
 // formatDefaultResult formats a speed test result for terminal output.
 func formatDefaultResult(res *model.SpeedTestResult) string {
-	return fmt.Sprintf("\nDownload  %.2f Mbps\nUpload    %.2f Mbps\nPing      %.2f ms\nJitter    %.2f ms",
+	return fmt.Sprintf("\nIP        %s (%s)\nServer    %s (%s) — %.2f km\n\nDownload  %.2f Mbps\nUpload    %.2f Mbps\nPing      %.2f ms\nJitter    %.2f ms",
+		res.UserIP, res.UserISP,
+		res.ServerName, res.ServerSponsor, res.Distance,
 		res.DownloadSpeed, res.UploadSpeed, res.Ping, res.Jitter)
 }
 
