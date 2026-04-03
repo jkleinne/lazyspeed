@@ -1650,6 +1650,146 @@ func TestResultCSVRowZeroValues(t *testing.T) {
 	}
 }
 
+func TestRunMultiServer_Sequential(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	serverA := &speedtest.Server{Name: testServerNameA, Country: "US"}
+	serverB := &speedtest.Server{Name: testServerNameB, Country: "DE"}
+
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(10 * time.Millisecond)
+			return nil
+		},
+		downloadTestFn: func(s *speedtest.Server) error {
+			s.DLSpeed = 100 * bytesPerMbit
+			return nil
+		},
+		uploadTestFn: func(s *speedtest.Server) error {
+			s.ULSpeed = 50 * bytesPerMbit
+			return nil
+		},
+	}, nil)
+
+	updateChan := make(chan ProgressUpdate, 100)
+	results, serverErrors := m.RunMultiServer(context.Background(), []*speedtest.Server{serverA, serverB}, updateChan)
+
+	if len(serverErrors) != 0 {
+		t.Errorf("Expected 0 server errors, got %d: %v", len(serverErrors), serverErrors)
+	}
+	if len(results) != 2 {
+		t.Fatalf("Expected 2 results, got %d", len(results))
+	}
+	if results[0].ServerName != testServerNameA {
+		t.Errorf("Expected first result for Server A, got %q", results[0].ServerName)
+	}
+	if results[1].ServerName != testServerNameB {
+		t.Errorf("Expected second result for Server B, got %q", results[1].ServerName)
+	}
+	if m.State != StateIdle {
+		t.Errorf("Expected StateIdle after completion, got %v", m.State)
+	}
+	if len(m.History.Entries) != 2 {
+		t.Errorf("Expected 2 history entries, got %d", len(m.History.Entries))
+	}
+
+	var updates []ProgressUpdate
+drain:
+	for {
+		select {
+		case u := <-updateChan:
+			updates = append(updates, u)
+		default:
+			break drain
+		}
+	}
+	if len(updates) == 0 {
+		t.Errorf("Expected progress updates to be sent on updateChan")
+	}
+}
+
+func TestRunMultiServer_PartialFailure(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	serverA := &speedtest.Server{Name: testServerNameA, Country: "US"}
+	serverB := &speedtest.Server{Name: testServerNameB, Country: "DE"}
+
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(10 * time.Millisecond)
+			return nil
+		},
+		downloadTestFn: func(s *speedtest.Server) error {
+			if s.Name == testServerNameA {
+				return errors.New("connection refused")
+			}
+			s.DLSpeed = 100 * bytesPerMbit
+			return nil
+		},
+		uploadTestFn: func(s *speedtest.Server) error {
+			s.ULSpeed = 50 * bytesPerMbit
+			return nil
+		},
+	}, nil)
+
+	updateChan := make(chan ProgressUpdate, 100)
+	results, serverErrors := m.RunMultiServer(context.Background(), []*speedtest.Server{serverA, serverB}, updateChan)
+
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 result (Server B), got %d", len(results))
+	}
+	if results[0].ServerName != testServerNameB {
+		t.Errorf("Expected result for Server B, got %q", results[0].ServerName)
+	}
+
+	if len(serverErrors) != 1 {
+		t.Fatalf("Expected 1 ServerError (Server A), got %d", len(serverErrors))
+	}
+	if serverErrors[0].ServerName != testServerNameA {
+		t.Errorf("Expected ServerError for Server A, got %q", serverErrors[0].ServerName)
+	}
+	if serverErrors[0].Err == nil {
+		t.Errorf("Expected non-nil Err in ServerError for Server A")
+	}
+}
+
+func TestRunMultiServer_AllFail(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	serverA := &speedtest.Server{Name: testServerNameA, Country: "US"}
+	serverB := &speedtest.Server{Name: testServerNameB, Country: "DE"}
+
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, _ func(time.Duration)) error {
+			return errors.New("ping timeout")
+		},
+	}, nil)
+
+	updateChan := make(chan ProgressUpdate, 100)
+	results, serverErrors := m.RunMultiServer(context.Background(), []*speedtest.Server{serverA, serverB}, updateChan)
+
+	if len(results) != 0 {
+		t.Errorf("Expected 0 results, got %d", len(results))
+	}
+	if len(serverErrors) != 2 {
+		t.Fatalf("Expected 2 ServerErrors, got %d", len(serverErrors))
+	}
+
+	errorNames := make([]string, len(serverErrors))
+	for i, se := range serverErrors {
+		errorNames[i] = se.ServerName
+		if se.Err == nil {
+			t.Errorf("Expected non-nil Err for ServerError %d (%q)", i, se.ServerName)
+		}
+	}
+	if !strings.Contains(strings.Join(errorNames, ","), testServerNameA) {
+		t.Errorf("Expected ServerError for Server A, got errors: %v", errorNames)
+	}
+	if !strings.Contains(strings.Join(errorNames, ","), testServerNameB) {
+		t.Errorf("Expected ServerError for Server B, got errors: %v", errorNames)
+	}
+}
+
 func TestMeasurePing(t *testing.T) {
 	latencies := []time.Duration{
 		10 * time.Millisecond,

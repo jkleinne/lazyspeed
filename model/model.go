@@ -545,6 +545,134 @@ func (m *Model) RunMultiServerHeadless(
 	return results, serverErrors
 }
 
+// testSingleServer runs all test phases for one server in TUI mode, using
+// runTransferPhase (with its EWMA-based live progress goroutine) for downloads
+// and uploads. Progress values are scaled into [baseProgress, baseProgress+serverSpan]
+// so each server occupies its own slice of the overall 0–1 progress range.
+func (m *Model) testSingleServer(
+	ctx context.Context,
+	server *speedtest.Server,
+	baseProgress, serverSpan float64,
+	prefix string,
+	updateChan chan<- ProgressUpdate,
+) (*SpeedTestResult, error) {
+	scaleProgress := func(fraction float64) float64 {
+		return baseProgress + fraction*serverSpan
+	}
+
+	sendUpdate(scaleProgress(progressPingStart), prefix+" — Measuring ping and jitter...", updateChan)
+	pr, err := measurePing(ctx, m.backend, server, m.Config.PingCount(), func(pingNum int, ping, jitter float64) {
+		if jitter > 0 {
+			sendUpdate(scaleProgress(progressPingStart+float64(pingNum)*progressPingIncrement),
+				fmt.Sprintf("%s — Ping: %.1f ms, Jitter: %.1f ms", prefix, ping, jitter), updateChan)
+		} else {
+			sendUpdate(scaleProgress(progressPingStart+float64(pingNum)*progressPingIncrement),
+				fmt.Sprintf("%s — Ping: %.1f ms", prefix, ping), updateChan)
+		}
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to measure ping: %v", err)
+	}
+	if len(pr.pings) == 0 {
+		errMsg := "all ping measurements failed"
+		if pr.lastErr != nil {
+			errMsg = fmt.Sprintf("%s (last error: %v)", errMsg, pr.lastErr)
+		}
+		return nil, fmt.Errorf("failed to measure ping: %s", errMsg)
+	}
+
+	sendUpdate(scaleProgress(progressDownloadStart), prefix+" — Starting download test...", updateChan)
+	downloadSpeed, err := runTransferPhase(ctx, transferPhase{
+		start:   scaleProgress(progressDownloadStart),
+		span:    serverSpan * progressDownloadSpan,
+		maxProg: scaleProgress(progressDownloadMax),
+		label:   "download",
+		rateFn:  func() float64 { return server.Context.GetEWMADownloadRate() },
+	}, func() error { return m.backend.DownloadTest(server) },
+		func() float64 { return float64(server.DLSpeed) }, updateChan)
+	if err != nil {
+		return nil, err
+	}
+	sendUpdate(scaleProgress(progressDownloadDone), fmt.Sprintf("%s — Download: %.2f Mbps", prefix, downloadSpeed), updateChan)
+
+	sendUpdate(scaleProgress(progressUploadStart), prefix+" — Starting upload test...", updateChan)
+	uploadSpeed, err := runTransferPhase(ctx, transferPhase{
+		start:   scaleProgress(progressUploadStart),
+		span:    serverSpan * progressUploadSpan,
+		maxProg: scaleProgress(progressUploadMax),
+		label:   "upload",
+		rateFn:  func() float64 { return server.Context.GetEWMAUploadRate() },
+	}, func() error { return m.backend.UploadTest(server) },
+		func() float64 { return float64(server.ULSpeed) }, updateChan)
+	if err != nil {
+		return nil, err
+	}
+	sendUpdate(scaleProgress(progressUploadDone), fmt.Sprintf("%s — Upload: %.2f Mbps", prefix, uploadSpeed), updateChan)
+
+	userIP, userISP := m.userInfo()
+	return buildResult(server, pr, downloadSpeed, uploadSpeed, userIP, userISP), nil
+}
+
+// RunMultiServer orchestrates sequential TUI speed tests across multiple servers.
+// It sets StateTesting at the start and StateIdle on completion. Unlike
+// PerformSpeedTest it does not call initTestState, so existing History.Results
+// is preserved between calls to this method and PerformSpeedTest.
+//
+// Progress updates are sent on updateChan. Each server occupies an equal slice
+// of the 0–1 progress range. Per-server failures are collected as ServerErrors;
+// context cancellation records all remaining untested servers as errors and
+// stops the loop early.
+func (m *Model) RunMultiServer(
+	ctx context.Context,
+	servers []*speedtest.Server,
+	updateChan chan<- ProgressUpdate,
+) ([]*SpeedTestResult, []ServerError) {
+	m.State = StateTesting
+	m.Error = nil
+	m.Warning = ""
+	m.Progress = 0
+
+	if err := m.fetchNetworkInfo(ctx, updateChan); err != nil {
+		m.State = StateIdle
+		return nil, nil
+	}
+
+	total := len(servers)
+	var results []*SpeedTestResult
+	var serverErrors []ServerError
+
+	for i, server := range servers {
+		if ctx.Err() != nil {
+			for _, remaining := range servers[i:] {
+				serverErrors = append(serverErrors, ServerError{
+					ServerName: remaining.Name,
+					Err:        ctx.Err(),
+				})
+			}
+			break
+		}
+
+		baseProgress := float64(i) / float64(total)
+		serverSpan := 1.0 / float64(total)
+		prefix := fmt.Sprintf("[%d/%d] %s", i+1, total, server.Name)
+
+		result, err := m.testSingleServer(ctx, server, baseProgress, serverSpan, prefix, updateChan)
+		if err != nil {
+			serverErrors = append(serverErrors, ServerError{ServerName: server.Name, Err: err})
+			continue
+		}
+
+		m.History.Append(result)
+		if saveErr := m.History.Save(); saveErr != nil {
+			m.Warning = fmt.Sprintf("failed to save history: %v", saveErr)
+		}
+		results = append(results, result)
+	}
+
+	m.State = StateIdle
+	return results, serverErrors
+}
+
 func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts RunOptions) (*SpeedTestResult, error) {
 	callProgressFn(opts.ProgressFn, "Fetching network information...")
 	user, userErr := m.backend.FetchUserInfo()
