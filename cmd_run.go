@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jkleinne/lazyspeed/model"
+	"github.com/jkleinne/lazyspeed/ui"
 	"github.com/showwin/speedtest-go/speedtest"
 	"github.com/spf13/cobra"
 )
@@ -43,6 +44,9 @@ var runCmd = &cobra.Command{
 	PreRunE: func(_ *cobra.Command, _ []string) error {
 		if runCount < 1 {
 			return fmt.Errorf("--count must be at least 1, got %d", runCount)
+		}
+		if runBest < 0 {
+			return fmt.Errorf("--best must be a positive number, got %d", runBest)
 		}
 		if runBest > 0 && runServerIDs != "" {
 			return fmt.Errorf("--best and --servers are mutually exclusive")
@@ -237,16 +241,6 @@ func runMultiServerHeadless(m *model.Model, interactive bool) {
 	}
 }
 
-// truncateServerName truncates a server name to comparisonServerNameMaxLen runes,
-// appending "…" when truncation occurs.
-func truncateServerName(name string) string {
-	runes := []rune(name)
-	if len(runes) <= comparisonServerNameMaxLen {
-		return name
-	}
-	return string(runes[:comparisonServerNameMaxLen-1]) + "…"
-}
-
 // bestMetrics identifies the best (highest DL/UL, lowest Ping/Jitter) result indices.
 // When all values are identical the returned index is -1 so no star is emitted.
 type bestMetrics struct {
@@ -348,7 +342,7 @@ func formatComparisonTable(results []*model.SpeedTestResult) string {
 		}
 
 		row := fmt.Sprintf("%-*s  %-*s  %*.2f  %*.2f  %*.2f  %*.2f%s",
-			colServer, truncateServerName(res.ServerName),
+			colServer, ui.Truncate(res.ServerName, comparisonServerNameMaxLen),
 			colCountry, res.ServerCountry,
 			colNum, res.DownloadSpeed,
 			colNum, res.UploadSpeed,

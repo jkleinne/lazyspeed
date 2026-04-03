@@ -383,9 +383,31 @@ func RenderComparison(results []*model.SpeedTestResult, errs []model.ServerError
 }
 
 // findBestMetrics returns the indices of the results with the highest DL/UL
-// and lowest Ping/Jitter. All indices default to 0 for a single-result slice.
+// and lowest Ping/Jitter. Returns -1 for a metric when all values are identical
+// so that no star is shown when there is no meaningful winner.
 func findBestMetrics(results []*model.SpeedTestResult) (bestDL, bestUL, bestPing, bestJitter int) {
+	allDLEqual := true
+	allULEqual := true
+	allPingEqual := true
+	allJitterEqual := true
+
 	for i, r := range results {
+		if i == 0 {
+			continue
+		}
+		if r.DownloadSpeed != results[0].DownloadSpeed {
+			allDLEqual = false
+		}
+		if r.UploadSpeed != results[0].UploadSpeed {
+			allULEqual = false
+		}
+		if r.Ping != results[0].Ping {
+			allPingEqual = false
+		}
+		if r.Jitter != results[0].Jitter {
+			allJitterEqual = false
+		}
+
 		if r.DownloadSpeed > results[bestDL].DownloadSpeed {
 			bestDL = i
 		}
@@ -399,6 +421,20 @@ func findBestMetrics(results []*model.SpeedTestResult) (bestDL, bestUL, bestPing
 			bestJitter = i
 		}
 	}
+
+	if allDLEqual {
+		bestDL = -1
+	}
+	if allULEqual {
+		bestUL = -1
+	}
+	if allPingEqual {
+		bestPing = -1
+	}
+	if allJitterEqual {
+		bestJitter = -1
+	}
+
 	return bestDL, bestUL, bestPing, bestJitter
 }
 

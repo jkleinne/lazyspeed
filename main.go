@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -635,9 +636,15 @@ func waitForMultiServer(progressChan chan model.ProgressUpdate, resultChan chan 
 }
 
 func (s *speedTest) startMultiServerTest() (tea.Model, tea.Cmd) {
-	servers := make([]*speedtest.Server, 0, len(s.selectedServers))
-	raw := s.model.Servers.Raw()
+	indices := make([]int, 0, len(s.selectedServers))
 	for idx := range s.selectedServers {
+		indices = append(indices, idx)
+	}
+	slices.Sort(indices)
+
+	raw := s.model.Servers.Raw()
+	servers := make([]*speedtest.Server, 0, len(indices))
+	for _, idx := range indices {
 		if idx >= 0 && idx < len(raw) {
 			servers = append(servers, raw[idx])
 		}
