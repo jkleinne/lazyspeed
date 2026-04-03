@@ -121,6 +121,7 @@ func TestUpdateKeyMsgNavigation(t *testing.T) {
 	})
 	m.State = model.StateSelectingServer
 	s := speedTest{model: m}
+	s.computeDisplayOrder()
 
 	// Initial cursor is 0. Move down.
 	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
@@ -907,6 +908,7 @@ func TestAdjustServerListOffset(t *testing.T) {
 			m.Servers.SetRaw(servers)
 
 			s := speedTest{model: m, spinner: ui.DefaultSpinner, cursor: tt.cursor, serverListOffset: tt.offset}
+			s.computeDisplayOrder()
 			s.adjustServerListOffset()
 
 			if s.serverListOffset != tt.expectedOffset {
@@ -926,6 +928,7 @@ func TestServerSelectionViewportNavigation(t *testing.T) {
 	}
 	m.Servers.SetRaw(servers)
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+	s.computeDisplayOrder()
 
 	// Move cursor down past visible area
 	for i := 0; i < 10; i++ {
@@ -1814,6 +1817,7 @@ func TestServerSelectionLargeListViewport(t *testing.T) {
 	m.State = model.StateSelectingServer
 	m.Servers.SetRaw(servers)
 	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+	s.computeDisplayOrder()
 
 	// Navigate down 20 times
 	for i := 0; i < 20; i++ {
@@ -1862,6 +1866,80 @@ func TestWindowResizeTiny(t *testing.T) {
 
 	// The test passes if View() does not panic on a tiny window
 	_ = newS.View()
+}
+
+func TestComputeDisplayOrder_FavoritesFirst(t *testing.T) {
+	m := model.NewModel(&noopBackend{}, model.DefaultConfig())
+	m.Config.Servers.FavoriteIDs = []string{"B"}
+
+	m.Servers.SetRaw(speedtest.Servers{
+		&speedtest.Server{ID: "A", Name: "ServerA"},
+		&speedtest.Server{ID: "B", Name: "ServerB"},
+		&speedtest.Server{ID: "C", Name: "ServerC"},
+	})
+
+	s := &speedTest{model: m}
+	s.computeDisplayOrder()
+
+	if len(s.displayOrder) != 3 {
+		t.Fatalf("expected 3 entries, got %d", len(s.displayOrder))
+	}
+	// B (favorite) should be first, at raw index 1
+	if s.displayOrder[0] != 1 {
+		t.Errorf("expected favorite (raw index 1) first, got %d", s.displayOrder[0])
+	}
+	// A and C follow at raw indices 0 and 2
+	if s.displayOrder[1] != 0 || s.displayOrder[2] != 2 {
+		t.Errorf("unexpected order: %v", s.displayOrder)
+	}
+}
+
+func TestComputeDisplayOrder_NoFavorites(t *testing.T) {
+	m := model.NewModel(&noopBackend{}, model.DefaultConfig())
+	m.Servers.SetRaw(speedtest.Servers{
+		&speedtest.Server{ID: "A", Name: "ServerA"},
+		&speedtest.Server{ID: "B", Name: "ServerB"},
+	})
+
+	s := &speedTest{model: m}
+	s.computeDisplayOrder()
+
+	if s.displayOrder[0] != 0 || s.displayOrder[1] != 1 {
+		t.Errorf("expected identity order, got %v", s.displayOrder)
+	}
+}
+
+func TestComputeDisplayOrder_StaleFavorite(t *testing.T) {
+	m := model.NewModel(&noopBackend{}, model.DefaultConfig())
+	m.Config.Servers.FavoriteIDs = []string{"GONE", "A"}
+
+	m.Servers.SetRaw(speedtest.Servers{
+		&speedtest.Server{ID: "A", Name: "ServerA"},
+		&speedtest.Server{ID: "B", Name: "ServerB"},
+	})
+
+	s := &speedTest{model: m}
+	s.computeDisplayOrder()
+
+	if len(s.displayOrder) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(s.displayOrder))
+	}
+	// "GONE" is not in the server list; only "A" (raw index 0) should be promoted
+	if s.displayOrder[0] != 0 {
+		t.Errorf("expected A (raw index 0) first as only valid favorite, got %d", s.displayOrder[0])
+	}
+}
+
+func TestRawIndex_TranslatesCorrectly(t *testing.T) {
+	s := &speedTest{
+		displayOrder: []int{2, 0, 1},
+	}
+	if s.rawIndex(0) != 2 {
+		t.Errorf("expected raw index 2, got %d", s.rawIndex(0))
+	}
+	if s.rawIndex(1) != 0 {
+		t.Errorf("expected raw index 0, got %d", s.rawIndex(1))
+	}
 }
 
 func TestDiagExpandedScrollClamping(t *testing.T) {

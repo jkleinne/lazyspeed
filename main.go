@@ -73,6 +73,7 @@ type speedTest struct {
 	showHelp         bool
 	cursor           int
 	serverListOffset int
+	displayOrder     []int // maps display position → raw server index
 	historyOffset    int
 }
 
@@ -149,8 +150,68 @@ func (s *speedTest) cancelTestIfRunning() {
 	}
 }
 
-func (s *speedTest) adjustServerListOffset() {
+// computeDisplayOrder builds the display-position-to-raw-index mapping.
+// Favorites appear first (in latency order), then non-favorites (in latency order).
+// The raw server list from ServerStore.List() is already sorted by latency,
+// so iterating in order preserves latency sorting within each section.
+func (s *speedTest) computeDisplayOrder() {
 	total := s.model.Servers.Len()
+	if total == 0 {
+		s.displayOrder = nil
+		return
+	}
+
+	favSet := s.favoriteSet()
+	servers := s.model.Servers.List()
+	favorites := make([]int, 0)
+	others := make([]int, 0, total)
+
+	for i := range total {
+		if favSet[servers[i].ID] {
+			favorites = append(favorites, i)
+		} else {
+			others = append(others, i)
+		}
+	}
+
+	s.displayOrder = make([]int, 0, total)
+	s.displayOrder = append(s.displayOrder, favorites...)
+	s.displayOrder = append(s.displayOrder, others...)
+}
+
+// favoriteSet returns the current favorite IDs as a set for O(1) lookup.
+func (s *speedTest) favoriteSet() map[string]bool {
+	ids := s.model.Config.Servers.FavoriteIDs
+	set := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		set[id] = true
+	}
+	return set
+}
+
+// displayServers returns servers reordered by displayOrder for rendering.
+func (s *speedTest) displayServers() []model.Server {
+	all := s.model.Servers.List()
+	if len(s.displayOrder) == 0 {
+		return all
+	}
+	ordered := make([]model.Server, len(s.displayOrder))
+	for i, rawIdx := range s.displayOrder {
+		ordered[i] = all[rawIdx]
+	}
+	return ordered
+}
+
+// rawIndex translates a display-position cursor to the raw server index.
+func (s *speedTest) rawIndex(displayIdx int) int {
+	if displayIdx >= 0 && displayIdx < len(s.displayOrder) {
+		return s.displayOrder[displayIdx]
+	}
+	return displayIdx
+}
+
+func (s *speedTest) adjustServerListOffset() {
+	total := len(s.displayOrder)
 	visible := ui.ServerListVisibleLines(s.model.Height, total)
 
 	if s.cursor >= s.serverListOffset+visible {
@@ -237,6 +298,7 @@ func (s *speedTest) handleServerListMsg(msg serverListMsg) (tea.Model, tea.Cmd) 
 		s.model.State = model.StateSelectingServer
 		s.cursor = 0
 		s.serverListOffset = 0
+		s.computeDisplayOrder()
 	}
 	return s, nil
 }
@@ -322,7 +384,7 @@ func (s *speedTest) handleServerSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cm
 			s.adjustServerListOffset()
 		}
 	case keyDown, keyJ:
-		if s.cursor < s.model.Servers.Len()-1 {
+		if s.cursor < len(s.displayOrder)-1 {
 			s.cursor++
 			s.adjustServerListOffset()
 		}
@@ -335,12 +397,56 @@ func (s *speedTest) handleServerSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cm
 		} else {
 			s.selectedServers[s.cursor] = true
 		}
+	case "f":
+		return s.toggleFavorite()
 	case "enter":
 		if len(s.selectedServers) >= 2 {
 			return s.startMultiServerTest()
 		}
 		return s.startSpeedTest()
 	}
+	return s, nil
+}
+
+// toggleFavorite adds or removes the highlighted server from favorites,
+// saves config, recomputes display order, and moves cursor to follow the server.
+func (s *speedTest) toggleFavorite() (tea.Model, tea.Cmd) {
+	if s.cursor < 0 || s.cursor >= len(s.displayOrder) {
+		return s, nil
+	}
+
+	rawIdx := s.rawIndex(s.cursor)
+	serverID := s.model.Servers.List()[rawIdx].ID
+
+	favs := s.model.Config.Servers.FavoriteIDs
+	found := false
+	for i, id := range favs {
+		if id == serverID {
+			s.model.Config.Servers.FavoriteIDs = append(favs[:i], favs[i+1:]...)
+			found = true
+			break
+		}
+	}
+	if !found {
+		s.model.Config.Servers.FavoriteIDs = append(favs, serverID)
+	}
+
+	if err := model.SaveConfig(s.model.Config); err != nil {
+		s.model.Warning = fmt.Sprintf("could not save config: %v", err)
+	}
+
+	s.computeDisplayOrder()
+
+	// Move cursor to follow the toggled server.
+	for i, rawI := range s.displayOrder {
+		if rawI == rawIdx {
+			s.cursor = i
+			break
+		}
+	}
+
+	s.selectedServers = nil
+	s.adjustServerListOffset()
 	return s, nil
 }
 
@@ -388,6 +494,7 @@ func (s *speedTest) startNewTest() (tea.Model, tea.Cmd) {
 	s.model.State = model.StateSelectingServer
 	s.cursor = 0
 	s.serverListOffset = 0
+	s.computeDisplayOrder()
 	return s, nil
 }
 
@@ -528,7 +635,8 @@ func (s *speedTest) View() string {
 }
 
 func (s *speedTest) startSpeedTest() (tea.Model, tea.Cmd) {
-	if s.cursor < 0 || s.cursor >= s.model.Servers.Len() {
+	rawIdx := s.rawIndex(s.cursor)
+	if rawIdx < 0 || rawIdx >= s.model.Servers.Len() {
 		s.model.Error = fmt.Errorf("invalid server selection")
 		s.model.State = model.StateIdle
 		s.showHelp = false
@@ -546,7 +654,7 @@ func (s *speedTest) startSpeedTest() (tea.Model, tea.Cmd) {
 	s.progressChan = make(chan model.ProgressUpdate)
 	s.errChan = make(chan error, 1)
 	go func() {
-		server := s.model.Servers.Raw()[s.cursor]
+		server := s.model.Servers.Raw()[rawIdx]
 		err := s.model.PerformSpeedTest(ctx, server, s.progressChan)
 		s.errChan <- err
 		close(s.progressChan)
@@ -567,12 +675,12 @@ func (s *speedTest) renderMainView() string {
 		b.WriteString("\n\n")
 
 	case model.StateSelectingServer:
-		b.WriteString(ui.RenderServerSelection(s.model.Servers.List(), ui.Viewport{
+		b.WriteString(ui.RenderServerSelection(s.displayServers(), ui.Viewport{
 			Width:  s.model.Width,
 			Height: s.model.Height,
 			Offset: s.serverListOffset,
 			Cursor: s.cursor,
-		}, s.selectedServers))
+		}, s.selectedServers, s.favoriteSet()))
 
 	case model.StateTesting:
 		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, s.model.Progress))
@@ -637,8 +745,8 @@ func waitForMultiServer(progressChan chan model.ProgressUpdate, resultChan chan 
 
 func (s *speedTest) startMultiServerTest() (tea.Model, tea.Cmd) {
 	indices := make([]int, 0, len(s.selectedServers))
-	for idx := range s.selectedServers {
-		indices = append(indices, idx)
+	for displayIdx := range s.selectedServers {
+		indices = append(indices, s.rawIndex(displayIdx))
 	}
 	slices.Sort(indices)
 

@@ -280,9 +280,11 @@ func ServerListVisibleLines(height, total int) int {
 
 // RenderServerSelection renders the server list with viewport-based windowing.
 // The cursor row is highlighted with a purple accent; rows in selected are marked
-// with a ✓; unselected rows are dimmed. Latency is color-coded green/amber/red.
+// with a ✓; favorite servers show a ★ prefix. Latency is color-coded green/amber/red.
 // A nil selected map is treated as empty — no rows are marked as selected.
-func RenderServerSelection(servers []model.Server, vp Viewport, selected map[int]bool) string {
+// A divider separates favorites from non-favorites when favorites exist.
+// Precondition: servers must be ordered with favorites grouped at the front.
+func RenderServerSelection(servers []model.Server, vp Viewport, selected map[int]bool, favoriteIDs map[string]bool) string {
 	var b strings.Builder
 	b.WriteString(sectionLabelStyle.Render("Select a server:"))
 	b.WriteString("\n\n")
@@ -294,6 +296,16 @@ func RenderServerSelection(servers []model.Server, vp Viewport, selected map[int
 		return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, b.String())
 	}
 
+	// Count leading favorites for divider placement.
+	favCount := 0
+	for _, s := range servers {
+		if favoriteIDs[s.ID] {
+			favCount++
+		} else {
+			break
+		}
+	}
+
 	visible := ServerListVisibleLines(vp.Height, total)
 	offset, end := clampViewport(total, visible, vp.Offset)
 
@@ -303,6 +315,11 @@ func RenderServerSelection(servers []model.Server, vp Viewport, selected map[int
 	}
 
 	for i := offset; i < end; i++ {
+		if i == favCount && favCount > 0 && i > offset {
+			b.WriteString(dimStyle.Render("  " + strings.Repeat("─", 40)))
+			b.WriteString("\n")
+		}
+
 		server := servers[i]
 		latencyMs := diag.DurationMs(server.Latency)
 		latencyStr := latencyStyle(server.Latency).Render(fmt.Sprintf("%.2f ms", latencyMs))
@@ -310,16 +327,26 @@ func RenderServerSelection(servers []model.Server, vp Viewport, selected map[int
 		line := fmt.Sprintf("%s: %s (%s) — %s",
 			server.Sponsor, server.Name, server.Country, latencyStr)
 
+		isFav := favoriteIDs[server.ID]
+
 		if vp.Cursor == i {
-			accent := selectedAccentStyle.Render("▸ ")
-			row := selectedRowStyle.Render(line)
-			b.WriteString(accent + row)
+			prefix := "▸ "
+			if isFav {
+				prefix = "▸★"
+			}
+			b.WriteString(selectedAccentStyle.Render(prefix) + selectedRowStyle.Render(line))
 		} else if selected[i] {
-			accent := selectedAccentStyle.Render("✓ ")
-			row := unselectedRowStyle.Render(line)
-			b.WriteString(accent + row)
+			prefix := "✓ "
+			if isFav {
+				prefix = "✓★"
+			}
+			b.WriteString(selectedAccentStyle.Render(prefix) + unselectedRowStyle.Render(line))
 		} else {
-			b.WriteString(unselectedRowStyle.Render("  " + line))
+			prefix := "  "
+			if isFav {
+				prefix = "★ "
+			}
+			b.WriteString(unselectedRowStyle.Render(prefix + line))
 		}
 		b.WriteString("\n")
 	}
