@@ -77,6 +77,9 @@ var runCmd = &cobra.Command{
 			if runBest > 0 {
 				return fmt.Errorf("--favorites and --best are mutually exclusive")
 			}
+			if runCount > 1 {
+				return fmt.Errorf("--favorites and --count are mutually exclusive")
+			}
 		}
 		return nil
 	},
