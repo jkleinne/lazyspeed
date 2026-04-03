@@ -197,7 +197,10 @@ func runMultiServerHeadless(m *model.Model, interactive bool) {
 	}
 	if interactive {
 		opts.ProgressFn = func(phase string) {
-			fmt.Fprintf(os.Stderr, "  %s\n", phase)
+			fmt.Fprintf(os.Stderr, "\r\033[K  %s", phase)
+			if strings.HasSuffix(phase, "Mbps") {
+				fmt.Fprint(os.Stderr, "\n")
+			}
 		}
 	}
 
@@ -210,6 +213,9 @@ func runMultiServerHeadless(m *model.Model, interactive bool) {
 	defer cancel()
 
 	results, serverErrors := m.RunMultiServerHeadless(ctx, servers, opts)
+	if interactive {
+		fmt.Fprint(os.Stderr, "\n")
+	}
 
 	for _, se := range serverErrors {
 		fmt.Fprintf(os.Stderr, "Warning: server %q failed: %v\n", se.ServerName, se.Err)
@@ -375,7 +381,10 @@ func runHeadlessTest() {
 	}
 	if interactive {
 		opts.ProgressFn = func(phase string) {
-			fmt.Fprintf(os.Stderr, "  %s\n", phase)
+			fmt.Fprintf(os.Stderr, "\r\033[K  %s", phase)
+			if strings.HasSuffix(phase, "Mbps") {
+				fmt.Fprint(os.Stderr, "\n")
+			}
 		}
 	}
 
@@ -395,6 +404,9 @@ func runHeadlessTest() {
 		testCtx, testCancel := context.WithTimeout(context.Background(), m.Config.TestTimeoutDuration())
 		res, err := m.RunHeadless(testCtx, server, opts)
 		testCancel()
+		if interactive {
+			fmt.Fprint(os.Stderr, "\n")
+		}
 		if err != nil {
 			exitWithError("running test: %v", err)
 		}
