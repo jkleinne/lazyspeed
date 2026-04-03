@@ -14,6 +14,13 @@ import (
 	"github.com/showwin/speedtest-go/speedtest"
 )
 
+// Test server name constants used across multiple test functions.
+const (
+	testServerNameA = "Server A"
+	testServerNameB = "Server B"
+	testServerNameC = "Server C"
+)
+
 // mockBackend implements Backend for testing
 type mockBackend struct {
 	fetchUserInfoFn func() (*speedtest.User, error)
@@ -271,9 +278,9 @@ func TestFetchServers(t *testing.T) {
 	m := NewModel(&mockBackend{
 		fetchServersFn: func() (speedtest.Servers, error) {
 			return speedtest.Servers{
-				&speedtest.Server{Name: "Server C", Latency: 30 * time.Millisecond},
-				&speedtest.Server{Name: "Server A", Latency: 10 * time.Millisecond},
-				&speedtest.Server{Name: "Server B", Latency: 20 * time.Millisecond},
+				&speedtest.Server{Name: testServerNameC, Latency: 30 * time.Millisecond},
+				&speedtest.Server{Name: testServerNameA, Latency: 10 * time.Millisecond},
+				&speedtest.Server{Name: testServerNameB, Latency: 20 * time.Millisecond},
 			}, nil
 		},
 	}, nil)
@@ -287,7 +294,7 @@ func TestFetchServers(t *testing.T) {
 	}
 	// Verify sorted by latency
 	raw := m.Servers.Raw()
-	if raw[0].Name != "Server A" || raw[1].Name != "Server B" || raw[2].Name != "Server C" {
+	if raw[0].Name != testServerNameA || raw[1].Name != testServerNameB || raw[2].Name != testServerNameC {
 		t.Errorf("Servers not sorted correctly by latency")
 	}
 
@@ -1054,6 +1061,151 @@ func TestPerformSpeedTestUploadFailure(t *testing.T) {
 	err := m.PerformSpeedTest(context.Background(), &speedtest.Server{}, make(chan ProgressUpdate, 100))
 	if err == nil || !strings.Contains(err.Error(), "upload test failed") {
 		t.Errorf("Expected error containing 'upload test failed', got %v", err)
+	}
+}
+
+func TestRunMultiServerHeadless_Sequential(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	serverA := &speedtest.Server{Name: testServerNameA, Country: "US"}
+	serverB := &speedtest.Server{Name: testServerNameB, Country: "DE"}
+
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(10 * time.Millisecond)
+			return nil
+		},
+		downloadTestFn: func(s *speedtest.Server) error {
+			s.DLSpeed = 100 * bytesPerMbit
+			return nil
+		},
+		uploadTestFn: func(s *speedtest.Server) error {
+			s.ULSpeed = 50 * bytesPerMbit
+			return nil
+		},
+	}, nil)
+
+	var phases []string
+	opts := RunOptions{
+		ProgressFn: func(phase string) {
+			phases = append(phases, phase)
+		},
+	}
+
+	results, serverErrors := m.RunMultiServerHeadless(context.Background(), []*speedtest.Server{serverA, serverB}, opts)
+
+	if len(serverErrors) != 0 {
+		t.Errorf("Expected 0 server errors, got %d: %v", len(serverErrors), serverErrors)
+	}
+	if len(results) != 2 {
+		t.Fatalf("Expected 2 results, got %d", len(results))
+	}
+	if results[0].ServerName != testServerNameA {
+		t.Errorf("Expected first result for Server A, got %q", results[0].ServerName)
+	}
+	if results[1].ServerName != testServerNameB {
+		t.Errorf("Expected second result for Server B, got %q", results[1].ServerName)
+	}
+	if len(m.History.Entries) != 2 {
+		t.Errorf("Expected 2 history entries, got %d", len(m.History.Entries))
+	}
+
+	// Verify progress phases contain server context in [N/M] format.
+	foundServerA := false
+	foundServerB := false
+	for _, p := range phases {
+		if strings.Contains(p, "[1/2]") && strings.Contains(p, testServerNameA) {
+			foundServerA = true
+		}
+		if strings.Contains(p, "[2/2]") && strings.Contains(p, testServerNameB) {
+			foundServerB = true
+		}
+	}
+	if !foundServerA {
+		t.Errorf("Expected a progress phase containing '[1/2] Server A', got phases: %v", phases)
+	}
+	if !foundServerB {
+		t.Errorf("Expected a progress phase containing '[2/2] Server B', got phases: %v", phases)
+	}
+}
+
+func TestRunMultiServerHeadless_PartialFailure(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	serverA := &speedtest.Server{Name: testServerNameA, Country: "US"}
+	serverB := &speedtest.Server{Name: testServerNameB, Country: "DE"}
+
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, fn func(time.Duration)) error {
+			fn(10 * time.Millisecond)
+			return nil
+		},
+		downloadTestFn: func(s *speedtest.Server) error {
+			if s.Name == testServerNameA {
+				return errors.New("connection refused")
+			}
+			s.DLSpeed = 100 * bytesPerMbit
+			return nil
+		},
+		uploadTestFn: func(s *speedtest.Server) error {
+			s.ULSpeed = 50 * bytesPerMbit
+			return nil
+		},
+	}, nil)
+
+	results, serverErrors := m.RunMultiServerHeadless(context.Background(), []*speedtest.Server{serverA, serverB}, RunOptions{})
+
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 result (Server B), got %d", len(results))
+	}
+	if results[0].ServerName != testServerNameB {
+		t.Errorf("Expected result for Server B, got %q", results[0].ServerName)
+	}
+
+	if len(serverErrors) != 1 {
+		t.Fatalf("Expected 1 ServerError (Server A), got %d", len(serverErrors))
+	}
+	if serverErrors[0].ServerName != testServerNameA {
+		t.Errorf("Expected ServerError for Server A, got %q", serverErrors[0].ServerName)
+	}
+	if serverErrors[0].Err == nil {
+		t.Errorf("Expected non-nil Err in ServerError for Server A")
+	}
+}
+
+func TestRunMultiServerHeadless_AllFail(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	serverA := &speedtest.Server{Name: testServerNameA, Country: "US"}
+	serverB := &speedtest.Server{Name: testServerNameB, Country: "DE"}
+
+	m := NewModel(&mockBackend{
+		pingTestFn: func(_ *speedtest.Server, _ func(time.Duration)) error {
+			return errors.New("ping timeout")
+		},
+	}, nil)
+
+	results, serverErrors := m.RunMultiServerHeadless(context.Background(), []*speedtest.Server{serverA, serverB}, RunOptions{})
+
+	if len(results) != 0 {
+		t.Errorf("Expected 0 results, got %d", len(results))
+	}
+	if len(serverErrors) != 2 {
+		t.Fatalf("Expected 2 ServerErrors, got %d", len(serverErrors))
+	}
+
+	errorNames := make([]string, len(serverErrors))
+	for i, se := range serverErrors {
+		errorNames[i] = se.ServerName
+		if se.Err == nil {
+			t.Errorf("Expected non-nil Err for ServerError %d (%q)", i, se.ServerName)
+		}
+	}
+	if !strings.Contains(strings.Join(errorNames, ","), testServerNameA) {
+		t.Errorf("Expected ServerError for Server A, got errors: %v", errorNames)
+	}
+	if !strings.Contains(strings.Join(errorNames, ","), testServerNameB) {
+		t.Errorf("Expected ServerError for Server B, got errors: %v", errorNames)
 	}
 }
 
@@ -1838,12 +1990,12 @@ func TestServersList(t *testing.T) {
 	m := NewDefaultModel()
 	m.Servers.SetRaw(speedtest.Servers{
 		&speedtest.Server{
-			ID: "1", Name: "Server A", Sponsor: "Sponsor A",
+			ID: "1", Name: testServerNameA, Sponsor: "Sponsor A",
 			Country: "US", Host: "a.example.com:8080",
 			Latency: 10 * time.Millisecond, Distance: 100.5,
 		},
 		&speedtest.Server{
-			ID: "2", Name: "Server B", Sponsor: "Sponsor B",
+			ID: "2", Name: testServerNameB, Sponsor: "Sponsor B",
 			Country: "DE", Host: "b.example.com",
 			Latency: 25 * time.Millisecond, Distance: 500.0,
 		},
@@ -1855,7 +2007,7 @@ func TestServersList(t *testing.T) {
 	}
 
 	s := servers[0]
-	if s.ID != "1" || s.Name != "Server A" || s.Sponsor != "Sponsor A" {
+	if s.ID != "1" || s.Name != testServerNameA || s.Sponsor != "Sponsor A" {
 		t.Errorf("server[0] identity = (%q, %q, %q), want (1, Server A, Sponsor A)", s.ID, s.Name, s.Sponsor)
 	}
 	if s.Country != "US" || s.Host != "a.example.com:8080" {
