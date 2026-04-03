@@ -234,6 +234,41 @@ func callProgressFn(fn func(string), phase string) {
 	}
 }
 
+// runHeadlessTransfer executes a blocking transfer test while polling rateFn
+// to report live speed via the progress callback. This gives headless mode
+// the same real-time speed feedback the TUI gets from monitorTransferProgress.
+func runHeadlessTransfer(
+	ctx context.Context,
+	label, prefix string,
+	progressFn func(string),
+	rateFn func() float64,
+	testFn func() error,
+) error {
+	if progressFn == nil {
+		return testFn()
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- testFn()
+	}()
+
+	ticker := time.NewTicker(progressInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case err := <-errCh:
+			return err
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			mbps := rateFn() / bytesPerMbit
+			callProgressFn(progressFn, fmt.Sprintf("%sTesting %s: %.2f Mbps...", prefix, label, mbps))
+		}
+	}
+}
+
 // runPingPhase measures ping/jitter and reports TUI progress updates.
 func runPingPhase(ctx context.Context, backend Backend, server *speedtest.Server, pingCount int, updateChan chan<- ProgressUpdate) (*pingResult, error) {
 	sendUpdate(progressPingStart, "Measuring ping and jitter...", updateChan)
@@ -469,7 +504,10 @@ func (m *Model) testSingleServerHeadless(
 			return nil, ctx.Err()
 		}
 		callProgressFn(opts.ProgressFn, prefix+"Testing download...")
-		if err := m.backend.DownloadTest(server); err != nil {
+		if err := runHeadlessTransfer(ctx, "download", prefix, opts.ProgressFn,
+			func() float64 { return server.Context.GetEWMADownloadRate() },
+			func() error { return m.backend.DownloadTest(server) },
+		); err != nil {
 			return nil, fmt.Errorf("failed to measure download speed: %v", err)
 		}
 		downloadSpeed = float64(server.DLSpeed) / bytesPerMbit
@@ -481,7 +519,10 @@ func (m *Model) testSingleServerHeadless(
 			return nil, ctx.Err()
 		}
 		callProgressFn(opts.ProgressFn, prefix+"Testing upload...")
-		if err := m.backend.UploadTest(server); err != nil {
+		if err := runHeadlessTransfer(ctx, "upload", prefix, opts.ProgressFn,
+			func() float64 { return server.Context.GetEWMAUploadRate() },
+			func() error { return m.backend.UploadTest(server) },
+		); err != nil {
 			return nil, fmt.Errorf("failed to measure upload speed: %v", err)
 		}
 		uploadSpeed = float64(server.ULSpeed) / bytesPerMbit
@@ -704,7 +745,10 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 			return nil, ctx.Err()
 		}
 		callProgressFn(opts.ProgressFn, "Testing download...")
-		if err := m.backend.DownloadTest(server); err != nil {
+		if err := runHeadlessTransfer(ctx, "download", "", opts.ProgressFn,
+			func() float64 { return server.Context.GetEWMADownloadRate() },
+			func() error { return m.backend.DownloadTest(server) },
+		); err != nil {
 			return nil, fmt.Errorf("failed to measure download speed: %v", err)
 		}
 		downloadSpeed = float64(server.DLSpeed) / bytesPerMbit
@@ -716,7 +760,10 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 			return nil, ctx.Err()
 		}
 		callProgressFn(opts.ProgressFn, "Testing upload...")
-		if err := m.backend.UploadTest(server); err != nil {
+		if err := runHeadlessTransfer(ctx, "upload", "", opts.ProgressFn,
+			func() float64 { return server.Context.GetEWMAUploadRate() },
+			func() error { return m.backend.UploadTest(server) },
+		); err != nil {
 			return nil, fmt.Errorf("failed to measure upload speed: %v", err)
 		}
 		uploadSpeed = float64(server.ULSpeed) / bytesPerMbit
