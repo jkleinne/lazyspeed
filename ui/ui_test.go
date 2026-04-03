@@ -222,7 +222,7 @@ func TestRenderServerSelection(t *testing.T) {
 	m.Height = 40
 
 	// Case 1: Empty list
-	res := RenderServerSelection([]model.Server{}, Viewport{Width: 100, Height: m.Height})
+	res := RenderServerSelection([]model.Server{}, Viewport{Width: 100, Height: m.Height}, nil)
 	if !strings.Contains(res, "No servers available") {
 		t.Errorf("Expected 'No servers available' for empty list")
 	}
@@ -233,7 +233,7 @@ func TestRenderServerSelection(t *testing.T) {
 		{Name: "Server 2", Sponsor: "Sponsor 2", Country: "Country 2", Latency: 20 * time.Millisecond},
 	}
 
-	res = RenderServerSelection(servers, Viewport{Width: 100, Height: m.Height, Cursor: 1})
+	res = RenderServerSelection(servers, Viewport{Width: 100, Height: m.Height, Cursor: 1}, nil)
 	plain := ansi.Strip(res)
 	if !strings.Contains(plain, "▸") {
 		t.Errorf("Expected cursor indicator '▸' on selected row")
@@ -301,7 +301,7 @@ func TestRenderServerSelectionViewport(t *testing.T) {
 				}
 			}
 
-			res := RenderServerSelection(servers, Viewport{Width: 100, Height: tt.height, Offset: tt.offset, Cursor: tt.cursor})
+			res := RenderServerSelection(servers, Viewport{Width: 100, Height: tt.height, Offset: tt.offset, Cursor: tt.cursor}, nil)
 			plain := ansi.Strip(res)
 
 			// Scroll indicators include a count: "↑ N more" / "↓ N more".
@@ -580,5 +580,106 @@ func TestNewProgress(t *testing.T) {
 				t.Error("expected non-empty progress bar output")
 			}
 		})
+	}
+}
+
+func TestRenderServerSelection_WithSelected(t *testing.T) {
+	servers := []model.Server{
+		{Name: "Alpha", Sponsor: "Sponsor A", Country: "US", Latency: 10 * time.Millisecond},
+		{Name: "Beta", Sponsor: "Sponsor B", Country: "DE", Latency: 20 * time.Millisecond},
+		{Name: "Gamma", Sponsor: "Sponsor C", Country: "JP", Latency: 30 * time.Millisecond},
+	}
+	selected := map[int]bool{0: true, 2: true}
+
+	res := RenderServerSelection(servers, Viewport{Width: 100, Height: 40, Cursor: 1}, selected)
+	plain := ansi.Strip(res)
+
+	if !strings.Contains(plain, "✓") {
+		t.Errorf("expected ✓ marker for selected servers, got: %s", plain)
+	}
+	if !strings.Contains(plain, "Sponsor A") {
+		t.Errorf("expected Sponsor A (selected) to appear")
+	}
+	if !strings.Contains(plain, "Sponsor C") {
+		t.Errorf("expected Sponsor C (selected) to appear")
+	}
+	if !strings.Contains(plain, "▸") {
+		t.Errorf("expected ▸ cursor on server at index 1 (cursor position)")
+	}
+}
+
+func TestRenderServerSelection_NilSelected(t *testing.T) {
+	servers := []model.Server{
+		{Name: "Solo", Sponsor: "Only Sponsor", Country: "US", Latency: 15 * time.Millisecond},
+	}
+
+	res := RenderServerSelection(servers, Viewport{Width: 100, Height: 40, Cursor: 0}, nil)
+	plain := ansi.Strip(res)
+
+	if strings.Contains(plain, "✓") {
+		t.Errorf("expected no ✓ marker when selected is nil, got: %s", plain)
+	}
+}
+
+func TestRenderComparison(t *testing.T) {
+	results := []*model.SpeedTestResult{
+		{
+			ServerName:    "Fast Server",
+			ServerCountry: "US",
+			DownloadSpeed: 200.0,
+			UploadSpeed:   100.0,
+			Ping:          5.0,
+			Jitter:        1.0,
+		},
+		{
+			ServerName:    "Slow Server",
+			ServerCountry: "DE",
+			DownloadSpeed: 50.0,
+			UploadSpeed:   25.0,
+			Ping:          30.0,
+			Jitter:        5.0,
+		},
+	}
+
+	res := RenderComparison(results, nil, 120)
+	plain := ansi.Strip(res)
+
+	if !strings.Contains(plain, "Fast Server") {
+		t.Errorf("expected Fast Server in comparison output")
+	}
+	if !strings.Contains(plain, "Slow Server") {
+		t.Errorf("expected Slow Server in comparison output")
+	}
+	if !strings.Contains(plain, "★") {
+		t.Errorf("expected ★ star marker for best results")
+	}
+}
+
+func TestRenderComparison_WithErrors(t *testing.T) {
+	results := []*model.SpeedTestResult{
+		{
+			ServerName:    "Good Server",
+			ServerCountry: "US",
+			DownloadSpeed: 150.0,
+			UploadSpeed:   75.0,
+			Ping:          10.0,
+			Jitter:        2.0,
+		},
+	}
+	errs := []model.ServerError{
+		{ServerName: "Bad Server", Err: errors.New("connection refused")},
+	}
+
+	res := RenderComparison(results, errs, 120)
+	plain := ansi.Strip(res)
+
+	if !strings.Contains(plain, "Good Server") {
+		t.Errorf("expected Good Server in comparison output")
+	}
+	if !strings.Contains(plain, "✗") {
+		t.Errorf("expected ✗ failure marker for Bad Server")
+	}
+	if !strings.Contains(plain, "Bad Server") {
+		t.Errorf("expected Bad Server name in error section")
 	}
 }

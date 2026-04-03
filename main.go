@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/jkleinne/lazyspeed/diag"
 	"github.com/jkleinne/lazyspeed/model"
 	"github.com/jkleinne/lazyspeed/ui"
+	"github.com/showwin/speedtest-go/speedtest"
 )
 
 // exportDoneMsg is sent when an in-TUI export operation completes.
@@ -45,6 +47,7 @@ const (
 	ViewDiagCompact                   // Compact diagnostics summary
 	ViewDiagExpanded                  // Full hop-by-hop trace table
 	ViewAnalytics                     // Analytics summary view
+	ViewComparison                    // Multi-server comparison results
 )
 
 type speedTest struct {
@@ -60,6 +63,11 @@ type speedTest struct {
 	diagOffset int
 
 	analyticsSummary *model.Summary
+
+	selectedServers       map[int]bool
+	comparisonResults     []*model.SpeedTestResult
+	comparisonErrors      []model.ServerError
+	multiServerResultChan chan multiServerCompleteMsg
 
 	// Viewport / UI navigation state (not part of Model's business logic)
 	showHelp         bool
@@ -84,6 +92,11 @@ type serverListMsg struct {
 type diagCompleteMsg struct {
 	result *diag.DiagResult
 	err    error
+}
+
+type multiServerCompleteMsg struct {
+	results []*model.SpeedTestResult
+	errors  []model.ServerError
 }
 
 func runDiagCmd(m *model.Model, cfg *diag.DiagConfig) tea.Cmd {
@@ -180,8 +193,13 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case diagCompleteMsg:
 		return s.handleDiagComplete(msg)
 
+	case multiServerCompleteMsg:
+		return s.handleMultiServerComplete(msg)
+
 	case tea.KeyMsg:
 		switch s.viewState {
+		case ViewComparison:
+			return s.handleComparisonKeys(msg)
 		case ViewAnalytics:
 			return s.handleAnalyticsKeys(msg)
 		case ViewDiagExpanded:
@@ -227,10 +245,13 @@ func (s *speedTest) handleProgressMsg(msg progressMsg) (tea.Model, tea.Cmd) {
 	s.model.Progress = msg.Progress
 	s.model.CurrentPhase = msg.Phase
 	if s.model.State == model.StateTesting {
-		return s, tea.Batch(
-			s.spinner.Tick,
-			waitForProgress(s.progressChan, s.errChan),
-		)
+		var nextCmd tea.Cmd
+		if s.multiServerResultChan != nil {
+			nextCmd = waitForMultiServer(s.progressChan, s.multiServerResultChan)
+		} else {
+			nextCmd = waitForProgress(s.progressChan, s.errChan)
+		}
+		return s, tea.Batch(s.spinner.Tick, nextCmd)
 	}
 	return s, nil
 }
@@ -305,7 +326,19 @@ func (s *speedTest) handleServerSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cm
 			s.cursor++
 			s.adjustServerListOffset()
 		}
+	case " ":
+		if s.selectedServers == nil {
+			s.selectedServers = make(map[int]bool)
+		}
+		if s.selectedServers[s.cursor] {
+			delete(s.selectedServers, s.cursor)
+		} else {
+			s.selectedServers[s.cursor] = true
+		}
 	case "enter":
+		if len(s.selectedServers) >= 2 {
+			return s.startMultiServerTest()
+		}
 		return s.startSpeedTest()
 	}
 	return s, nil
@@ -343,6 +376,10 @@ func (s *speedTest) startNewTest() (tea.Model, tea.Cmd) {
 	s.viewState = ViewMain
 	s.diagResult = nil
 	s.showHelp = false
+	s.selectedServers = nil
+	s.comparisonResults = nil
+	s.comparisonErrors = nil
+	s.multiServerResultChan = nil
 	if s.model.Servers.Len() == 0 {
 		s.model.State = model.StateAwaitingServers
 		s.model.CurrentPhase = fetchingServerListPhase
@@ -456,6 +493,12 @@ func (s *speedTest) View() string {
 	b.WriteString("\n\n")
 
 	switch s.viewState {
+	case ViewComparison:
+		if s.comparisonResults != nil || s.comparisonErrors != nil {
+			b.WriteString(ui.RenderComparison(s.comparisonResults, s.comparisonErrors, s.model.Width))
+			b.WriteString("\n")
+		}
+
 	case ViewAnalytics:
 		b.WriteString(ui.RenderAnalytics(s.analyticsSummary, s.model.Width))
 		b.WriteString("\n")
@@ -529,7 +572,7 @@ func (s *speedTest) renderMainView() string {
 			Height: s.model.Height,
 			Offset: s.serverListOffset,
 			Cursor: s.cursor,
-		}))
+		}, s.selectedServers))
 
 	case model.StateTesting:
 		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, s.model.Progress))
@@ -577,6 +620,88 @@ func (s *speedTest) renderIdleView() string {
 	}
 
 	return b.String()
+}
+
+func waitForMultiServer(progressChan chan model.ProgressUpdate, resultChan chan multiServerCompleteMsg) tea.Cmd {
+	return func() tea.Msg {
+		update, ok := <-progressChan
+		if !ok {
+			return <-resultChan
+		}
+		return progressMsg{
+			Progress: update.Progress,
+			Phase:    update.Phase,
+		}
+	}
+}
+
+func (s *speedTest) startMultiServerTest() (tea.Model, tea.Cmd) {
+	indices := make([]int, 0, len(s.selectedServers))
+	for idx := range s.selectedServers {
+		indices = append(indices, idx)
+	}
+	slices.Sort(indices)
+
+	raw := s.model.Servers.Raw()
+	servers := make([]*speedtest.Server, 0, len(indices))
+	for _, idx := range indices {
+		if idx >= 0 && idx < len(raw) {
+			servers = append(servers, raw[idx])
+		}
+	}
+
+	s.model.State = model.StateTesting
+	s.model.Progress = 0
+	s.model.CurrentPhase = "Starting multi-server test..."
+	s.model.Error = nil
+
+	timeout := s.model.Config.TestTimeoutDuration() * time.Duration(len(servers))
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	s.cancelTest = cancel
+
+	s.progressChan = make(chan model.ProgressUpdate)
+	resultChan := make(chan multiServerCompleteMsg, 1)
+	s.multiServerResultChan = resultChan
+
+	go func() {
+		results, errs := s.model.RunMultiServer(ctx, servers, s.progressChan)
+		close(s.progressChan)
+		resultChan <- multiServerCompleteMsg{results: results, errors: errs}
+	}()
+
+	s.showHelp = false
+	return s, tea.Batch(
+		s.spinner.Tick,
+		waitForMultiServer(s.progressChan, resultChan),
+	)
+}
+
+func (s *speedTest) handleMultiServerComplete(msg multiServerCompleteMsg) (tea.Model, tea.Cmd) {
+	s.cancelTest = nil
+	s.model.State = model.StateIdle
+	s.comparisonResults = msg.results
+	s.comparisonErrors = msg.errors
+	s.selectedServers = nil
+	s.viewState = ViewComparison
+	return s, nil
+}
+
+func (s *speedTest) handleComparisonKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", keyCtrlC:
+		s.quitting = true
+		return s, tea.Quit
+	case keyEsc:
+		s.viewState = ViewMain
+		s.comparisonResults = nil
+		s.comparisonErrors = nil
+		s.showHelp = true
+	case "n":
+		s.comparisonResults = nil
+		s.comparisonErrors = nil
+		return s.startNewTest()
+	}
+	return s, nil
 }
 
 func waitForProgress(progressChan chan model.ProgressUpdate, errChan chan error) tea.Cmd {
