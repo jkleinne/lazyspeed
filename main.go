@@ -529,7 +529,7 @@ func (s *speedTest) renderMainView() string {
 			Height: s.model.Height,
 			Offset: s.serverListOffset,
 			Cursor: s.cursor,
-		}))
+		}, nil))
 
 	case model.StateTesting:
 		b.WriteString(ui.RenderSpinner(s.spinner, s.model.Width, s.model.CurrentPhase, s.model.Progress))

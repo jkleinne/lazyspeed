@@ -279,9 +279,10 @@ func ServerListVisibleLines(height, total int) int {
 }
 
 // RenderServerSelection renders the server list with viewport-based windowing.
-// The selected row is highlighted with a purple accent; unselected rows are dimmed.
-// Latency is color-coded green/amber/red based on duration thresholds.
-func RenderServerSelection(servers []model.Server, vp Viewport) string {
+// The cursor row is highlighted with a purple accent; rows in selected are marked
+// with a ✓; unselected rows are dimmed. Latency is color-coded green/amber/red.
+// A nil selected map is treated as empty — no rows are marked as selected.
+func RenderServerSelection(servers []model.Server, vp Viewport, selected map[int]bool) string {
 	var b strings.Builder
 	b.WriteString(sectionLabelStyle.Render("Select a server:"))
 	b.WriteString("\n\n")
@@ -313,6 +314,10 @@ func RenderServerSelection(servers []model.Server, vp Viewport) string {
 			accent := selectedAccentStyle.Render("▸ ")
 			row := selectedRowStyle.Render(line)
 			b.WriteString(accent + row)
+		} else if selected[i] {
+			accent := selectedAccentStyle.Render("✓ ")
+			row := unselectedRowStyle.Render(line)
+			b.WriteString(accent + row)
 		} else {
 			b.WriteString(unselectedRowStyle.Render("  " + line))
 		}
@@ -329,4 +334,92 @@ func RenderServerSelection(servers []model.Server, vp Viewport) string {
 	b.WriteString(formatHint(ContextServerSelection))
 
 	return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, b.String())
+}
+
+// RenderComparison renders a styled comparison table of multi-server speed test
+// results. Servers holding the best value for each metric (highest DL/UL, lowest
+// Ping/Jitter) are marked with ★. Failed servers are listed below the table as
+// dimmed warning lines. A hint bar for the Comparison context is shown at the bottom.
+func RenderComparison(results []*model.SpeedTestResult, errs []model.ServerError, width int) string {
+	var b strings.Builder
+	b.WriteString(sectionLabelStyle.Render("Server Comparison"))
+	b.WriteString("\n\n")
+
+	if len(results) > 0 {
+		bestDL, bestUL, bestPing, bestJitter := findBestMetrics(results)
+
+		headers := []string{"Server", "Country", "DL (Mbps)", "UL (Mbps)", "Ping (ms)", "Jitter (ms)", ""}
+		rows := buildComparisonRows(results, bestDL, bestUL, bestPing, bestJitter)
+
+		t := table.New().
+			Headers(headers...).
+			Rows(rows...).
+			Border(lipgloss.RoundedBorder()).
+			BorderStyle(tableBorderStyle).
+			StyleFunc(func(row, _ int) lipgloss.Style {
+				if row == table.HeaderRow {
+					return headerStyle
+				}
+				if row%2 == 0 {
+					return evenRowStyle
+				}
+				return oddRowStyle
+			})
+
+		b.WriteString(t.Render())
+		b.WriteString("\n")
+	}
+
+	for _, se := range errs {
+		line := fmt.Sprintf("✗ %s: %v", se.ServerName, se.Err)
+		b.WriteString(warningStyle.Render(line))
+		b.WriteString("\n")
+	}
+
+	b.WriteString("\n")
+	b.WriteString(formatHint(ContextComparison))
+
+	return lipgloss.PlaceHorizontal(width, lipgloss.Center, b.String())
+}
+
+// findBestMetrics returns the indices of the results with the highest DL/UL
+// and lowest Ping/Jitter. All indices default to 0 for a single-result slice.
+func findBestMetrics(results []*model.SpeedTestResult) (bestDL, bestUL, bestPing, bestJitter int) {
+	for i, r := range results {
+		if r.DownloadSpeed > results[bestDL].DownloadSpeed {
+			bestDL = i
+		}
+		if r.UploadSpeed > results[bestUL].UploadSpeed {
+			bestUL = i
+		}
+		if r.Ping < results[bestPing].Ping {
+			bestPing = i
+		}
+		if r.Jitter < results[bestJitter].Jitter {
+			bestJitter = i
+		}
+	}
+	return bestDL, bestUL, bestPing, bestJitter
+}
+
+// buildComparisonRows converts results into table rows, appending ★ to the last
+// column for any result that holds a best-metric value.
+func buildComparisonRows(results []*model.SpeedTestResult, bestDL, bestUL, bestPing, bestJitter int) [][]string {
+	rows := make([][]string, 0, len(results))
+	for i, r := range results {
+		star := ""
+		if i == bestDL || i == bestUL || i == bestPing || i == bestJitter {
+			star = "★"
+		}
+		rows = append(rows, []string{
+			r.ServerName,
+			r.ServerCountry,
+			fmt.Sprintf("%.2f", r.DownloadSpeed),
+			fmt.Sprintf("%.2f", r.UploadSpeed),
+			fmt.Sprintf("%.1f", r.Ping),
+			fmt.Sprintf("%.1f", r.Jitter),
+			star,
+		})
+	}
+	return rows
 }
