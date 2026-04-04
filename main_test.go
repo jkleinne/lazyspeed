@@ -1556,7 +1556,7 @@ func TestStartDiagnostics(t *testing.T) {
 	m := model.NewDefaultModel()
 	s := speedTest{model: m, spinner: ui.DefaultSpinner, viewState: ViewMain, showHelp: true}
 
-	newModel, cmd := s.startDiagnostics()
+	newModel, cmd := s.startDiagnostics(defaultDiagTarget)
 	newS := newModel.(*speedTest)
 
 	if newS.viewState != ViewDiagRunning {
