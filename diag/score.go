@@ -42,7 +42,7 @@ func ComputeScore(result *DiagResult) QualityScore {
 
 	var composite float64
 	if result.DNS != nil && result.DNS.Error == "" {
-		dnsMs := DurationMs(result.DNS.Latency)
+		dnsMs := durationMs(result.DNS.Latency)
 		dnsScore := normalizeMetric(dnsMs, dnsExcellent, dnsTerrible)
 		composite = latencyScore*weightLatency +
 			jitterScore*weightJitter +
@@ -80,7 +80,7 @@ func normalizeMetric(value, excellent, terrible float64) float64 {
 func FinalHopLatencyMs(hops []Hop) float64 {
 	for i := len(hops) - 1; i >= 0; i-- {
 		if !hops[i].Timeout {
-			return DurationMs(hops[i].Latency)
+			return durationMs(hops[i].Latency)
 		}
 	}
 	return 0
@@ -90,7 +90,7 @@ func hopJitter(hops []Hop) float64 {
 	var latencies []float64
 	for _, h := range hops {
 		if !h.Timeout {
-			latencies = append(latencies, DurationMs(h.Latency))
+			latencies = append(latencies, durationMs(h.Latency))
 		}
 	}
 	if len(latencies) < 2 {

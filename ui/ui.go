@@ -8,7 +8,6 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
-	"github.com/jkleinne/lazyspeed/diag"
 	"github.com/jkleinne/lazyspeed/model"
 )
 
@@ -321,7 +320,7 @@ func RenderServerSelection(servers []model.Server, vp Viewport, selected map[int
 		}
 
 		server := servers[i]
-		latencyMs := diag.DurationMs(server.Latency)
+		latencyMs := model.DurationMs(server.Latency)
 		latencyStr := latencyStyle(server.Latency).Render(fmt.Sprintf("%.2f ms", latencyMs))
 
 		line := fmt.Sprintf("%s: %s (%s) — %s",

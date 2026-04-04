@@ -35,6 +35,11 @@ const (
 	progressComplete      = 1.0
 )
 
+// DurationMs converts a time.Duration to fractional milliseconds.
+func DurationMs(d time.Duration) float64 {
+	return float64(d.Microseconds()) / 1000.0
+}
+
 // SpeedTestCSVHeader is the CSV header row for speed test results.
 var SpeedTestCSVHeader = []string{"timestamp", "server", "country", "download_mbps", "upload_mbps", "ping_ms", "jitter_ms", "ip", "isp"}
 

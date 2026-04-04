@@ -32,7 +32,7 @@ func (h Hop) MarshalJSON() ([]byte, error) {
 		Latency float64 `json:"latency"`
 	}{
 		Alias:   (Alias)(h),
-		Latency: DurationMs(h.Latency),
+		Latency: durationMs(h.Latency),
 	})
 }
 
@@ -64,7 +64,7 @@ func (d DNSResult) MarshalJSON() ([]byte, error) {
 		Latency float64 `json:"latency"`
 	}{
 		Alias:   (Alias)(d),
-		Latency: DurationMs(d.Latency),
+		Latency: durationMs(d.Latency),
 	})
 }
 
@@ -129,8 +129,8 @@ func NewDiagConfig(overrides DiagConfig) *DiagConfig {
 	return cfg
 }
 
-// DurationMs converts a time.Duration to fractional milliseconds.
-func DurationMs(d time.Duration) float64 {
+// durationMs converts a time.Duration to fractional milliseconds.
+func durationMs(d time.Duration) float64 {
 	return float64(d.Microseconds()) / 1000.0
 }
 
