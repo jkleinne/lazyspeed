@@ -156,10 +156,7 @@ func runDiagHistory() {
 	}
 
 	// Apply --last slice
-	entries := history
-	if diagLast > 0 && diagLast < len(entries) {
-		entries = entries[len(entries)-diagLast:]
-	}
+	entries := tailSlice(history, diagLast)
 
 	format := resolveFormat(diagJSON, diagCSV)
 	csvRows := make([][]string, len(entries))

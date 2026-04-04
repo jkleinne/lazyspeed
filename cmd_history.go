@@ -57,10 +57,7 @@ func runHistory() {
 	}
 
 	// Apply --last slice: take the last N entries
-	entries := m.History.Entries
-	if historyLast > 0 && historyLast < len(entries) {
-		entries = entries[len(entries)-historyLast:]
-	}
+	entries := tailSlice(m.History.Entries, historyLast)
 
 	format := resolveFormatString(historyFormat)
 	csvRows := make([][]string, len(entries))

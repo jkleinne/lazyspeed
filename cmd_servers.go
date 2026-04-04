@@ -73,10 +73,7 @@ func runServers() {
 		if len(favIDs) == 0 {
 			exitWithError("no favorites configured; use 'lazyspeed servers --pin <id>' to add favorites")
 		}
-		favSet := make(map[string]bool, len(favIDs))
-		for _, id := range favIDs {
-			favSet[id] = true
-		}
+		favSet := m.Config.FavoriteIDSet()
 		filtered := make([]model.Server, 0, len(favIDs))
 		for _, s := range servers {
 			if favSet[s.ID] {

@@ -82,6 +82,15 @@ func DefaultConfig() *Config {
 	}
 }
 
+// FavoriteIDSet returns the favorite server IDs as a set for O(1) lookup.
+func (c *Config) FavoriteIDSet() map[string]bool {
+	set := make(map[string]bool, len(c.Servers.FavoriteIDs))
+	for _, id := range c.Servers.FavoriteIDs {
+		set[id] = true
+	}
+	return set
+}
+
 // FetchTimeoutDuration returns the configured fetch timeout as a time.Duration.
 func (c *Config) FetchTimeoutDuration() time.Duration {
 	secs := defaultFetchTimeout

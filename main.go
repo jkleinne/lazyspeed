@@ -185,12 +185,7 @@ func (s *speedTest) computeDisplayOrder() {
 
 // favoriteSet returns the current favorite IDs as a set for O(1) lookup.
 func (s *speedTest) favoriteSet() map[string]bool {
-	ids := s.model.Config.Servers.FavoriteIDs
-	set := make(map[string]bool, len(ids))
-	for _, id := range ids {
-		set[id] = true
-	}
-	return set
+	return s.model.Config.FavoriteIDSet()
 }
 
 // displayServers returns servers reordered by displayOrder for rendering.

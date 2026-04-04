@@ -103,6 +103,15 @@ func diagConfig(d model.DiagnosticsConfig) *diag.DiagConfig {
 	})
 }
 
+// tailSlice returns the last n elements of s. Returns s unchanged if n <= 0
+// or n >= len(s).
+func tailSlice[T any](s []T, n int) []T {
+	if n > 0 && n < len(s) {
+		return s[len(s)-n:]
+	}
+	return s
+}
+
 // writeCSVRows writes a header and rows as CSV to stdout, exiting on flush error.
 // header may be nil to skip the header row (used by --watch for incremental output).
 func writeCSVRows(header []string, rows [][]string) {
