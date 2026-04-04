@@ -37,13 +37,14 @@ var (
 	runBest       int
 	runServerIDs  string
 	runFavorites  bool
+	runWatch      time.Duration
 )
 
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Run a speed test non-interactively",
 	PreRunE: func(_ *cobra.Command, _ []string) error {
-		if runCount < 1 {
+		if runWatch == 0 && runCount < 1 {
 			return fmt.Errorf("--count must be at least 1, got %d", runCount)
 		}
 		if runBest < 0 {
@@ -81,6 +82,20 @@ var runCmd = &cobra.Command{
 				return fmt.Errorf("--favorites and --count are mutually exclusive")
 			}
 		}
+		if runWatch > 0 {
+			if runWatch < time.Minute {
+				return fmt.Errorf("--watch interval must be at least 1m, got %s", runWatch)
+			}
+			if runBest > 0 {
+				return fmt.Errorf("--watch and --best are mutually exclusive")
+			}
+			if runServerIDs != "" {
+				return fmt.Errorf("--watch and --servers are mutually exclusive")
+			}
+			if runFavorites {
+				return fmt.Errorf("--watch and --favorites are mutually exclusive")
+			}
+		}
 		return nil
 	},
 	Run: func(_ *cobra.Command, _ []string) {
@@ -99,6 +114,7 @@ func init() {
 	runCmd.Flags().IntVar(&runBest, "best", 0, "Auto-select the N closest servers for comparison (minimum 2)")
 	runCmd.Flags().StringVar(&runServerIDs, "servers", "", "Test specific servers by ID (comma-separated, minimum 2)")
 	runCmd.Flags().BoolVar(&runFavorites, "favorites", false, "Test all favorited servers (multi-server comparison)")
+	runCmd.Flags().DurationVar(&runWatch, "watch", 0, "Repeat tests on an interval (e.g., 5m, 1h); minimum 1m")
 
 	rootCmd.AddCommand(runCmd)
 }
