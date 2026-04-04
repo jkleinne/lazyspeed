@@ -1083,6 +1083,46 @@ func TestRunCommandValidation_WatchValidInterval(t *testing.T) {
 	}
 }
 
+func TestFormatWatchSeparator(t *testing.T) {
+	ts := time.Date(2026, 4, 3, 14, 32, 5, 0, time.UTC)
+	got := formatWatchSeparator(3, ts)
+	want := "\n--- Watch #3 at 14:32:05 ---\n"
+	if got != want {
+		t.Errorf("formatWatchSeparator() = %q, want %q", got, want)
+	}
+}
+
+func TestEmitWatchResultJSON(t *testing.T) {
+	origJSON := runJSON
+	origCSV := runCSV
+	origSimple := runSimple
+	defer func() { runJSON = origJSON; runCSV = origCSV; runSimple = origSimple }()
+
+	runJSON = true
+	runCSV = false
+	runSimple = false
+
+	res := &model.SpeedTestResult{
+		DownloadSpeed: 95.12,
+		UploadSpeed:   45.23,
+		Ping:          12.40,
+		Jitter:        1.50,
+		ServerName:    "Test",
+		Timestamp:     time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+	}
+
+	out := captureStdout(func() { emitWatchResult(res) })
+
+	// Must be a single JSON object (NDJSON), not an array
+	var obj map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &obj); err != nil {
+		t.Fatalf("expected valid JSON object (NDJSON), got parse error: %v\noutput: %s", err, out)
+	}
+	if _, ok := obj["download_speed"]; !ok {
+		t.Error("expected download_speed key in NDJSON output")
+	}
+}
+
 func TestServersPinUnpinMutualExclusivity(t *testing.T) {
 	origPin := serversPin
 	origUnpin := serversUnpin

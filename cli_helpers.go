@@ -104,9 +104,12 @@ func diagConfig(d model.DiagnosticsConfig) *diag.DiagConfig {
 }
 
 // writeCSVRows writes a header and rows as CSV to stdout, exiting on flush error.
+// header may be nil to skip the header row (used by --watch for incremental output).
 func writeCSVRows(header []string, rows [][]string) {
 	w := csv.NewWriter(os.Stdout)
-	_ = w.Write(header)
+	if header != nil {
+		_ = w.Write(header)
+	}
 	for _, row := range rows {
 		_ = w.Write(row)
 	}
