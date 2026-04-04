@@ -54,7 +54,7 @@ func TestSaveHistoryRetention(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "diagnostics.json")
 
 	var results []*DiagResult
-	for i := 0; i < 25; i++ {
+	for i := range 25 {
 		results = append(results, &DiagResult{
 			Target:    "target",
 			Timestamp: testTimestamp.Add(time.Duration(i) * time.Minute),
