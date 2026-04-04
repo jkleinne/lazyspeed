@@ -179,7 +179,7 @@ func TestNormalizeMetric(t *testing.T) {
 	}
 }
 
-func TestHopJitter(t *testing.T) {
+func TestHopLatencyStdDev(t *testing.T) {
 	tests := []struct {
 		name string
 		hops []Hop
@@ -200,23 +200,23 @@ func TestHopJitter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := hopJitter(tt.hops)
+			got := hopLatencyStdDev(tt.hops)
 			if got < tt.want-0.001 || got > tt.want+0.001 {
-				t.Errorf("hopJitter() = %f, want %f", got, tt.want)
+				t.Errorf("hopLatencyStdDev() = %f, want %f", got, tt.want)
 			}
 		})
 	}
 
-	// Separate test for non-zero jitter to verify the computation
-	t.Run("varied latencies produce positive jitter", func(t *testing.T) {
+	// Separate test for non-zero std dev to verify the computation
+	t.Run("varied latencies produce positive std dev", func(t *testing.T) {
 		hops := []Hop{
 			{Number: 1, Latency: 10 * time.Millisecond},
 			{Number: 2, Latency: 30 * time.Millisecond},
 			{Number: 3, Latency: 20 * time.Millisecond},
 		}
-		got := hopJitter(hops)
+		got := hopLatencyStdDev(hops)
 		if got <= 0 {
-			t.Errorf("hopJitter() = %f, want > 0 for varied latencies", got)
+			t.Errorf("hopLatencyStdDev() = %f, want > 0 for varied latencies", got)
 		}
 	})
 }

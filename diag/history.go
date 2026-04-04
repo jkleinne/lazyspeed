@@ -27,10 +27,10 @@ func AppendHistory(path string, result *DiagResult, maxEntries int) error {
 	return s.Save(history)
 }
 
-// SaveHistory writes diagnostics history to disk. Uses atomic write (temp file +
+// saveHistory writes diagnostics history to disk. Uses atomic write (temp file +
 // rename) to prevent corruption from interrupted writes. Backs up the current
 // file before overwriting.
-func SaveHistory(path string, results []*DiagResult, maxEntries int) error {
+func saveHistory(path string, results []*DiagResult, maxEntries int) error {
 	s := jsonstore.New[DiagResult](path, maxEntries, historyFilePerm)
 	return s.Save(results)
 }

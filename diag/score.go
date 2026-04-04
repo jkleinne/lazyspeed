@@ -33,7 +33,7 @@ func ComputeScore(result *DiagResult) QualityScore {
 	if latencyMs == 0 && len(result.Hops) > 0 {
 		latencyMs = latencyTerrible
 	}
-	jitterMs := hopJitter(result.Hops)
+	jitterMs := hopLatencyStdDev(result.Hops)
 	packetLossPct := HopPacketLoss(result.Hops)
 
 	latencyScore := normalizeMetric(latencyMs, latencyExcellent, latencyTerrible)
@@ -86,7 +86,7 @@ func FinalHopLatencyMs(hops []Hop) float64 {
 	return 0
 }
 
-func hopJitter(hops []Hop) float64 {
+func hopLatencyStdDev(hops []Hop) float64 {
 	var latencies []float64
 	for _, h := range hops {
 		if !h.Timeout {

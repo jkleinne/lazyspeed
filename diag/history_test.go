@@ -34,7 +34,7 @@ func TestSaveAndLoadHistory(t *testing.T) {
 		},
 	}
 
-	if err := SaveHistory(path, results, 20); err != nil {
+	if err := saveHistory(path, results, 20); err != nil {
 		t.Fatalf("save failed: %v", err)
 	}
 
@@ -61,7 +61,7 @@ func TestSaveHistoryRetention(t *testing.T) {
 		})
 	}
 
-	if err := SaveHistory(path, results, 20); err != nil {
+	if err := saveHistory(path, results, 20); err != nil {
 		t.Fatalf("save failed: %v", err)
 	}
 
@@ -85,7 +85,7 @@ func TestSaveHistoryMaxEntriesZero_NoTruncation(t *testing.T) {
 		})
 	}
 
-	if err := SaveHistory(path, results, 0); err != nil {
+	if err := saveHistory(path, results, 0); err != nil {
 		t.Fatalf("save failed: %v", err)
 	}
 
@@ -101,7 +101,7 @@ func TestSaveHistoryMaxEntriesZero_NoTruncation(t *testing.T) {
 func TestSaveHistoryNilSlice(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "diagnostics.json")
 
-	if err := SaveHistory(path, nil, 20); err != nil {
+	if err := saveHistory(path, nil, 20); err != nil {
 		t.Fatalf("save failed: %v", err)
 	}
 

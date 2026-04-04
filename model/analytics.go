@@ -149,26 +149,26 @@ func detectTrend(values []float64, avg float64) (TrendDirection, float64) {
 // metricSummary computes a MetricSummary for a single metric extracted from entries.
 func metricSummary(entries []*SpeedTestResult, extract func(*SpeedTestResult) float64) MetricSummary {
 	values := make([]float64, len(entries))
-	var sum, lo, hi float64
+	var sum, lowest, highest float64
 	for i, e := range entries {
 		v := extract(e)
 		values[i] = v
 		sum += v
-		if i == 0 || v < lo {
-			lo = v
+		if i == 0 || v < lowest {
+			lowest = v
 		}
-		if i == 0 || v > hi {
-			hi = v
+		if i == 0 || v > highest {
+			highest = v
 		}
 	}
 
-	n := float64(len(entries))
-	avg := sum / n
+	entryCount := float64(len(entries))
+	avg := sum / entryCount
 
 	ms := MetricSummary{
 		Average:   avg,
-		Min:       lo,
-		Max:       hi,
+		Min:       lowest,
+		Max:       highest,
 		Latest:    values[len(values)-1],
 		Sparkline: sparkline(values),
 	}
@@ -207,26 +207,26 @@ func sparkline(values []float64) string {
 		return ""
 	}
 
-	lo, hi := values[0], values[0]
+	lowest, highest := values[0], values[0]
 	for _, v := range values[1:] {
-		if v < lo {
-			lo = v
+		if v < lowest {
+			lowest = v
 		}
-		if v > hi {
-			hi = v
+		if v > highest {
+			highest = v
 		}
 	}
 
 	levels := len(sparkRunes)
 	midLevel := (levels - 1) / 2
-	rng := hi - lo
+	valueRange := highest - lowest
 
 	runes := make([]rune, len(values))
 	for i, v := range values {
-		if rng == 0 {
+		if valueRange == 0 {
 			runes[i] = sparkRunes[midLevel]
 		} else {
-			idx := int((v - lo) / rng * float64(levels-1))
+			idx := int((v - lowest) / valueRange * float64(levels-1))
 			runes[i] = sparkRunes[idx]
 		}
 	}
