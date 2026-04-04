@@ -399,16 +399,22 @@ func (m *Model) initTestState(updateChan chan<- ProgressUpdate) {
 	sendUpdate(progressInit, "Initializing speed test...", updateChan)
 }
 
+// fetchUserInfoOrWarn fetches user IP/ISP info and stores it on the model.
+// Sets m.Warning on failure instead of returning an error.
+func (m *Model) fetchUserInfoOrWarn() {
+	user, err := m.backend.FetchUserInfo()
+	if err == nil {
+		m.user = user
+	} else {
+		m.Warning = fmt.Sprintf("could not fetch network info: %v", err)
+	}
+}
+
 // fetchNetworkInfo fetches user IP/ISP and sets a warning on failure.
 // Returns a non-nil error only if the context is cancelled.
 func (m *Model) fetchNetworkInfo(ctx context.Context, updateChan chan<- ProgressUpdate) error {
 	sendUpdate(progressFetchNet, "Fetching network information...", updateChan)
-	user, userErr := m.backend.FetchUserInfo()
-	if userErr == nil {
-		m.user = user
-	} else {
-		m.Warning = fmt.Sprintf("could not fetch network info: %v", userErr)
-	}
+	m.fetchUserInfoOrWarn()
 	if ctx.Err() != nil {
 		m.State = StateIdle
 		return ctx.Err()
@@ -551,12 +557,7 @@ func (m *Model) RunMultiServerHeadless(
 	opts RunOptions,
 ) ([]*SpeedTestResult, []ServerError) {
 	callProgressFn(opts.ProgressFn, "Fetching network information...")
-	user, userErr := m.backend.FetchUserInfo()
-	if userErr == nil {
-		m.user = user
-	} else {
-		m.Warning = fmt.Sprintf("could not fetch network info: %v", userErr)
-	}
+	m.fetchUserInfoOrWarn()
 	userIP, userISP := m.userInfo()
 
 	total := len(servers)
@@ -721,12 +722,7 @@ func (m *Model) RunMultiServer(
 
 func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts RunOptions) (*SpeedTestResult, error) {
 	callProgressFn(opts.ProgressFn, "Fetching network information...")
-	user, userErr := m.backend.FetchUserInfo()
-	if userErr == nil {
-		m.user = user
-	} else {
-		m.Warning = fmt.Sprintf("could not fetch network info: %v", userErr)
-	}
+	m.fetchUserInfoOrWarn()
 	userIP, userISP := m.userInfo()
 
 	if ctx.Err() != nil {
