@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/jkleinne/lazyspeed/model"
@@ -37,13 +39,14 @@ var (
 	runBest       int
 	runServerIDs  string
 	runFavorites  bool
+	runWatch      time.Duration
 )
 
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Run a speed test non-interactively",
 	PreRunE: func(_ *cobra.Command, _ []string) error {
-		if runCount < 1 {
+		if runWatch == 0 && runCount < 1 {
 			return fmt.Errorf("--count must be at least 1, got %d", runCount)
 		}
 		if runBest < 0 {
@@ -81,6 +84,20 @@ var runCmd = &cobra.Command{
 				return fmt.Errorf("--favorites and --count are mutually exclusive")
 			}
 		}
+		if runWatch > 0 {
+			if runWatch < time.Minute {
+				return fmt.Errorf("--watch interval must be at least 1m, got %s", runWatch)
+			}
+			if runBest > 0 {
+				return fmt.Errorf("--watch and --best are mutually exclusive")
+			}
+			if runServerIDs != "" {
+				return fmt.Errorf("--watch and --servers are mutually exclusive")
+			}
+			if runFavorites {
+				return fmt.Errorf("--watch and --favorites are mutually exclusive")
+			}
+		}
 		return nil
 	},
 	Run: func(_ *cobra.Command, _ []string) {
@@ -99,6 +116,7 @@ func init() {
 	runCmd.Flags().IntVar(&runBest, "best", 0, "Auto-select the N closest servers for comparison (minimum 2)")
 	runCmd.Flags().StringVar(&runServerIDs, "servers", "", "Test specific servers by ID (comma-separated, minimum 2)")
 	runCmd.Flags().BoolVar(&runFavorites, "favorites", false, "Test all favorited servers (multi-server comparison)")
+	runCmd.Flags().DurationVar(&runWatch, "watch", 0, "Repeat tests on an interval (e.g., 5m, 1h); minimum 1m")
 
 	rootCmd.AddCommand(runCmd)
 }
@@ -436,6 +454,16 @@ func runHeadlessTest() {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load history: %v\n", err)
 	}
 
+	if runWatch > 0 {
+		runWatchLoop(m, server, opts, interactive)
+		return
+	}
+
+	runCountLoop(m, server, opts, interactive)
+}
+
+// runCountLoop runs N sequential tests (the existing --count behavior).
+func runCountLoop(m *model.Model, server *speedtest.Server, opts model.RunOptions, interactive bool) {
 	var jsonResults []*model.SpeedTestResult
 	var csvRows [][]string
 
@@ -477,6 +505,103 @@ func runHeadlessTest() {
 	}
 
 	writeRunResults(jsonResults, csvRows, runJSON, runCSV)
+}
+
+// runWatchLoop runs tests on a fixed interval until interrupted or --count is reached.
+func runWatchLoop(m *model.Model, server *speedtest.Server, opts model.RunOptions, interactive bool) {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigChan)
+
+	ticker := time.NewTicker(runWatch)
+	defer ticker.Stop()
+
+	// Print CSV header once at the start.
+	if runCSV {
+		writeCSVRows(model.SpeedTestCSVHeader, nil)
+	}
+
+	iteration := 0
+	maxIterations := runCount // 0 means indefinite
+
+	for {
+		iteration++
+		if maxIterations > 0 && iteration > maxIterations {
+			return
+		}
+
+		if iteration > 1 && !runJSON && !runCSV {
+			fmt.Print(formatWatchSeparator(iteration, time.Now()))
+		}
+
+		testCtx, testCancel := context.WithTimeout(context.Background(), m.Config.TestTimeoutDuration())
+
+		// Allow a second signal to force-cancel a running test.
+		done := make(chan struct{})
+		go func() {
+			select {
+			case <-sigChan:
+				testCancel()
+			case <-done:
+			}
+		}()
+
+		res, err := m.RunHeadless(testCtx, server, opts)
+		close(done)
+		testCancel()
+
+		if interactive {
+			fmt.Fprint(os.Stderr, "\n")
+		}
+
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: running test: %v\n", err)
+		} else {
+			if m.Warning != "" {
+				fmt.Fprintf(os.Stderr, "Warning: %s\n", m.Warning)
+				m.Warning = ""
+			}
+
+			m.History.Append(res)
+			if err := m.History.Save(); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to save history: %v\n", err)
+			}
+
+			emitWatchResult(res)
+		}
+
+		// Wait for next tick or signal.
+		select {
+		case <-sigChan:
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+// emitWatchResult writes a single result in the active output format.
+// Unlike the --count path, structured output is emitted incrementally.
+func emitWatchResult(res *model.SpeedTestResult) {
+	switch {
+	case runJSON:
+		data, err := json.Marshal(res)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: serialising result: %v\n", err)
+			return
+		}
+		fmt.Println(string(data))
+	case runCSV:
+		writeCSVRows(nil, [][]string{res.CSVRow()})
+	case runSimple:
+		fmt.Println(formatSimpleResult(res))
+	default:
+		fmt.Println(formatDefaultResult(res))
+	}
+}
+
+// formatWatchSeparator formats the separator printed between watch iterations.
+func formatWatchSeparator(iteration int, ts time.Time) string {
+	return fmt.Sprintf("\n--- Watch #%d at %s ---\n", iteration, ts.Format("15:04:05"))
 }
 
 // formatSimpleResult formats a speed test result as a one-line string.

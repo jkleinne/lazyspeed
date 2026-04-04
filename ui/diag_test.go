@@ -8,6 +8,23 @@ import (
 	"github.com/jkleinne/lazyspeed/diag"
 )
 
+func TestRenderDiagInput(t *testing.T) {
+	// Simulate textinput.View() output — it's just a string
+	inputView := "Target: █"
+
+	out := RenderDiagInput(inputView, 80)
+
+	if !strings.Contains(out, "Enter target hostname or IP address") {
+		t.Error("expected instruction text in output")
+	}
+	if !strings.Contains(out, "press Enter for default") {
+		t.Error("expected default hint in output")
+	}
+	if !strings.Contains(out, "Target:") {
+		t.Error("expected input field in output")
+	}
+}
+
 func TestRenderDiagCompact(t *testing.T) {
 	result := &diag.DiagResult{
 		Target: "example.com",

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jkleinne/lazyspeed/diag"
 	"github.com/jkleinne/lazyspeed/model"
@@ -1552,11 +1553,103 @@ func TestHandleServerSelectionKeysBoundary(t *testing.T) {
 	})
 }
 
+func newDiagInput() textinput.Model {
+	ti := textinput.New()
+	ti.Prompt = "Target: "
+	ti.CharLimit = 253
+	return ti
+}
+
+func TestShowDiagInput(t *testing.T) {
+	m := model.NewDefaultModel()
+	s := speedTest{model: m, spinner: ui.DefaultSpinner, viewState: ViewMain, showHelp: true, diagInput: newDiagInput()}
+
+	newModel, cmd := s.showDiagInput()
+	newS := newModel.(*speedTest)
+
+	if newS.viewState != ViewDiagInput {
+		t.Errorf("Expected viewState ViewDiagInput, got %d", newS.viewState)
+	}
+	if newS.showHelp {
+		t.Errorf("Expected showHelp to be false")
+	}
+	if newS.diagInput.Placeholder != defaultDiagTarget {
+		t.Errorf("Expected placeholder %q, got %q", defaultDiagTarget, newS.diagInput.Placeholder)
+	}
+	if cmd == nil {
+		t.Errorf("Expected non-nil cmd for textinput blink")
+	}
+}
+
+func TestHandleDiagInputKeysEsc(t *testing.T) {
+	m := model.NewDefaultModel()
+	s := speedTest{model: m, spinner: ui.DefaultSpinner, viewState: ViewDiagInput, diagInput: newDiagInput()}
+
+	newModel, cmd := s.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	newS := newModel.(*speedTest)
+
+	if newS.viewState != ViewMain {
+		t.Errorf("Expected viewState ViewMain, got %d", newS.viewState)
+	}
+	if !newS.showHelp {
+		t.Errorf("Expected showHelp to be true")
+	}
+	if cmd != nil {
+		t.Errorf("Expected nil cmd for esc")
+	}
+}
+
+func TestHandleDiagInputKeysCtrlC(t *testing.T) {
+	m := model.NewDefaultModel()
+	s := speedTest{model: m, spinner: ui.DefaultSpinner, viewState: ViewDiagInput, diagInput: newDiagInput()}
+
+	newModel, cmd := s.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	newS := newModel.(*speedTest)
+
+	if !newS.quitting {
+		t.Errorf("Expected quitting to be true")
+	}
+	if cmd == nil {
+		t.Errorf("Expected non-nil quit cmd")
+	}
+}
+
+func TestHandleDiagInputKeysEnterEmpty(t *testing.T) {
+	m := model.NewDefaultModel()
+	s := speedTest{model: m, spinner: ui.DefaultSpinner, viewState: ViewDiagInput, diagInput: newDiagInput()}
+	s.diagInput.Placeholder = "speedtest.example.com"
+	s.diagInput.SetValue("")
+
+	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newS := newModel.(*speedTest)
+
+	if newS.viewState != ViewDiagRunning {
+		t.Errorf("Expected viewState ViewDiagRunning, got %d", newS.viewState)
+	}
+	if newS.model.CurrentPhase != runningDiagnosticsPhase {
+		t.Errorf("Expected CurrentPhase %q, got %q", runningDiagnosticsPhase, newS.model.CurrentPhase)
+	}
+}
+
+func TestHandleDiagInputKeysEnterWithValue(t *testing.T) {
+	m := model.NewDefaultModel()
+	s := speedTest{model: m, spinner: ui.DefaultSpinner, viewState: ViewDiagInput, diagInput: newDiagInput()}
+	s.diagInput.Placeholder = "speedtest.example.com"
+	s.diagInput.SetValue("custom.host.com")
+
+	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newS := newModel.(*speedTest)
+
+	if newS.viewState != ViewDiagRunning {
+		t.Errorf("Expected viewState ViewDiagRunning, got %d", newS.viewState)
+	}
+}
+
 func TestStartDiagnostics(t *testing.T) {
 	m := model.NewDefaultModel()
 	s := speedTest{model: m, spinner: ui.DefaultSpinner, viewState: ViewMain, showHelp: true}
 
-	newModel, cmd := s.startDiagnostics()
+	newModel, cmd := s.startDiagnostics(defaultDiagTarget)
 	newS := newModel.(*speedTest)
 
 	if newS.viewState != ViewDiagRunning {

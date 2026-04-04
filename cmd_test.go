@@ -14,6 +14,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// twoServerIDs is a minimal comma-separated server ID pair used across
+// tests that require --servers to pass the two-server minimum check.
+const twoServerIDs = "1,2"
+
 func TestVersionCommand(t *testing.T) {
 	origVersion := version
 	version = "1.2.3"
@@ -762,7 +766,7 @@ func TestRunCommandValidation_BestAndServersMutuallyExclusive(t *testing.T) {
 
 	runCount = 1
 	runBest = 3
-	runServerIDs = "1,2"
+	runServerIDs = twoServerIDs
 	err := runCmd.PreRunE(nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "--best and --servers are mutually exclusive") {
 		t.Errorf("Expected '--best and --servers are mutually exclusive' error, got %v", err)
@@ -807,7 +811,7 @@ func TestRunCommandValidation_CountAndServersMutuallyExclusive(t *testing.T) {
 
 	runCount = 3
 	runBest = 0
-	runServerIDs = "1,2"
+	runServerIDs = twoServerIDs
 	err := runCmd.PreRunE(nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "--count and --servers are mutually exclusive") {
 		t.Errorf("Expected '--count and --servers are mutually exclusive' error, got %v", err)
@@ -959,7 +963,7 @@ func TestRunFavoritesMutualExclusivity(t *testing.T) {
 		},
 		{
 			name:        "favorites and servers are mutually exclusive",
-			serverIDs:   "1,2",
+			serverIDs:   twoServerIDs,
 			count:       1,
 			wantErrFrag: "--favorites and --servers are mutually exclusive",
 		},
@@ -992,6 +996,130 @@ func TestRunFavoritesMutualExclusivity(t *testing.T) {
 				t.Errorf("expected error containing %q, got %q", tt.wantErrFrag, err.Error())
 			}
 		})
+	}
+}
+
+func TestRunCommandValidation_WatchMinimumInterval(t *testing.T) {
+	origWatch := runWatch
+	origCount := runCount
+	defer func() { runWatch = origWatch; runCount = origCount }()
+
+	runCount = 1
+	runWatch = 30 * time.Second // below 1m minimum
+	err := runCmd.PreRunE(nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "--watch interval must be at least 1m") {
+		t.Errorf("expected '--watch interval must be at least 1m' error, got %v", err)
+	}
+}
+
+func TestRunCommandValidation_WatchAndBestMutuallyExclusive(t *testing.T) {
+	origWatch := runWatch
+	origBest := runBest
+	origCount := runCount
+	defer func() { runWatch = origWatch; runBest = origBest; runCount = origCount }()
+
+	runCount = 1
+	runWatch = 5 * time.Minute
+	runBest = 3
+	err := runCmd.PreRunE(nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "--watch and --best are mutually exclusive") {
+		t.Errorf("expected mutual exclusivity error, got %v", err)
+	}
+}
+
+func TestRunCommandValidation_WatchAndServersMutuallyExclusive(t *testing.T) {
+	origWatch := runWatch
+	origServerIDs := runServerIDs
+	origCount := runCount
+	defer func() { runWatch = origWatch; runServerIDs = origServerIDs; runCount = origCount }()
+
+	runCount = 1
+	runWatch = 5 * time.Minute
+	runServerIDs = twoServerIDs
+	err := runCmd.PreRunE(nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "--watch and --servers are mutually exclusive") {
+		t.Errorf("expected mutual exclusivity error, got %v", err)
+	}
+}
+
+func TestRunCommandValidation_WatchAndFavoritesMutuallyExclusive(t *testing.T) {
+	origWatch := runWatch
+	origFavorites := runFavorites
+	origCount := runCount
+	defer func() { runWatch = origWatch; runFavorites = origFavorites; runCount = origCount }()
+
+	runCount = 1
+	runWatch = 5 * time.Minute
+	runFavorites = true
+	err := runCmd.PreRunE(nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "--watch and --favorites are mutually exclusive") {
+		t.Errorf("expected mutual exclusivity error, got %v", err)
+	}
+}
+
+func TestRunCommandValidation_WatchAllowsCountZero(t *testing.T) {
+	origWatch := runWatch
+	origCount := runCount
+	defer func() { runWatch = origWatch; runCount = origCount }()
+
+	runWatch = 5 * time.Minute
+	runCount = 0
+	err := runCmd.PreRunE(nil, nil)
+	if err != nil {
+		t.Errorf("expected nil error for --watch with --count 0, got %v", err)
+	}
+}
+
+func TestRunCommandValidation_WatchValidInterval(t *testing.T) {
+	origWatch := runWatch
+	origCount := runCount
+	defer func() { runWatch = origWatch; runCount = origCount }()
+
+	runWatch = 5 * time.Minute
+	runCount = 1
+	err := runCmd.PreRunE(nil, nil)
+	if err != nil {
+		t.Errorf("expected nil error for valid --watch, got %v", err)
+	}
+}
+
+func TestFormatWatchSeparator(t *testing.T) {
+	ts := time.Date(2026, 4, 3, 14, 32, 5, 0, time.UTC)
+	got := formatWatchSeparator(3, ts)
+	want := "\n--- Watch #3 at 14:32:05 ---\n"
+	if got != want {
+		t.Errorf("formatWatchSeparator() = %q, want %q", got, want)
+	}
+}
+
+func TestEmitWatchResultJSON(t *testing.T) {
+	origJSON := runJSON
+	origCSV := runCSV
+	origSimple := runSimple
+	defer func() { runJSON = origJSON; runCSV = origCSV; runSimple = origSimple }()
+
+	runJSON = true
+	runCSV = false
+	runSimple = false
+
+	res := &model.SpeedTestResult{
+		DownloadSpeed: 95.12,
+		UploadSpeed:   45.23,
+		Ping:          12.40,
+		Jitter:        1.50,
+		ServerName:    "Test",
+		Timestamp:     time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+	}
+
+	out := captureStdout(func() { emitWatchResult(res) })
+
+	// Must be a single JSON object (NDJSON), not an array
+	var obj map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &obj); err != nil {
+		t.Fatalf("expected valid JSON object (NDJSON), got parse error: %v\noutput: %s", err, out)
+	}
+	if _, ok := obj["download_speed"]; !ok {
+		t.Error("expected download_speed key in NDJSON output")
 	}
 }
 

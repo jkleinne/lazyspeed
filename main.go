@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jkleinne/lazyspeed/diag"
 	"github.com/jkleinne/lazyspeed/model"
@@ -30,6 +31,7 @@ const (
 	keyDown  = "down"
 	keyJ     = "j"
 	keyK     = "k"
+	keyEnter = "enter"
 )
 
 const fetchingServerListPhase = "Fetching server list..."
@@ -43,6 +45,7 @@ type ViewState int
 
 const (
 	ViewMain         ViewState = iota // Delegates to Model.State for rendering
+	ViewDiagInput                     // Diagnostics target input
 	ViewDiagRunning                   // Diagnostics spinner
 	ViewDiagCompact                   // Compact diagnostics summary
 	ViewDiagExpanded                  // Full hop-by-hop trace table
@@ -61,6 +64,7 @@ type speedTest struct {
 	diagResult *diag.DiagResult
 	viewState  ViewState
 	diagOffset int
+	diagInput  textinput.Model
 
 	analyticsSummary *model.Summary
 
@@ -100,19 +104,8 @@ type multiServerCompleteMsg struct {
 	errors  []model.ServerError
 }
 
-func runDiagCmd(m *model.Model, cfg *diag.DiagConfig) tea.Cmd {
+func runDiagCmd(target string, cfg *diag.DiagConfig) tea.Cmd {
 	return func() tea.Msg {
-		var target string
-		if m.Servers.Len() > 0 {
-			srv := m.Servers.Raw()[0]
-			target = stripPort(srv.Host)
-			if target == "" {
-				target = srv.Name
-			}
-		} else {
-			target = defaultDiagTarget
-		}
-
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Timeout)*time.Second)
 		defer cancel()
 
@@ -120,6 +113,17 @@ func runDiagCmd(m *model.Model, cfg *diag.DiagConfig) tea.Cmd {
 		result, err := diag.Run(ctx, backend, target, cfg)
 		return diagCompleteMsg{result: result, err: err}
 	}
+}
+
+// defaultDiagPlaceholder returns the auto-selected diagnostics target for display as placeholder text.
+func defaultDiagPlaceholder(m *model.Model) string {
+	if m.Servers.Len() > 0 {
+		target := stripPort(m.Servers.Raw()[0].Host)
+		if target != "" {
+			return target
+		}
+	}
+	return defaultDiagTarget
 }
 
 func fetchServerListCmd(m *model.Model) tea.Cmd {
@@ -267,6 +271,8 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return s.handleDiagExpandedKeys(msg)
 		case ViewDiagCompact:
 			return s.handleDiagCompactKeys(msg)
+		case ViewDiagInput:
+			return s.handleDiagInputKeys(msg)
 		case ViewDiagRunning:
 			return s.handleDiagRunningKeys(msg)
 		case ViewMain:
@@ -399,7 +405,7 @@ func (s *speedTest) handleServerSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cm
 		}
 	case "f":
 		return s.toggleFavorite()
-	case "enter":
+	case keyEnter:
 		if len(s.selectedServers) >= 2 {
 			return s.startMultiServerTest()
 		}
@@ -469,13 +475,45 @@ func (s *speedTest) handleDiagRunningKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return s, nil
 }
 
-func (s *speedTest) startDiagnostics() (tea.Model, tea.Cmd) {
+func (s *speedTest) showDiagInput() (tea.Model, tea.Cmd) {
+	s.viewState = ViewDiagInput
+	s.showHelp = false
+	s.diagInput.SetValue("")
+	s.diagInput.Placeholder = defaultDiagPlaceholder(s.model)
+	s.diagInput.Focus()
+	return s, textinput.Blink
+}
+
+func (s *speedTest) startDiagnostics(target string) (tea.Model, tea.Cmd) {
 	s.viewState = ViewDiagRunning
 	s.diagResult = nil
 	s.model.CurrentPhase = runningDiagnosticsPhase
 	s.showHelp = false
 	cfg := diagConfig(s.model.Config.Diagnostics)
-	return s, tea.Batch(s.spinner.Tick, runDiagCmd(s.model, cfg))
+	return s, tea.Batch(s.spinner.Tick, runDiagCmd(target, cfg))
+}
+
+func (s *speedTest) handleDiagInputKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case keyCtrlC:
+		s.quitting = true
+		return s, tea.Quit
+	case keyEsc:
+		s.viewState = ViewMain
+		s.showHelp = true
+		return s, nil
+	case keyEnter:
+		target := strings.TrimSpace(s.diagInput.Value())
+		if target == "" {
+			target = s.diagInput.Placeholder
+		}
+		return s.startDiagnostics(target)
+	}
+
+	// Delegate to textinput for typing, backspace, cursor movement, etc.
+	var cmd tea.Cmd
+	s.diagInput, cmd = s.diagInput.Update(msg)
+	return s, cmd
 }
 
 func (s *speedTest) startNewTest() (tea.Model, tea.Cmd) {
@@ -514,7 +552,7 @@ func (s *speedTest) handleDiagExpandedKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 			s.diagOffset++
 		}
 	case "d":
-		return s.startDiagnostics()
+		return s.showDiagInput()
 	}
 	return s, nil
 }
@@ -528,11 +566,11 @@ func (s *speedTest) handleDiagCompactKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		s.viewState = ViewMain
 		s.diagResult = nil
 		s.showHelp = true
-	case "enter":
+	case keyEnter:
 		s.viewState = ViewDiagExpanded
 		s.diagOffset = 0
 	case "d":
-		return s.startDiagnostics()
+		return s.showDiagInput()
 	case "n":
 		return s.startNewTest()
 	}
@@ -558,7 +596,7 @@ func (s *speedTest) handleIdleKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "n":
 		return s.startNewTest()
 	case "d":
-		return s.startDiagnostics()
+		return s.showDiagInput()
 	case "e":
 		if s.model.History.Results != nil {
 			s.model.State = model.StateExporting
@@ -608,6 +646,10 @@ func (s *speedTest) View() string {
 
 	case ViewAnalytics:
 		b.WriteString(ui.RenderAnalytics(s.analyticsSummary, s.model.Width))
+		b.WriteString("\n")
+
+	case ViewDiagInput:
+		b.WriteString(ui.RenderDiagInput(s.diagInput.View(), s.model.Width))
 		b.WriteString("\n")
 
 	case ViewDiagRunning:
@@ -886,6 +928,10 @@ func runTUI() {
 		spinner:  ui.DefaultSpinner,
 		showHelp: true,
 	}
+
+	s.diagInput = textinput.New()
+	s.diagInput.Prompt = "Target: "
+	s.diagInput.CharLimit = 253
 
 	if _, err := tea.NewProgram(&s, tea.WithAltScreen()).Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error running program: %v\n", err)
