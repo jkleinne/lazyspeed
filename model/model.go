@@ -692,6 +692,7 @@ func (m *Model) RunMultiServer(
 
 	if err := m.fetchNetworkInfo(ctx, updateChan); err != nil {
 		m.State = StateIdle
+		m.Error = fmt.Errorf("test cancelled")
 		return nil, nil
 	}
 
