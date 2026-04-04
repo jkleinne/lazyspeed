@@ -106,6 +106,16 @@ type RunOptions struct {
 	ProgressFn   func(phase string)
 }
 
+// HeadlessTestContext groups the parameters shared across headless test functions.
+type HeadlessTestContext struct {
+	Server  *speedtest.Server
+	Opts    RunOptions
+	Index   int
+	Total   int
+	UserIP  string
+	UserISP string
+}
+
 // Model holds all application state for the TUI and speed test orchestration.
 type Model struct {
 	History      *HistoryStore
@@ -292,7 +302,8 @@ func runPingPhase(ctx context.Context, backend Backend, server *speedtest.Server
 // finalizeTest records results, saves history, and sends the completion update.
 func (m *Model) finalizeTest(server *speedtest.Server, pr *pingResult, download, upload float64, updateChan chan<- ProgressUpdate) {
 	userIP, userISP := m.userInfo()
-	result := buildResult(server, pr, download, upload, userIP, userISP)
+	htc := HeadlessTestContext{Server: server, UserIP: userIP, UserISP: userISP}
+	result := buildResult(htc, pr, download, upload)
 
 	m.History.Append(result)
 	if saveErr := m.History.Save(); saveErr != nil {
@@ -373,19 +384,19 @@ func runTransferPhase(
 }
 
 // buildResult constructs a SpeedTestResult from the completed test data.
-func buildResult(server *speedtest.Server, pr *pingResult, download, upload float64, userIP, userISP string) *SpeedTestResult {
+func buildResult(htc HeadlessTestContext, pr *pingResult, download, upload float64) *SpeedTestResult {
 	return &SpeedTestResult{
 		DownloadSpeed: download,
 		UploadSpeed:   upload,
 		Ping:          pr.avgPing,
 		Jitter:        pr.jitter,
-		ServerName:    server.Name,
-		ServerSponsor: server.Sponsor,
-		ServerCountry: server.Country,
-		Distance:      server.Distance,
+		ServerName:    htc.Server.Name,
+		ServerSponsor: htc.Server.Sponsor,
+		ServerCountry: htc.Server.Country,
+		Distance:      htc.Server.Distance,
 		Timestamp:     time.Now(),
-		UserIP:        userIP,
-		UserISP:       userISP,
+		UserIP:        htc.UserIP,
+		UserISP:       htc.UserISP,
 	}
 }
 
@@ -484,18 +495,12 @@ type ServerError struct {
 // testSingleServerHeadless runs all phases of a headless speed test for one
 // server, prefixing each progress update with "[index/total] serverName — ".
 // It does not touch Model state (no State transitions, no History writes).
-func (m *Model) testSingleServerHeadless(
-	ctx context.Context,
-	server *speedtest.Server,
-	opts RunOptions,
-	index, total int,
-	userIP, userISP string,
-) (*SpeedTestResult, error) {
-	prefix := fmt.Sprintf("[%d/%d] %s — ", index, total, server.Name)
+func (m *Model) testSingleServerHeadless(ctx context.Context, htc HeadlessTestContext) (*SpeedTestResult, error) {
+	prefix := fmt.Sprintf("[%d/%d] %s — ", htc.Index, htc.Total, htc.Server.Name)
 
-	callProgressFn(opts.ProgressFn, prefix+"Measuring ping...")
-	pr, err := measurePing(ctx, m.backend, server, m.Config.PingCount(), func(pingNum int, ping, _ float64) {
-		callProgressFn(opts.ProgressFn, fmt.Sprintf("%sMeasuring ping (%d): %.1f ms", prefix, pingNum, ping))
+	callProgressFn(htc.Opts.ProgressFn, prefix+"Measuring ping...")
+	pr, err := measurePing(ctx, m.backend, htc.Server, m.Config.PingCount(), func(pingNum int, ping, _ float64) {
+		callProgressFn(htc.Opts.ProgressFn, fmt.Sprintf("%sMeasuring ping (%d): %.1f ms", prefix, pingNum, ping))
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to measure ping: %v", err)
@@ -510,37 +515,37 @@ func (m *Model) testSingleServerHeadless(
 
 	var downloadSpeed, uploadSpeed float64
 
-	if !opts.SkipDownload {
+	if !htc.Opts.SkipDownload {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		callProgressFn(opts.ProgressFn, prefix+"Testing download...")
-		if err := runHeadlessTransfer(ctx, "download", prefix, opts.ProgressFn,
-			func() float64 { return server.Context.GetEWMADownloadRate() },
-			func() error { return m.backend.DownloadTest(server) },
+		callProgressFn(htc.Opts.ProgressFn, prefix+"Testing download...")
+		if err := runHeadlessTransfer(ctx, "download", prefix, htc.Opts.ProgressFn,
+			func() float64 { return htc.Server.Context.GetEWMADownloadRate() },
+			func() error { return m.backend.DownloadTest(htc.Server) },
 		); err != nil {
 			return nil, fmt.Errorf("failed to measure download speed: %v", err)
 		}
-		downloadSpeed = float64(server.DLSpeed) / bytesPerMbit
-		callProgressFn(opts.ProgressFn, fmt.Sprintf("%sDownload: %.2f Mbps", prefix, downloadSpeed))
+		downloadSpeed = float64(htc.Server.DLSpeed) / bytesPerMbit
+		callProgressFn(htc.Opts.ProgressFn, fmt.Sprintf("%sDownload: %.2f Mbps", prefix, downloadSpeed))
 	}
 
-	if !opts.SkipUpload {
+	if !htc.Opts.SkipUpload {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		callProgressFn(opts.ProgressFn, prefix+"Testing upload...")
-		if err := runHeadlessTransfer(ctx, "upload", prefix, opts.ProgressFn,
-			func() float64 { return server.Context.GetEWMAUploadRate() },
-			func() error { return m.backend.UploadTest(server) },
+		callProgressFn(htc.Opts.ProgressFn, prefix+"Testing upload...")
+		if err := runHeadlessTransfer(ctx, "upload", prefix, htc.Opts.ProgressFn,
+			func() float64 { return htc.Server.Context.GetEWMAUploadRate() },
+			func() error { return m.backend.UploadTest(htc.Server) },
 		); err != nil {
 			return nil, fmt.Errorf("failed to measure upload speed: %v", err)
 		}
-		uploadSpeed = float64(server.ULSpeed) / bytesPerMbit
-		callProgressFn(opts.ProgressFn, fmt.Sprintf("%sUpload: %.2f Mbps", prefix, uploadSpeed))
+		uploadSpeed = float64(htc.Server.ULSpeed) / bytesPerMbit
+		callProgressFn(htc.Opts.ProgressFn, fmt.Sprintf("%sUpload: %.2f Mbps", prefix, uploadSpeed))
 	}
 
-	return buildResult(server, pr, downloadSpeed, uploadSpeed, userIP, userISP), nil
+	return buildResult(htc, pr, downloadSpeed, uploadSpeed), nil
 }
 
 // RunMultiServerHeadless runs sequential headless speed tests against each
@@ -576,7 +581,12 @@ func (m *Model) RunMultiServerHeadless(
 			break
 		}
 
-		result, err := m.testSingleServerHeadless(ctx, server, opts, i+1, total, userIP, userISP)
+		htc := HeadlessTestContext{
+			Server: server, Opts: opts,
+			Index: i + 1, Total: total,
+			UserIP: userIP, UserISP: userISP,
+		}
+		result, err := m.testSingleServerHeadless(ctx, htc)
 		if err != nil {
 			serverErrors = append(serverErrors, ServerError{ServerName: server.Name, Err: err})
 			continue
@@ -657,7 +667,8 @@ func (m *Model) testSingleServer(
 	sendUpdate(scaleProgress(progressUploadDone), fmt.Sprintf("%s — Upload: %.2f Mbps", prefix, uploadSpeed), updateChan)
 
 	userIP, userISP := m.userInfo()
-	return buildResult(server, pr, downloadSpeed, uploadSpeed, userIP, userISP), nil
+	htc := HeadlessTestContext{Server: server, UserIP: userIP, UserISP: userISP}
+	return buildResult(htc, pr, downloadSpeed, uploadSpeed), nil
 }
 
 // RunMultiServer orchestrates sequential TUI speed tests across multiple servers.
@@ -771,5 +782,10 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		callProgressFn(opts.ProgressFn, fmt.Sprintf("Upload: %.2f Mbps", uploadSpeed))
 	}
 
-	return buildResult(server, pingResult, downloadSpeed, uploadSpeed, userIP, userISP), nil
+	htc := HeadlessTestContext{
+		Server: server, Opts: opts,
+		Index: 1, Total: 1,
+		UserIP: userIP, UserISP: userISP,
+	}
+	return buildResult(htc, pingResult, downloadSpeed, uploadSpeed), nil
 }
