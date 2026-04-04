@@ -16,6 +16,7 @@ func TestBindingsForContext(t *testing.T) {
 		{"Export", ContextExport, 3},
 		{"Diagnostics compact", ContextDiagCompact, 4},
 		{"Diagnostics expanded", ContextDiagExpanded, 3},
+		{"Diagnostics input", ContextDiagInput, 2},
 		{"Comparison", ContextComparison, 3},
 	}
 
@@ -63,6 +64,23 @@ func TestBindingsForContextComparison(t *testing.T) {
 	for _, key := range expectedKeys {
 		if !keys[key] {
 			t.Errorf("BindingsForContext(ContextComparison) missing key %q", key)
+		}
+	}
+}
+
+func TestBindingsForContextDiagInput(t *testing.T) {
+	bindings := BindingsForContext(ContextDiagInput)
+	if len(bindings) != 2 {
+		t.Errorf("BindingsForContext(ContextDiagInput) returned %d bindings, want 2", len(bindings))
+	}
+
+	keys := make(map[string]bool)
+	for _, b := range bindings {
+		keys[b.Key] = true
+	}
+	for _, key := range []string{"Enter", "Esc"} {
+		if !keys[key] {
+			t.Errorf("BindingsForContext(ContextDiagInput) missing key %q", key)
 		}
 	}
 }

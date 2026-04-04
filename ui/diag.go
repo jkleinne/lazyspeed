@@ -294,6 +294,28 @@ func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) stri
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, b.String())
 }
 
+// RenderDiagInput renders the diagnostics target input screen.
+// inputView is the rendered output from the textinput component.
+func RenderDiagInput(inputView string, width int) string {
+	var b strings.Builder
+
+	instruction := diagSummaryLabelStyle.Render("Enter target hostname or IP address")
+	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, instruction))
+	b.WriteString("\n")
+
+	defaultHint := dimStyle.Render("(press Enter for default)")
+	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, defaultHint))
+	b.WriteString("\n\n")
+
+	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, inputView))
+	b.WriteString("\n\n")
+
+	hint := formatHint(ContextDiagInput)
+	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, hint))
+
+	return lipgloss.PlaceHorizontal(width, lipgloss.Center, b.String())
+}
+
 // Truncate shortens s to at most maxLen runes, appending "…" if trimmed.
 func Truncate(s string, maxLen int) string {
 	runes := []rune(s)

@@ -13,6 +13,7 @@ const (
 	ContextExport          BindingContext = "Export"
 	ContextDiagCompact     BindingContext = "Diagnostics"
 	ContextDiagExpanded    BindingContext = "Diagnostics (Expanded)"
+	ContextDiagInput       BindingContext = "Diagnostics (Target)"
 	ContextAnalytics       BindingContext = "Analytics"
 	ContextComparison      BindingContext = "Comparison"
 )
@@ -62,6 +63,12 @@ var bindings = []Binding{
 	{Key: "Esc", Description: "Compact View", Context: ContextDiagExpanded},
 	{Key: "d", Description: "New Diagnostic", Context: ContextDiagExpanded},
 	{Key: "q", Description: "Quit", Context: ContextDiagExpanded},
+
+	// Diagnostics (target input)
+	// No "q" binding — the text input must accept all typed characters including "q".
+	// Ctrl+C (handled in main.go) remains available to quit.
+	{Key: "Enter", Description: "Run Diagnostic", Context: ContextDiagInput},
+	{Key: "Esc", Description: "Cancel", Context: ContextDiagInput},
 
 	// Analytics
 	{Key: "Esc", Description: "Back", Context: ContextAnalytics},
