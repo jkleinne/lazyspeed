@@ -170,6 +170,11 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config file: %v", err)
 	}
 
+	// Overlay non-zero partial values onto defaults. Each field must be checked
+	// individually — adding a new config field requires adding a corresponding
+	// overlay line here. This is a maintenance hazard: if a new field is added
+	// to the Config struct but not to this overlay, it will silently use its
+	// zero value instead of the default.
 	if partial.History.MaxEntries > 0 {
 		cfg.History.MaxEntries = partial.History.MaxEntries
 	}

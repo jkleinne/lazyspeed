@@ -57,7 +57,7 @@ func (ms MetricSummary) TrendLabel() string {
 	case TrendStable:
 		return "stable"
 	}
-	return "stable"
+	panic("unhandled TrendDirection")
 }
 
 // PeakComparison holds peak vs off-peak averages for a metric.
