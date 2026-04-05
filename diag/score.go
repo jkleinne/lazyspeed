@@ -24,10 +24,23 @@ const (
 	dnsExcellent = 10.0
 	dnsTerrible  = 500.0
 
-	gradeA = 90
-	gradeB = 75
-	gradeC = 50
-	gradeD = 25
+	gradeScoreA = 90
+	gradeScoreB = 75
+	gradeScoreC = 50
+	gradeScoreD = 25
+)
+
+// grade is the letter-grade component of a QualityScore.
+// Using a named string type keeps grade values self-documenting and lets the
+// exhaustive linter enforce complete switch coverage.
+type grade string
+
+const (
+	gradeA grade = "A"
+	gradeB grade = "B"
+	gradeC grade = "C"
+	gradeD grade = "D"
+	gradeF grade = "F"
 )
 
 func ComputeScore(result *Result) QualityScore {
@@ -126,32 +139,34 @@ func HopPacketLoss(hops []Hop) float64 {
 	return float64(timeouts) / float64(len(hops)) * 100
 }
 
-func gradeFromScore(score int) string {
+func gradeFromScore(score int) grade {
 	switch {
-	case score >= gradeA:
-		return "A"
-	case score >= gradeB:
-		return "B"
-	case score >= gradeC:
-		return "C"
-	case score >= gradeD:
-		return "D"
+	case score >= gradeScoreA:
+		return gradeA
+	case score >= gradeScoreB:
+		return gradeB
+	case score >= gradeScoreC:
+		return gradeC
+	case score >= gradeScoreD:
+		return gradeD
 	default:
-		return "F"
+		return gradeF
 	}
 }
 
-func labelFromGrade(grade string) string {
-	switch grade {
-	case "A":
+func labelFromGrade(g grade) string {
+	switch g {
+	case gradeA:
 		return "Great for streaming and video calls"
-	case "B":
+	case gradeB:
 		return "Good for most activities"
-	case "C":
+	case gradeC:
 		return "Adequate for browsing, poor for real-time"
-	case "D":
+	case gradeD:
 		return "Unstable — expect interruptions"
-	default:
+	case gradeF:
 		return "Severe connectivity issues"
 	}
+	// Unreachable: all grade values are covered above.
+	return ""
 }

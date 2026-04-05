@@ -9,7 +9,7 @@ func TestComputeScore(t *testing.T) {
 	tests := []struct {
 		name          string
 		result        *Result
-		expectedGrade string
+		expectedGrade grade
 		minScore      int
 		maxScore      int
 	}{
@@ -23,7 +23,7 @@ func TestComputeScore(t *testing.T) {
 				},
 				DNS: &DNSResult{Latency: 5 * time.Millisecond},
 			},
-			expectedGrade: "A",
+			expectedGrade: gradeA,
 			minScore:      90,
 			maxScore:      100,
 		},
@@ -37,7 +37,7 @@ func TestComputeScore(t *testing.T) {
 				},
 				DNS: &DNSResult{Latency: 600 * time.Millisecond},
 			},
-			expectedGrade: "F",
+			expectedGrade: gradeF,
 			minScore:      0,
 			maxScore:      24,
 		},
@@ -50,7 +50,7 @@ func TestComputeScore(t *testing.T) {
 				},
 				DNS: nil,
 			},
-			expectedGrade: "A",
+			expectedGrade: gradeA,
 			minScore:      90,
 			maxScore:      100,
 		},
@@ -64,7 +64,7 @@ func TestComputeScore(t *testing.T) {
 				},
 				DNS: nil,
 			},
-			expectedGrade: "F",
+			expectedGrade: gradeF,
 			minScore:      0,
 			maxScore:      24,
 		},
@@ -80,7 +80,7 @@ func TestComputeScore(t *testing.T) {
 				},
 				DNS: &DNSResult{Latency: 100 * time.Millisecond},
 			},
-			expectedGrade: "C",
+			expectedGrade: gradeC,
 			minScore:      50,
 			maxScore:      74,
 		},
@@ -96,7 +96,7 @@ func TestComputeScore(t *testing.T) {
 					Error: "dns resolution failed",
 				},
 			},
-			expectedGrade: "A",
+			expectedGrade: gradeA,
 			minScore:      90,
 			maxScore:      100,
 		},
@@ -121,32 +121,32 @@ func TestComputeScore(t *testing.T) {
 func TestGradeBoundaries(t *testing.T) {
 	tests := []struct {
 		score int
-		grade string
+		want  grade
 	}{
-		{100, "A"},
-		{90, "A"},
-		{89, "B"},
-		{75, "B"},
-		{74, "C"},
-		{50, "C"},
-		{49, "D"},
-		{25, "D"},
-		{24, "F"},
-		{0, "F"},
+		{100, gradeA},
+		{90, gradeA},
+		{89, gradeB},
+		{75, gradeB},
+		{74, gradeC},
+		{50, gradeC},
+		{49, gradeD},
+		{25, gradeD},
+		{24, gradeF},
+		{0, gradeF},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.grade, func(t *testing.T) {
+		t.Run(string(tt.want), func(t *testing.T) {
 			got := gradeFromScore(tt.score)
-			if got != tt.grade {
-				t.Errorf("gradeFromScore(%d) = %q, want %q", tt.score, got, tt.grade)
+			if got != tt.want {
+				t.Errorf("gradeFromScore(%d) = %q, want %q", tt.score, got, tt.want)
 			}
 		})
 	}
 }
 
 func TestLabelFromGrade(t *testing.T) {
-	grades := []string{"A", "B", "C", "D", "F"}
+	grades := []grade{gradeA, gradeB, gradeC, gradeD, gradeF}
 	for _, g := range grades {
 		label := labelFromGrade(g)
 		if label == "" {

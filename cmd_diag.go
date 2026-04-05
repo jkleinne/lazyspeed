@@ -199,7 +199,7 @@ func diagCSVRow(r *diag.Result) []string {
 		r.Target,
 		r.Method,
 		fmt.Sprintf("%d", r.Quality.Score),
-		r.Quality.Grade,
+		string(r.Quality.Grade),
 		dnsMs,
 		dnsCached,
 		fmt.Sprintf("%d", len(r.Hops)),

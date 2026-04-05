@@ -40,6 +40,10 @@ const defaultDiagTarget = "8.8.8.8"
 
 const runningDiagnosticsPhase = "Running diagnostics..."
 
+// maxDNSHostnameLen is the character limit for the diagnostics target text input.
+// 253 is the maximum length of a valid DNS hostname per RFC 1035.
+const maxDNSHostnameLen = 253
+
 // ViewState represents the TUI view overlay state.
 type ViewState int
 
@@ -926,7 +930,7 @@ func runTUI() {
 
 	s.diagInput = textinput.New()
 	s.diagInput.Prompt = "Target: "
-	s.diagInput.CharLimit = 253
+	s.diagInput.CharLimit = maxDNSHostnameLen
 
 	if _, err := tea.NewProgram(&s, tea.WithAltScreen()).Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error running program: %v\n", err)

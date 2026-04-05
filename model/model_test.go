@@ -67,8 +67,8 @@ func (m *mockBackend) UploadTest(server *speedtest.Server) error {
 
 func TestSpeedTestResultJSONKeys(t *testing.T) {
 	result := SpeedTestResult{
-		ServerCountry: "Germany",
-		Timestamp:     time.Date(2026, 3, 19, 0, 0, 0, 0, time.UTC),
+		Country:   "Germany",
+		Timestamp: time.Date(2026, 3, 19, 0, 0, 0, 0, time.UTC),
 	}
 
 	data, err := json.Marshal(result)
@@ -126,8 +126,8 @@ func TestUnmarshalJSONLegacyServerLoc(t *testing.T) {
 			if err := json.Unmarshal([]byte(tt.jsonInput), &r); err != nil {
 				t.Fatalf("Unmarshal failed: %v", err)
 			}
-			if r.ServerCountry != tt.wantCountry {
-				t.Errorf("Expected ServerCountry %q, got %q", tt.wantCountry, r.ServerCountry)
+			if r.Country != tt.wantCountry {
+				t.Errorf("Expected Country %q, got %q", tt.wantCountry, r.Country)
 			}
 		})
 	}
@@ -153,11 +153,11 @@ func TestLoadHistoryWithLegacyServerLoc(t *testing.T) {
 	if len(m.History.Entries) != 2 {
 		t.Fatalf("Expected 2 history entries, got %d", len(m.History.Entries))
 	}
-	if m.History.Entries[0].ServerCountry != "Germany" {
-		t.Errorf("Expected legacy entry ServerCountry 'Germany', got %q", m.History.Entries[0].ServerCountry)
+	if m.History.Entries[0].Country != "Germany" {
+		t.Errorf("Expected legacy entry Country 'Germany', got %q", m.History.Entries[0].Country)
 	}
-	if m.History.Entries[1].ServerCountry != "France" {
-		t.Errorf("Expected current entry ServerCountry 'France', got %q", m.History.Entries[1].ServerCountry)
+	if m.History.Entries[1].Country != "France" {
+		t.Errorf("Expected current entry Country 'France', got %q", m.History.Entries[1].Country)
 	}
 }
 
@@ -362,8 +362,8 @@ func TestPerformSpeedTest(t *testing.T) {
 	if m.History.Results.UploadSpeed != 50.0 {
 		t.Errorf("Expected UL speed 50.0, got %f", m.History.Results.UploadSpeed)
 	}
-	if m.History.Results.ServerCountry != "Test Country" {
-		t.Errorf("Expected ServerCountry 'Test Country', got %q", m.History.Results.ServerCountry)
+	if m.History.Results.Country != "Test Country" {
+		t.Errorf("Expected Country 'Test Country', got %q", m.History.Results.Country)
 	}
 	if m.State != StateIdle {
 		t.Errorf("Expected State to be StateIdle at end")
@@ -630,8 +630,8 @@ func TestRunHeadless(t *testing.T) {
 				if res.UserISP != "Test ISP" {
 					t.Errorf("Expected UserISP Test ISP, got %s", res.UserISP)
 				}
-				if res.ServerCountry != "US" {
-					t.Errorf("Expected ServerCountry 'US', got %q", res.ServerCountry)
+				if res.Country != "US" {
+					t.Errorf("Expected Country 'US', got %q", res.Country)
 				}
 			},
 		},
@@ -1583,7 +1583,7 @@ func TestResultCSVRow(t *testing.T) {
 	res := &SpeedTestResult{
 		Timestamp:     ts,
 		ServerName:    "Test Server",
-		ServerCountry: "US",
+		Country:       "US",
 		DownloadSpeed: 95.50,
 		UploadSpeed:   45.25,
 		Ping:          12.34,
@@ -2001,7 +2001,7 @@ func TestHistoryJSONRoundTripFidelity(t *testing.T) {
 		Jitter:        0.987654321098,
 		ServerName:    "Test Server",
 		ServerSponsor: "Test Sponsor",
-		ServerCountry: "Germany",
+		Country:       "Germany",
 		Distance:      1234.5678,
 		Timestamp:     time.Date(2026, 3, 26, 14, 30, 45, 123456789, time.UTC),
 		UserIP:        "192.168.1.1",
