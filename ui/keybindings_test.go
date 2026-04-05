@@ -5,26 +5,26 @@ import (
 	"testing"
 )
 
-func TestBindingsForContext(t *testing.T) {
+func Test_bindingsForContext(t *testing.T) {
 	tests := []struct {
 		name    string
-		context BindingContext
+		context bindingContext
 		minKeys int // minimum expected bindings
 	}{
-		{"Home", ContextHome, 5},
-		{"Server Selection", ContextServerSelection, 3},
-		{"Export", ContextExport, 3},
-		{"Diagnostics compact", ContextDiagCompact, 4},
-		{"Diagnostics expanded", ContextDiagExpanded, 3},
-		{"Diagnostics input", ContextDiagInput, 2},
-		{"Comparison", ContextComparison, 3},
+		{"Home", contextHome, 5},
+		{"Server Selection", contextServerSelection, 3},
+		{"Export", contextExport, 3},
+		{"Diagnostics compact", contextDiagCompact, 4},
+		{"Diagnostics expanded", contextDiagExpanded, 3},
+		{"Diagnostics input", contextDiagInput, 2},
+		{"Comparison", contextComparison, 3},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bindings := BindingsForContext(tt.context)
+			bindings := bindingsForContext(tt.context)
 			if len(bindings) < tt.minKeys {
-				t.Errorf("BindingsForContext(%q) returned %d bindings, want at least %d",
+				t.Errorf("bindingsForContext(%q) returned %d bindings, want at least %d",
 					tt.context, len(bindings), tt.minKeys)
 			}
 			for _, b := range bindings {
@@ -39,39 +39,39 @@ func TestBindingsForContext(t *testing.T) {
 	}
 }
 
-func TestBindingsForContextUnknown(t *testing.T) {
-	bindings := BindingsForContext("nonexistent")
+func Test_bindingsForContext_Unknown(t *testing.T) {
+	bindings := bindingsForContext("nonexistent")
 	if len(bindings) != 0 {
 		t.Errorf("expected 0 bindings for unknown context, got %d", len(bindings))
 	}
 }
 
-func TestBindingsForContextComparison(t *testing.T) {
-	bindings := BindingsForContext(ContextComparison)
+func Test_bindingsForContext_Comparison(t *testing.T) {
+	bindings := bindingsForContext(contextComparison)
 	if len(bindings) != 3 {
-		t.Errorf("BindingsForContext(ContextComparison) returned %d bindings, want 3", len(bindings))
+		t.Errorf("bindingsForContext(contextComparison) returned %d bindings, want 3", len(bindings))
 	}
 
 	keys := make(map[string]bool)
 	for _, b := range bindings {
 		keys[b.Key] = true
-		if b.Context != ContextComparison {
-			t.Errorf("binding context = %q, want %q", b.Context, ContextComparison)
+		if b.Context != contextComparison {
+			t.Errorf("binding context = %q, want %q", b.Context, contextComparison)
 		}
 	}
 
 	expectedKeys := []string{"Esc", "n", "q"}
 	for _, key := range expectedKeys {
 		if !keys[key] {
-			t.Errorf("BindingsForContext(ContextComparison) missing key %q", key)
+			t.Errorf("bindingsForContext(contextComparison) missing key %q", key)
 		}
 	}
 }
 
-func TestBindingsForContextDiagInput(t *testing.T) {
-	bindings := BindingsForContext(ContextDiagInput)
+func Test_bindingsForContext_DiagInput(t *testing.T) {
+	bindings := bindingsForContext(contextDiagInput)
 	if len(bindings) != 2 {
-		t.Errorf("BindingsForContext(ContextDiagInput) returned %d bindings, want 2", len(bindings))
+		t.Errorf("bindingsForContext(contextDiagInput) returned %d bindings, want 2", len(bindings))
 	}
 
 	keys := make(map[string]bool)
@@ -80,7 +80,7 @@ func TestBindingsForContextDiagInput(t *testing.T) {
 	}
 	for _, key := range []string{"Enter", "Esc"} {
 		if !keys[key] {
-			t.Errorf("BindingsForContext(ContextDiagInput) missing key %q", key)
+			t.Errorf("bindingsForContext(contextDiagInput) missing key %q", key)
 		}
 	}
 }
@@ -88,19 +88,19 @@ func TestBindingsForContextDiagInput(t *testing.T) {
 func TestFormatHint(t *testing.T) {
 	tests := []struct {
 		name     string
-		context  BindingContext
+		context  bindingContext
 		wantKeys []string
 		wantDesc []string
 	}{
 		{
 			name:     "DiagCompact contains all bindings",
-			context:  ContextDiagCompact,
+			context:  contextDiagCompact,
 			wantKeys: []string{"Enter", "Esc", "d", "n", "q"},
 			wantDesc: []string{"expand trace", "back", "new diagnostic", "speed test", "quit"},
 		},
 		{
 			name:     "DiagExpanded contains all bindings",
-			context:  ContextDiagExpanded,
+			context:  contextDiagExpanded,
 			wantKeys: []string{"↑/↓", "Esc", "d", "q"},
 			wantDesc: []string{"scroll", "compact view", "new diagnostic", "quit"},
 		},

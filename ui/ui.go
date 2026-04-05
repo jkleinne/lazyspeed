@@ -224,7 +224,7 @@ func RenderHelp(width int, hasResult bool) string {
 	help.WriteString("\n")
 	help.WriteString(sectionLabelStyle.Render("Controls:"))
 	help.WriteString("\n")
-	for _, b := range BindingsForContext(ContextHome) {
+	for _, b := range bindingsForContext(contextHome) {
 		if b.ResultOnly && !hasResult {
 			continue
 		}
@@ -235,7 +235,7 @@ func RenderHelp(width int, hasResult bool) string {
 	help.WriteString("\n")
 	help.WriteString(sectionLabelStyle.Render("In Server Selection:"))
 	help.WriteString("\n")
-	for _, b := range BindingsForContext(ContextServerSelection) {
+	for _, b := range bindingsForContext(contextServerSelection) {
 		fmt.Fprintf(&help, "  %s: %s\n",
 			hintKeyStyle.Render(b.Key),
 			hintDescStyle.Render(b.Description))
@@ -247,7 +247,7 @@ func RenderHelp(width int, hasResult bool) string {
 // RenderExportPrompt renders the inline format selection prompt shown when the
 // user presses 'e' after a test completes.
 func RenderExportPrompt(width int) string {
-	bindings := BindingsForContext(ContextExport)
+	bindings := bindingsForContext(contextExport)
 	parts := make([]string, 0, len(bindings))
 	for _, b := range bindings {
 		parts = append(parts, fmt.Sprintf("[%s] %s",
@@ -357,7 +357,7 @@ func RenderServerSelection(servers []model.Server, vp Viewport, selected map[int
 	}
 
 	b.WriteString("\n")
-	b.WriteString(formatHint(ContextServerSelection))
+	b.WriteString(formatHint(contextServerSelection))
 
 	return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, b.String())
 }
@@ -403,7 +403,7 @@ func RenderComparison(results []*model.SpeedTestResult, errs []model.ServerError
 	}
 
 	b.WriteString("\n")
-	b.WriteString(formatHint(ContextComparison))
+	b.WriteString(formatHint(contextComparison))
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, b.String())
 }

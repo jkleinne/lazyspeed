@@ -9,59 +9,47 @@ type BestMetrics struct {
 	JitterIdx   int
 }
 
+// bestIndex returns the index of the best value extracted from results.
+// "Best" is defined by the better comparator (e.g. a > b for highest).
+// Returns -1 when all extracted values are equal or results has fewer than 2 elements.
+func bestIndex(results []*SpeedTestResult, extract func(*SpeedTestResult) float64, better func(a, b float64) bool) int {
+	if len(results) < 2 {
+		return -1
+	}
+
+	allEqual := true
+	bestIdx := 0
+	first := extract(results[0])
+	bestVal := first
+
+	for i := 1; i < len(results); i++ {
+		v := extract(results[i])
+		if v != first {
+			allEqual = false
+		}
+		if better(v, bestVal) {
+			bestIdx = i
+			bestVal = v
+		}
+	}
+
+	if allEqual {
+		return -1
+	}
+	return bestIdx
+}
+
+func higher(a, b float64) bool { return a > b }
+func lower(a, b float64) bool  { return a < b }
+
 // FindBestMetrics scans results and returns the index of the best value for
 // each metric: highest download/upload, lowest ping/jitter. Returns -1 for a
 // metric when all values are identical.
 func FindBestMetrics(results []*SpeedTestResult) BestMetrics {
-	bm := BestMetrics{}
-	allDLEqual := true
-	allULEqual := true
-	allPingEqual := true
-	allJitterEqual := true
-
-	for i, res := range results {
-		if i == 0 {
-			continue
-		}
-		if res.DownloadSpeed != results[0].DownloadSpeed {
-			allDLEqual = false
-		}
-		if res.UploadSpeed != results[0].UploadSpeed {
-			allULEqual = false
-		}
-		if res.Ping != results[0].Ping {
-			allPingEqual = false
-		}
-		if res.Jitter != results[0].Jitter {
-			allJitterEqual = false
-		}
-
-		if res.DownloadSpeed > results[bm.DownloadIdx].DownloadSpeed {
-			bm.DownloadIdx = i
-		}
-		if res.UploadSpeed > results[bm.UploadIdx].UploadSpeed {
-			bm.UploadIdx = i
-		}
-		if res.Ping < results[bm.PingIdx].Ping {
-			bm.PingIdx = i
-		}
-		if res.Jitter < results[bm.JitterIdx].Jitter {
-			bm.JitterIdx = i
-		}
+	return BestMetrics{
+		DownloadIdx: bestIndex(results, func(r *SpeedTestResult) float64 { return r.DownloadSpeed }, higher),
+		UploadIdx:   bestIndex(results, func(r *SpeedTestResult) float64 { return r.UploadSpeed }, higher),
+		PingIdx:     bestIndex(results, func(r *SpeedTestResult) float64 { return r.Ping }, lower),
+		JitterIdx:   bestIndex(results, func(r *SpeedTestResult) float64 { return r.Jitter }, lower),
 	}
-
-	if allDLEqual {
-		bm.DownloadIdx = -1
-	}
-	if allULEqual {
-		bm.UploadIdx = -1
-	}
-	if allPingEqual {
-		bm.PingIdx = -1
-	}
-	if allJitterEqual {
-		bm.JitterIdx = -1
-	}
-
-	return bm
 }

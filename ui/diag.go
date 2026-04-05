@@ -142,7 +142,7 @@ func RenderDiagCompact(result *diag.Result, width int) string {
 	b.WriteString("\n")
 
 	// Hint
-	hint := formatHint(ContextDiagCompact)
+	hint := formatHint(contextDiagCompact)
 	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, hint))
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, b.String())
@@ -289,7 +289,7 @@ func RenderDiagExpanded(result *diag.Result, width, height, offset int) string {
 	}, width))
 
 	b.WriteString("\n")
-	hint := formatHint(ContextDiagExpanded)
+	hint := formatHint(contextDiagExpanded)
 	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, hint))
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, b.String())
@@ -311,7 +311,7 @@ func RenderDiagInput(inputView string, width int) string {
 	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, inputView))
 	b.WriteString("\n\n")
 
-	hint := formatHint(ContextDiagInput)
+	hint := formatHint(contextDiagInput)
 	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, hint))
 
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, b.String())

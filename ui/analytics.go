@@ -188,7 +188,7 @@ func RenderAnalytics(summary *model.Summary, width int) string {
 	b.WriteString(centerBlock(content.String(), width))
 
 	b.WriteString("\n")
-	hint := formatHint(ContextAnalytics)
+	hint := formatHint(contextAnalytics)
 	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, hint))
 
 	return b.String()

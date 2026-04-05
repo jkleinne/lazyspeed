@@ -56,9 +56,8 @@ func (ms MetricSummary) TrendLabel() string {
 		return fmt.Sprintf("↓%.1f%%", -ms.TrendPct)
 	case TrendStable:
 		return "stable"
-	default:
-		return "stable"
 	}
+	return "stable"
 }
 
 // PeakComparison holds peak vs off-peak averages for a metric.
