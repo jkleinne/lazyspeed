@@ -121,8 +121,12 @@ func TestRunAnalyticsEmptyHistory(t *testing.T) {
 	os.Stdout = w
 	t.Cleanup(func() { os.Stdout = old })
 
-	// Set XDG_DATA_HOME to a temp dir so history is empty
-	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	// Isolate from the user's real config and data so history is empty.
+	// XDG_CONFIG_HOME prevents LoadConfig from reading the user's config
+	// (which may set an explicit history.path that overrides XDG_DATA_HOME).
+	tmp := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmp)
+	t.Setenv("XDG_DATA_HOME", tmp)
 
 	analyticsJSON = false
 	analyticsSimple = false

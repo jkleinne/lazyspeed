@@ -932,7 +932,7 @@ func TestServerSelectionViewportNavigation(t *testing.T) {
 	s.computeDisplayOrder()
 
 	// Move cursor down past visible area
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 		s = *newModel.(*speedTest)
 	}
@@ -945,7 +945,7 @@ func TestServerSelectionViewportNavigation(t *testing.T) {
 	}
 
 	// Move cursor back to top
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
 		s = *newModel.(*speedTest)
 	}
@@ -993,7 +993,7 @@ func TestHistoryScrollKeys(t *testing.T) {
 	}
 
 	// Scroll down many times — should stop at max
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		newModel, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 		s = *newModel.(*speedTest)
 	}
@@ -1028,7 +1028,7 @@ func TestViewStateValues(t *testing.T) {
 		t.Errorf("Expected zero value to be ViewMain, got %d", s)
 	}
 
-	states := []ViewState{ViewMain, ViewDiagRunning, ViewDiagCompact, ViewDiagExpanded}
+	states := []ViewState{ViewMain, ViewDiagInput, ViewDiagRunning, ViewDiagCompact, ViewDiagExpanded, ViewAnalytics, ViewComparison}
 	seen := make(map[ViewState]bool)
 	for _, st := range states {
 		if seen[st] {
@@ -1913,7 +1913,7 @@ func TestServerSelectionLargeListViewport(t *testing.T) {
 	s.computeDisplayOrder()
 
 	// Navigate down 20 times
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 		s = *newModel.(*speedTest)
 	}
@@ -2054,7 +2054,7 @@ func TestDiagExpandedScrollClamping(t *testing.T) {
 	}
 
 	// Navigate down 50 times — should clamp below hop count
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 		s = *newModel.(*speedTest)
 	}
@@ -2064,7 +2064,7 @@ func TestDiagExpandedScrollClamping(t *testing.T) {
 	}
 
 	// Navigate up 50 times — should clamp at 0
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
 		s = *newModel.(*speedTest)
 	}

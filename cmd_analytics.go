@@ -40,9 +40,7 @@ func runAnalytics() {
 		return
 	}
 
-	if analyticsLast > 0 && analyticsLast < len(entries) {
-		entries = entries[len(entries)-analyticsLast:]
-	}
+	entries = tailSlice(entries, analyticsLast)
 
 	summary := model.ComputeSummary(entries)
 

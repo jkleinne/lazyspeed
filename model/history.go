@@ -1,6 +1,8 @@
 package model
 
 import (
+	"fmt"
+
 	"github.com/jkleinne/lazyspeed/internal/jsonstore"
 )
 
@@ -42,7 +44,7 @@ func (h *HistoryStore) Append(result *SpeedTestResult) {
 func (h *HistoryStore) Load() error {
 	entries, err := h.store.Load()
 	if err != nil {
-		return err
+		return fmt.Errorf("loading history: %v", err)
 	}
 	h.Entries = entries
 	if len(h.Entries) > 0 {
@@ -56,7 +58,7 @@ func (h *HistoryStore) Load() error {
 // interrupted writes. Backs up the current file before overwriting.
 func (h *HistoryStore) Save() error {
 	if err := h.store.Save(h.Entries); err != nil {
-		return err
+		return fmt.Errorf("saving history: %v", err)
 	}
 	// Sync in-memory slice to match what was written (truncated to maxEntries)
 	if h.maxEntries > 0 && len(h.Entries) > h.maxEntries {

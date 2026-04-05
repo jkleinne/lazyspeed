@@ -185,12 +185,7 @@ func (s *speedTest) computeDisplayOrder() {
 
 // favoriteSet returns the current favorite IDs as a set for O(1) lookup.
 func (s *speedTest) favoriteSet() map[string]bool {
-	ids := s.model.Config.Servers.FavoriteIDs
-	set := make(map[string]bool, len(ids))
-	for _, id := range ids {
-		set[id] = true
-	}
-	return set
+	return s.model.Config.FavoriteIDSet()
 }
 
 // displayServers returns servers reordered by displayOrder for rendering.
@@ -346,7 +341,7 @@ func (s *speedTest) handleDiagComplete(msg diagCompleteMsg) (tea.Model, tea.Cmd)
 		cfg := diagConfig(s.model.Config.Diagnostics)
 		if cfg.MaxEntries > 0 {
 			if err := diag.AppendHistory(cfg.Path, msg.result, cfg.MaxEntries); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to persist diagnostics history: %v\n", err)
+				s.model.Warning = fmt.Sprintf("failed to persist diagnostics history: %v", err)
 			}
 		}
 	}

@@ -8,7 +8,6 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
-	"github.com/jkleinne/lazyspeed/diag"
 	"github.com/jkleinne/lazyspeed/model"
 )
 
@@ -321,7 +320,7 @@ func RenderServerSelection(servers []model.Server, vp Viewport, selected map[int
 		}
 
 		server := servers[i]
-		latencyMs := diag.DurationMs(server.Latency)
+		latencyMs := model.DurationMs(server.Latency)
 		latencyStr := latencyStyle(server.Latency).Render(fmt.Sprintf("%.2f ms", latencyMs))
 
 		line := fmt.Sprintf("%s: %s (%s) — %s",
@@ -373,10 +372,10 @@ func RenderComparison(results []*model.SpeedTestResult, errs []model.ServerError
 	b.WriteString("\n\n")
 
 	if len(results) > 0 {
-		bestDL, bestUL, bestPing, bestJitter := findBestMetrics(results)
+		bm := model.FindBestMetrics(results)
 
 		headers := []string{"Server", "Country", "DL (Mbps)", "UL (Mbps)", "Ping (ms)", "Jitter (ms)", ""}
-		rows := buildComparisonRows(results, bestDL, bestUL, bestPing, bestJitter)
+		rows := buildComparisonRows(results, bm)
 
 		t := table.New().
 			Headers(headers...).
@@ -409,69 +408,13 @@ func RenderComparison(results []*model.SpeedTestResult, errs []model.ServerError
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, b.String())
 }
 
-// findBestMetrics returns the indices of the results with the highest DL/UL
-// and lowest Ping/Jitter. Returns -1 for a metric when all values are identical
-// so that no star is shown when there is no meaningful winner.
-func findBestMetrics(results []*model.SpeedTestResult) (bestDL, bestUL, bestPing, bestJitter int) {
-	allDLEqual := true
-	allULEqual := true
-	allPingEqual := true
-	allJitterEqual := true
-
-	for i, r := range results {
-		if i == 0 {
-			continue
-		}
-		if r.DownloadSpeed != results[0].DownloadSpeed {
-			allDLEqual = false
-		}
-		if r.UploadSpeed != results[0].UploadSpeed {
-			allULEqual = false
-		}
-		if r.Ping != results[0].Ping {
-			allPingEqual = false
-		}
-		if r.Jitter != results[0].Jitter {
-			allJitterEqual = false
-		}
-
-		if r.DownloadSpeed > results[bestDL].DownloadSpeed {
-			bestDL = i
-		}
-		if r.UploadSpeed > results[bestUL].UploadSpeed {
-			bestUL = i
-		}
-		if r.Ping < results[bestPing].Ping {
-			bestPing = i
-		}
-		if r.Jitter < results[bestJitter].Jitter {
-			bestJitter = i
-		}
-	}
-
-	if allDLEqual {
-		bestDL = -1
-	}
-	if allULEqual {
-		bestUL = -1
-	}
-	if allPingEqual {
-		bestPing = -1
-	}
-	if allJitterEqual {
-		bestJitter = -1
-	}
-
-	return bestDL, bestUL, bestPing, bestJitter
-}
-
 // buildComparisonRows converts results into table rows, appending ★ to the last
 // column for any result that holds a best-metric value.
-func buildComparisonRows(results []*model.SpeedTestResult, bestDL, bestUL, bestPing, bestJitter int) [][]string {
+func buildComparisonRows(results []*model.SpeedTestResult, bm model.BestMetrics) [][]string {
 	rows := make([][]string, 0, len(results))
 	for i, r := range results {
 		star := ""
-		if i == bestDL || i == bestUL || i == bestPing || i == bestJitter {
+		if i == bm.DownloadIdx || i == bm.UploadIdx || i == bm.PingIdx || i == bm.JitterIdx {
 			star = "★"
 		}
 		rows = append(rows, []string{

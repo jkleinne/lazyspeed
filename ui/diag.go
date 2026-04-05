@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jkleinne/lazyspeed/diag"
+	"github.com/jkleinne/lazyspeed/model"
 )
 
 const (
@@ -23,7 +24,7 @@ const (
 
 // renderLatency formats a duration value with colour coding.
 func renderLatency(d time.Duration) string {
-	s := fmt.Sprintf("%.0fms", diag.DurationMs(d))
+	s := fmt.Sprintf("%.0fms", model.DurationMs(d))
 	return latencyStyle(d).Render(s)
 }
 
@@ -337,5 +338,5 @@ func dnsDisplayStr(dns *diag.DNSResult) string {
 	if dns.Cached {
 		cacheLabel = "cached"
 	}
-	return fmt.Sprintf("%.0fms (%s)", diag.DurationMs(dns.Latency), cacheLabel)
+	return fmt.Sprintf("%.0fms (%s)", model.DurationMs(dns.Latency), cacheLabel)
 }

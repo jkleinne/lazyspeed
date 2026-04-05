@@ -231,7 +231,7 @@ func TestHistoryLoadSave(t *testing.T) {
 	}
 
 	// Case 4: Save > max size
-	for i := 0; i < 60; i++ {
+	for i := range 60 {
 		m2.History.Entries = append(m2.History.Entries, &SpeedTestResult{DownloadSpeed: float64(i)})
 	}
 	err = m2.History.Save()
@@ -2070,7 +2070,7 @@ func TestHistoryTruncationPreservesNewest(t *testing.T) {
 
 	m := NewModel(&mockBackend{}, cfg)
 	baseTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		m.History.Entries = append(m.History.Entries, &SpeedTestResult{
 			DownloadSpeed: float64(i),
 			Timestamp:     baseTime.Add(time.Duration(i) * time.Hour),

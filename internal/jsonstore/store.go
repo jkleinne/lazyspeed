@@ -82,7 +82,9 @@ func (s *Store[T]) Save(entries []*T) error {
 
 	// Back up current file before overwriting (best-effort, only if valid JSON)
 	if src, readErr := os.ReadFile(s.path); readErr == nil && json.Valid(src) {
-		_ = os.WriteFile(s.path+backupSuffix, src, s.filePerm)
+		if err := os.WriteFile(s.path+backupSuffix, src, s.filePerm); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: backup write failed: %v\n", err)
+		}
 	}
 
 	if err := os.Rename(tmpPath, s.path); err != nil {

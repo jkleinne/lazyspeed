@@ -299,71 +299,6 @@ func runMultiServerHeadless(m *model.Model, interactive bool) {
 	}
 }
 
-// bestMetrics identifies the best (highest DL/UL, lowest Ping/Jitter) result indices.
-// When all values are identical the returned index is -1 so no star is emitted.
-type bestMetrics struct {
-	downloadIdx int
-	uploadIdx   int
-	pingIdx     int
-	jitterIdx   int
-}
-
-// findBestMetrics scans results and returns the index of the best value for each metric.
-// Returns -1 for a metric when all values are identical (no winner to highlight).
-func findBestMetrics(results []*model.SpeedTestResult) bestMetrics {
-	bm := bestMetrics{downloadIdx: 0, uploadIdx: 0, pingIdx: 0, jitterIdx: 0}
-	allDLEqual := true
-	allULEqual := true
-	allPingEqual := true
-	allJitterEqual := true
-
-	for i, res := range results {
-		if i == 0 {
-			continue
-		}
-		if res.DownloadSpeed != results[0].DownloadSpeed {
-			allDLEqual = false
-		}
-		if res.UploadSpeed != results[0].UploadSpeed {
-			allULEqual = false
-		}
-		if res.Ping != results[0].Ping {
-			allPingEqual = false
-		}
-		if res.Jitter != results[0].Jitter {
-			allJitterEqual = false
-		}
-
-		if res.DownloadSpeed > results[bm.downloadIdx].DownloadSpeed {
-			bm.downloadIdx = i
-		}
-		if res.UploadSpeed > results[bm.uploadIdx].UploadSpeed {
-			bm.uploadIdx = i
-		}
-		if res.Ping < results[bm.pingIdx].Ping {
-			bm.pingIdx = i
-		}
-		if res.Jitter < results[bm.jitterIdx].Jitter {
-			bm.jitterIdx = i
-		}
-	}
-
-	if allDLEqual {
-		bm.downloadIdx = -1
-	}
-	if allULEqual {
-		bm.uploadIdx = -1
-	}
-	if allPingEqual {
-		bm.pingIdx = -1
-	}
-	if allJitterEqual {
-		bm.jitterIdx = -1
-	}
-
-	return bm
-}
-
 // formatComparisonTable renders a fixed-width comparison table for multiple server results.
 // Best-value rows are marked with a star: higher is better for DL/UL, lower for Ping/Jitter.
 func formatComparisonTable(results []*model.SpeedTestResult) string {
@@ -392,7 +327,7 @@ func formatComparisonTable(results []*model.SpeedTestResult) string {
 	)
 	separator := strings.Repeat("─", len(header))
 
-	bm := findBestMetrics(results)
+	bm := model.FindBestMetrics(results)
 
 	sb.WriteString(header)
 	sb.WriteByte('\n')
@@ -400,7 +335,7 @@ func formatComparisonTable(results []*model.SpeedTestResult) string {
 	sb.WriteByte('\n')
 
 	for i, res := range results {
-		hasStar := i == bm.downloadIdx || i == bm.uploadIdx || i == bm.pingIdx || i == bm.jitterIdx
+		hasStar := i == bm.DownloadIdx || i == bm.UploadIdx || i == bm.PingIdx || i == bm.JitterIdx
 
 		star := ""
 		if hasStar {

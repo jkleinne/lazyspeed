@@ -328,8 +328,11 @@ func populateDiagHistory(t *testing.T, tmpDir string, entries []*diag.DiagResult
 	if err := os.MkdirAll(histDir, 0700); err != nil {
 		t.Fatalf("MkdirAll failed: %v", err)
 	}
-	if err := diag.SaveHistory(filepath.Join(histDir, "diagnostics.json"), entries, 20); err != nil {
-		t.Fatalf("SaveHistory failed: %v", err)
+	histPath := filepath.Join(histDir, "diagnostics.json")
+	for _, entry := range entries {
+		if err := diag.AppendHistory(histPath, entry, 0); err != nil {
+			t.Fatalf("AppendHistory failed: %v", err)
+		}
 	}
 }
 
