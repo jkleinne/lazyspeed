@@ -25,10 +25,10 @@ func TestAnalyticsCommandRegistered(t *testing.T) {
 }
 
 func TestAnalyticsLastFlagValidation(t *testing.T) {
-	origLast := analyticsLast
-	t.Cleanup(func() { analyticsLast = origLast })
+	origLast := analyticsF.last
+	t.Cleanup(func() { analyticsF.last = origLast })
 
-	analyticsLast = -1
+	analyticsF.last = -1
 	err := analyticsCmd.RunE(analyticsCmd, nil)
 	if err == nil {
 		t.Error("expected error for negative --last")
@@ -108,11 +108,11 @@ func TestAnalyticsJSONOutput(t *testing.T) {
 
 func TestRunAnalyticsEmptyHistory(t *testing.T) {
 	// Save and restore package-level flags
-	origJSON, origSimple, origLast := analyticsJSON, analyticsSimple, analyticsLast
+	origJSON, origSimple, origLast := analyticsF.json, analyticsF.simple, analyticsF.last
 	t.Cleanup(func() {
-		analyticsJSON = origJSON
-		analyticsSimple = origSimple
-		analyticsLast = origLast
+		analyticsF.json = origJSON
+		analyticsF.simple = origSimple
+		analyticsF.last = origLast
 	})
 
 	// Redirect stdout to capture output
@@ -128,9 +128,9 @@ func TestRunAnalyticsEmptyHistory(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", tmp)
 	t.Setenv("XDG_DATA_HOME", tmp)
 
-	analyticsJSON = false
-	analyticsSimple = false
-	analyticsLast = 0
+	analyticsF.json = false
+	analyticsF.simple = false
+	analyticsF.last = 0
 	runAnalytics()
 
 	if err := w.Close(); err != nil {

@@ -9,19 +9,21 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	analyticsJSON   bool
-	analyticsSimple bool
-	analyticsLast   int
-)
+type analyticsFlags struct {
+	json   bool
+	simple bool
+	last   int
+}
+
+var analyticsF analyticsFlags
 
 var analyticsCmd = &cobra.Command{
 	Use:   "analytics",
 	Short: "Show speed test analytics and trends",
 	Long:  `Compute and display trends, averages, and peak/off-peak comparisons from test history.`,
 	RunE: func(_ *cobra.Command, _ []string) error {
-		if analyticsLast < 0 {
-			return fmt.Errorf("--last must be >= 0, got %d", analyticsLast)
+		if analyticsF.last < 0 {
+			return fmt.Errorf("--last must be >= 0, got %d", analyticsF.last)
 		}
 		runAnalytics()
 		return nil
@@ -40,16 +42,16 @@ func runAnalytics() {
 		return
 	}
 
-	entries = tailSlice(entries, analyticsLast)
+	entries = tailSlice(entries, analyticsF.last)
 
 	summary := model.ComputeSummary(entries)
 
-	if analyticsJSON {
+	if analyticsF.json {
 		printJSON(summary)
 		return
 	}
 
-	if analyticsSimple {
+	if analyticsF.simple {
 		fmt.Println(analyticsSimpleLine(summary))
 		return
 	}
@@ -87,9 +89,9 @@ func analyticsDefaultOutput(s *model.Summary) string {
 }
 
 func init() {
-	analyticsCmd.Flags().BoolVar(&analyticsJSON, "json", false, "Output as JSON")
-	analyticsCmd.Flags().BoolVar(&analyticsSimple, "simple", false, "Minimal one-line output")
-	analyticsCmd.Flags().IntVar(&analyticsLast, "last", 0, "Analyze only the last N results (0 = all)")
+	analyticsCmd.Flags().BoolVar(&analyticsF.json, "json", false, "Output as JSON")
+	analyticsCmd.Flags().BoolVar(&analyticsF.simple, "simple", false, "Minimal one-line output")
+	analyticsCmd.Flags().IntVar(&analyticsF.last, "last", 0, "Analyze only the last N results (0 = all)")
 
 	rootCmd.AddCommand(analyticsCmd)
 }

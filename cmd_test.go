@@ -274,18 +274,18 @@ func TestHistoryFormatJSON(t *testing.T) {
 	}
 
 	// Reset globals
-	origFormat := historyFormat
-	origLast := historyLast
-	origClear := historyClear
+	origFormat := historyF.format
+	origLast := historyF.last
+	origClear := historyF.clear
 	defer func() {
-		historyFormat = origFormat
-		historyLast = origLast
-		historyClear = origClear
+		historyF.format = origFormat
+		historyF.last = origLast
+		historyF.clear = origClear
 	}()
 
-	historyFormat = formatJSON
-	historyLast = 0
-	historyClear = false
+	historyF.format = formatJSON
+	historyF.last = 0
+	historyF.clear = false
 
 	out := captureStdout(runHistory)
 
@@ -311,18 +311,18 @@ func TestHistoryFormatCSV(t *testing.T) {
 		t.Fatalf("SaveHistory failed: %v", err)
 	}
 
-	origFormat := historyFormat
-	origLast := historyLast
-	origClear := historyClear
+	origFormat := historyF.format
+	origLast := historyF.last
+	origClear := historyF.clear
 	defer func() {
-		historyFormat = origFormat
-		historyLast = origLast
-		historyClear = origClear
+		historyF.format = origFormat
+		historyF.last = origLast
+		historyF.clear = origClear
 	}()
 
-	historyFormat = formatCSV
-	historyLast = 0
-	historyClear = false
+	historyF.format = formatCSV
+	historyF.last = 0
+	historyF.clear = false
 
 	out := captureStdout(runHistory)
 
@@ -357,18 +357,18 @@ func TestHistoryLastFlag(t *testing.T) {
 		t.Fatalf("SaveHistory failed: %v", err)
 	}
 
-	origFormat := historyFormat
-	origLast := historyLast
-	origClear := historyClear
+	origFormat := historyF.format
+	origLast := historyF.last
+	origClear := historyF.clear
 	defer func() {
-		historyFormat = origFormat
-		historyLast = origLast
-		historyClear = origClear
+		historyF.format = origFormat
+		historyF.last = origLast
+		historyF.clear = origClear
 	}()
 
-	historyFormat = formatJSON
-	historyLast = 2
-	historyClear = false
+	historyF.format = formatJSON
+	historyF.last = 2
+	historyF.clear = false
 
 	out := captureStdout(runHistory)
 
@@ -391,18 +391,18 @@ func TestHistoryLastFlagExceedsLength(t *testing.T) {
 		t.Fatalf("SaveHistory failed: %v", err)
 	}
 
-	origFormat := historyFormat
-	origLast := historyLast
-	origClear := historyClear
+	origFormat := historyF.format
+	origLast := historyF.last
+	origClear := historyF.clear
 	defer func() {
-		historyFormat = origFormat
-		historyLast = origLast
-		historyClear = origClear
+		historyF.format = origFormat
+		historyF.last = origLast
+		historyF.clear = origClear
 	}()
 
-	historyFormat = formatJSON
-	historyLast = 100 // more than available
-	historyClear = false
+	historyF.format = formatJSON
+	historyF.last = 100 // more than available
+	historyF.clear = false
 
 	out := captureStdout(runHistory)
 
@@ -425,18 +425,18 @@ func TestHistoryClearFlag(t *testing.T) {
 		t.Fatalf("SaveHistory failed: %v", err)
 	}
 
-	origFormat := historyFormat
-	origLast := historyLast
-	origClear := historyClear
+	origFormat := historyF.format
+	origLast := historyF.last
+	origClear := historyF.clear
 	defer func() {
-		historyFormat = origFormat
-		historyLast = origLast
-		historyClear = origClear
+		historyF.format = origFormat
+		historyF.last = origLast
+		historyF.clear = origClear
 	}()
 
-	historyClear = true
-	historyFormat = ""
-	historyLast = 0
+	historyF.clear = true
+	historyF.format = ""
+	historyF.last = 0
 
 	out := captureStdout(runHistory)
 
@@ -463,18 +463,18 @@ func TestHistoryDefaultTableFormat(t *testing.T) {
 		t.Fatalf("SaveHistory failed: %v", err)
 	}
 
-	origFormat := historyFormat
-	origLast := historyLast
-	origClear := historyClear
+	origFormat := historyF.format
+	origLast := historyF.last
+	origClear := historyF.clear
 	defer func() {
-		historyFormat = origFormat
-		historyLast = origLast
-		historyClear = origClear
+		historyF.format = origFormat
+		historyF.last = origLast
+		historyF.clear = origClear
 	}()
 
-	historyFormat = ""
-	historyLast = 0
-	historyClear = false
+	historyF.format = ""
+	historyF.last = 0
+	historyF.clear = false
 
 	out := captureStdout(runHistory)
 
@@ -492,18 +492,18 @@ func TestHistoryDefaultTableFormat(t *testing.T) {
 func TestHistoryEmptyHistory(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	origFormat := historyFormat
-	origLast := historyLast
-	origClear := historyClear
+	origFormat := historyF.format
+	origLast := historyF.last
+	origClear := historyF.clear
 	defer func() {
-		historyFormat = origFormat
-		historyLast = origLast
-		historyClear = origClear
+		historyF.format = origFormat
+		historyF.last = origLast
+		historyF.clear = origClear
 	}()
 
-	historyFormat = ""
-	historyLast = 0
-	historyClear = false
+	historyF.format = ""
+	historyF.last = 0
+	historyF.clear = false
 
 	out := captureStdout(runHistory)
 
@@ -513,25 +513,25 @@ func TestHistoryEmptyHistory(t *testing.T) {
 }
 
 func TestHistoryCommandValidation(t *testing.T) {
-	origFormat := historyFormat
-	origLast := historyLast
-	origClear := historyClear
+	origFormat := historyF.format
+	origLast := historyF.last
+	origClear := historyF.clear
 	defer func() {
-		historyFormat = origFormat
-		historyLast = origLast
-		historyClear = origClear
+		historyF.format = origFormat
+		historyF.last = origLast
+		historyF.clear = origClear
 	}()
 
-	historyFormat = "xml"
-	historyLast = 0
-	historyClear = false
+	historyF.format = "xml"
+	historyF.last = 0
+	historyF.clear = false
 	err := historyCmd.RunE(nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "invalid --format") {
 		t.Errorf("Expected 'invalid --format' error, got %v", err)
 	}
 
-	historyFormat = ""
-	historyLast = -1
+	historyF.format = ""
+	historyF.last = -1
 	err = historyCmd.RunE(nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "--last must be >= 0") {
 		t.Errorf("Expected '--last must be >= 0' error, got %v", err)
@@ -591,18 +591,18 @@ func TestHistoryTableFormatTruncation(t *testing.T) {
 		t.Fatalf("SaveHistory failed: %v", err)
 	}
 
-	origFormat := historyFormat
-	origLast := historyLast
-	origClear := historyClear
+	origFormat := historyF.format
+	origLast := historyF.last
+	origClear := historyF.clear
 	defer func() {
-		historyFormat = origFormat
-		historyLast = origLast
-		historyClear = origClear
+		historyF.format = origFormat
+		historyF.last = origLast
+		historyF.clear = origClear
 	}()
 
-	historyFormat = ""
-	historyLast = 0
-	historyClear = false
+	historyF.format = ""
+	historyF.last = 0
+	historyF.clear = false
 
 	out := captureStdout(runHistory)
 
@@ -616,10 +616,10 @@ func TestHistoryTableFormatTruncation(t *testing.T) {
 }
 
 func TestRunIsInteractive(t *testing.T) {
-	origJSON := runJSON
-	origCSV := runCSV
-	origSimple := runSimple
-	defer func() { runJSON = origJSON; runCSV = origCSV; runSimple = origSimple }()
+	origJSON := runF.json
+	origCSV := runF.csv
+	origSimple := runF.simple
+	defer func() { runF.json = origJSON; runF.csv = origCSV; runF.simple = origSimple }()
 
 	tests := []struct {
 		name   string
@@ -636,9 +636,9 @@ func TestRunIsInteractive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			runJSON = tt.json
-			runCSV = tt.csv
-			runSimple = tt.simple
+			runF.json = tt.json
+			runF.csv = tt.csv
+			runF.simple = tt.simple
 			if got := runIsInteractive(); got != tt.want {
 				t.Errorf("runIsInteractive() = %v, want %v", got, tt.want)
 			}
@@ -647,16 +647,16 @@ func TestRunIsInteractive(t *testing.T) {
 }
 
 func TestRunCommandValidation(t *testing.T) {
-	origCount := runCount
-	defer func() { runCount = origCount }()
+	origCount := runF.count
+	defer func() { runF.count = origCount }()
 
-	runCount = 0
+	runF.count = 0
 	err := runCmd.PreRunE(nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "--count must be at least 1") {
 		t.Errorf("Expected '--count must be at least 1' error, got %v", err)
 	}
 
-	runCount = 1
+	runF.count = 1
 	err = runCmd.PreRunE(nil, nil)
 	if err != nil {
 		t.Errorf("Expected nil error for valid count, got %v", err)
@@ -742,16 +742,16 @@ func TestWriteCSVRowsServerData(t *testing.T) {
 }
 
 func TestServersCommandValidation(t *testing.T) {
-	origFormat := serversFormat
-	defer func() { serversFormat = origFormat }()
+	origFormat := serversF.format
+	defer func() { serversF.format = origFormat }()
 
-	serversFormat = "xml"
+	serversF.format = "xml"
 	err := serversCmd.RunE(nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "invalid --format") {
 		t.Errorf("Expected 'invalid --format' error, got %v", err)
 	}
 
-	serversFormat = "yaml"
+	serversF.format = "yaml"
 	err = serversCmd.RunE(nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "invalid --format") {
 		t.Errorf("Expected 'invalid --format' error for yaml, got %v", err)
@@ -759,14 +759,14 @@ func TestServersCommandValidation(t *testing.T) {
 }
 
 func TestRunCommandValidation_BestAndServersMutuallyExclusive(t *testing.T) {
-	origBest := runBest
-	origServers := runServerIDs
-	origCount := runCount
-	defer func() { runBest = origBest; runServerIDs = origServers; runCount = origCount }()
+	origBest := runF.best
+	origServers := runF.serverIDs
+	origCount := runF.count
+	defer func() { runF.best = origBest; runF.serverIDs = origServers; runF.count = origCount }()
 
-	runCount = 1
-	runBest = 3
-	runServerIDs = twoServerIDs
+	runF.count = 1
+	runF.best = 3
+	runF.serverIDs = twoServerIDs
 	err := runCmd.PreRunE(nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "--best and --servers are mutually exclusive") {
 		t.Errorf("Expected '--best and --servers are mutually exclusive' error, got %v", err)
@@ -774,14 +774,14 @@ func TestRunCommandValidation_BestAndServersMutuallyExclusive(t *testing.T) {
 }
 
 func TestRunCommandValidation_BestMinimumTwo(t *testing.T) {
-	origBest := runBest
-	origServers := runServerIDs
-	origCount := runCount
-	defer func() { runBest = origBest; runServerIDs = origServers; runCount = origCount }()
+	origBest := runF.best
+	origServers := runF.serverIDs
+	origCount := runF.count
+	defer func() { runF.best = origBest; runF.serverIDs = origServers; runF.count = origCount }()
 
-	runCount = 1
-	runServerIDs = ""
-	runBest = 1
+	runF.count = 1
+	runF.serverIDs = ""
+	runF.best = 1
 	err := runCmd.PreRunE(nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "--best must be at least 2") {
 		t.Errorf("Expected '--best must be at least 2' error, got %v", err)
@@ -789,14 +789,14 @@ func TestRunCommandValidation_BestMinimumTwo(t *testing.T) {
 }
 
 func TestRunCommandValidation_CountAndBestMutuallyExclusive(t *testing.T) {
-	origBest := runBest
-	origServers := runServerIDs
-	origCount := runCount
-	defer func() { runBest = origBest; runServerIDs = origServers; runCount = origCount }()
+	origBest := runF.best
+	origServers := runF.serverIDs
+	origCount := runF.count
+	defer func() { runF.best = origBest; runF.serverIDs = origServers; runF.count = origCount }()
 
-	runCount = 3
-	runBest = 2
-	runServerIDs = ""
+	runF.count = 3
+	runF.best = 2
+	runF.serverIDs = ""
 	err := runCmd.PreRunE(nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "--count and --best are mutually exclusive") {
 		t.Errorf("Expected '--count and --best are mutually exclusive' error, got %v", err)
@@ -804,14 +804,14 @@ func TestRunCommandValidation_CountAndBestMutuallyExclusive(t *testing.T) {
 }
 
 func TestRunCommandValidation_CountAndServersMutuallyExclusive(t *testing.T) {
-	origBest := runBest
-	origServers := runServerIDs
-	origCount := runCount
-	defer func() { runBest = origBest; runServerIDs = origServers; runCount = origCount }()
+	origBest := runF.best
+	origServers := runF.serverIDs
+	origCount := runF.count
+	defer func() { runF.best = origBest; runF.serverIDs = origServers; runF.count = origCount }()
 
-	runCount = 3
-	runBest = 0
-	runServerIDs = twoServerIDs
+	runF.count = 3
+	runF.best = 0
+	runF.serverIDs = twoServerIDs
 	err := runCmd.PreRunE(nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "--count and --servers are mutually exclusive") {
 		t.Errorf("Expected '--count and --servers are mutually exclusive' error, got %v", err)
@@ -819,14 +819,14 @@ func TestRunCommandValidation_CountAndServersMutuallyExclusive(t *testing.T) {
 }
 
 func TestRunCommandValidation_ServersMinimumTwo(t *testing.T) {
-	origBest := runBest
-	origServers := runServerIDs
-	origCount := runCount
-	defer func() { runBest = origBest; runServerIDs = origServers; runCount = origCount }()
+	origBest := runF.best
+	origServers := runF.serverIDs
+	origCount := runF.count
+	defer func() { runF.best = origBest; runF.serverIDs = origServers; runF.count = origCount }()
 
-	runCount = 1
-	runBest = 0
-	runServerIDs = "123"
+	runF.count = 1
+	runF.best = 0
+	runF.serverIDs = "123"
 	err := runCmd.PreRunE(nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "--servers requires at least 2 server IDs") {
 		t.Errorf("Expected '--servers requires at least 2 server IDs' error, got %v", err)
@@ -934,17 +934,17 @@ func TestFormatComparisonTable_IdenticalValues(t *testing.T) {
 }
 
 func TestRunFavoritesMutualExclusivity(t *testing.T) {
-	origFavorites := runFavorites
-	origServerID := runServerID
-	origServerIDs := runServerIDs
-	origBest := runBest
-	origCount := runCount
+	origFavorites := runF.favorites
+	origServerID := runF.serverID
+	origServerIDs := runF.serverIDs
+	origBest := runF.best
+	origCount := runF.count
 	defer func() {
-		runFavorites = origFavorites
-		runServerID = origServerID
-		runServerIDs = origServerIDs
-		runBest = origBest
-		runCount = origCount
+		runF.favorites = origFavorites
+		runF.serverID = origServerID
+		runF.serverIDs = origServerIDs
+		runF.best = origBest
+		runF.count = origCount
 	}()
 
 	tests := []struct {
@@ -982,11 +982,11 @@ func TestRunFavoritesMutualExclusivity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			runCount = tt.count
-			runFavorites = true
-			runServerID = tt.serverID
-			runServerIDs = tt.serverIDs
-			runBest = tt.best
+			runF.count = tt.count
+			runF.favorites = true
+			runF.serverID = tt.serverID
+			runF.serverIDs = tt.serverIDs
+			runF.best = tt.best
 
 			err := runCmd.PreRunE(nil, nil)
 			if err == nil {
@@ -1000,12 +1000,12 @@ func TestRunFavoritesMutualExclusivity(t *testing.T) {
 }
 
 func TestRunCommandValidation_WatchMinimumInterval(t *testing.T) {
-	origWatch := runWatch
-	origCount := runCount
-	defer func() { runWatch = origWatch; runCount = origCount }()
+	origWatch := runF.watch
+	origCount := runF.count
+	defer func() { runF.watch = origWatch; runF.count = origCount }()
 
-	runCount = 1
-	runWatch = 30 * time.Second // below 1m minimum
+	runF.count = 1
+	runF.watch = 30 * time.Second // below 1m minimum
 	err := runCmd.PreRunE(nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "--watch interval must be at least 1m") {
 		t.Errorf("expected '--watch interval must be at least 1m' error, got %v", err)
@@ -1013,14 +1013,14 @@ func TestRunCommandValidation_WatchMinimumInterval(t *testing.T) {
 }
 
 func TestRunCommandValidation_WatchAndBestMutuallyExclusive(t *testing.T) {
-	origWatch := runWatch
-	origBest := runBest
-	origCount := runCount
-	defer func() { runWatch = origWatch; runBest = origBest; runCount = origCount }()
+	origWatch := runF.watch
+	origBest := runF.best
+	origCount := runF.count
+	defer func() { runF.watch = origWatch; runF.best = origBest; runF.count = origCount }()
 
-	runCount = 1
-	runWatch = 5 * time.Minute
-	runBest = 3
+	runF.count = 1
+	runF.watch = 5 * time.Minute
+	runF.best = 3
 	err := runCmd.PreRunE(nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "--watch and --best are mutually exclusive") {
 		t.Errorf("expected mutual exclusivity error, got %v", err)
@@ -1028,14 +1028,14 @@ func TestRunCommandValidation_WatchAndBestMutuallyExclusive(t *testing.T) {
 }
 
 func TestRunCommandValidation_WatchAndServersMutuallyExclusive(t *testing.T) {
-	origWatch := runWatch
-	origServerIDs := runServerIDs
-	origCount := runCount
-	defer func() { runWatch = origWatch; runServerIDs = origServerIDs; runCount = origCount }()
+	origWatch := runF.watch
+	origServerIDs := runF.serverIDs
+	origCount := runF.count
+	defer func() { runF.watch = origWatch; runF.serverIDs = origServerIDs; runF.count = origCount }()
 
-	runCount = 1
-	runWatch = 5 * time.Minute
-	runServerIDs = twoServerIDs
+	runF.count = 1
+	runF.watch = 5 * time.Minute
+	runF.serverIDs = twoServerIDs
 	err := runCmd.PreRunE(nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "--watch and --servers are mutually exclusive") {
 		t.Errorf("expected mutual exclusivity error, got %v", err)
@@ -1043,14 +1043,14 @@ func TestRunCommandValidation_WatchAndServersMutuallyExclusive(t *testing.T) {
 }
 
 func TestRunCommandValidation_WatchAndFavoritesMutuallyExclusive(t *testing.T) {
-	origWatch := runWatch
-	origFavorites := runFavorites
-	origCount := runCount
-	defer func() { runWatch = origWatch; runFavorites = origFavorites; runCount = origCount }()
+	origWatch := runF.watch
+	origFavorites := runF.favorites
+	origCount := runF.count
+	defer func() { runF.watch = origWatch; runF.favorites = origFavorites; runF.count = origCount }()
 
-	runCount = 1
-	runWatch = 5 * time.Minute
-	runFavorites = true
+	runF.count = 1
+	runF.watch = 5 * time.Minute
+	runF.favorites = true
 	err := runCmd.PreRunE(nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "--watch and --favorites are mutually exclusive") {
 		t.Errorf("expected mutual exclusivity error, got %v", err)
@@ -1058,12 +1058,12 @@ func TestRunCommandValidation_WatchAndFavoritesMutuallyExclusive(t *testing.T) {
 }
 
 func TestRunCommandValidation_WatchAllowsCountZero(t *testing.T) {
-	origWatch := runWatch
-	origCount := runCount
-	defer func() { runWatch = origWatch; runCount = origCount }()
+	origWatch := runF.watch
+	origCount := runF.count
+	defer func() { runF.watch = origWatch; runF.count = origCount }()
 
-	runWatch = 5 * time.Minute
-	runCount = 0
+	runF.watch = 5 * time.Minute
+	runF.count = 0
 	err := runCmd.PreRunE(nil, nil)
 	if err != nil {
 		t.Errorf("expected nil error for --watch with --count 0, got %v", err)
@@ -1071,12 +1071,12 @@ func TestRunCommandValidation_WatchAllowsCountZero(t *testing.T) {
 }
 
 func TestRunCommandValidation_WatchValidInterval(t *testing.T) {
-	origWatch := runWatch
-	origCount := runCount
-	defer func() { runWatch = origWatch; runCount = origCount }()
+	origWatch := runF.watch
+	origCount := runF.count
+	defer func() { runF.watch = origWatch; runF.count = origCount }()
 
-	runWatch = 5 * time.Minute
-	runCount = 1
+	runF.watch = 5 * time.Minute
+	runF.count = 1
 	err := runCmd.PreRunE(nil, nil)
 	if err != nil {
 		t.Errorf("expected nil error for valid --watch, got %v", err)
@@ -1093,14 +1093,14 @@ func TestFormatWatchSeparator(t *testing.T) {
 }
 
 func TestEmitWatchResultJSON(t *testing.T) {
-	origJSON := runJSON
-	origCSV := runCSV
-	origSimple := runSimple
-	defer func() { runJSON = origJSON; runCSV = origCSV; runSimple = origSimple }()
+	origJSON := runF.json
+	origCSV := runF.csv
+	origSimple := runF.simple
+	defer func() { runF.json = origJSON; runF.csv = origCSV; runF.simple = origSimple }()
 
-	runJSON = true
-	runCSV = false
-	runSimple = false
+	runF.json = true
+	runF.csv = false
+	runF.simple = false
 
 	res := &model.SpeedTestResult{
 		DownloadSpeed: 95.12,
@@ -1124,15 +1124,15 @@ func TestEmitWatchResultJSON(t *testing.T) {
 }
 
 func TestServersPinUnpinMutualExclusivity(t *testing.T) {
-	origPin := serversPin
-	origUnpin := serversUnpin
+	origPin := serversF.pin
+	origUnpin := serversF.unpin
 	defer func() {
-		serversPin = origPin
-		serversUnpin = origUnpin
+		serversF.pin = origPin
+		serversF.unpin = origUnpin
 	}()
 
-	serversPin = "123"
-	serversUnpin = "456"
+	serversF.pin = "123"
+	serversF.unpin = "456"
 
 	err := serversCmd.RunE(nil, nil)
 	if err == nil {
