@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net"
 	"time"
+
+	"github.com/jkleinne/lazyspeed/internal/timeutil"
 )
 
 const (
@@ -32,7 +34,7 @@ func (h Hop) MarshalJSON() ([]byte, error) {
 		Latency float64 `json:"latency"`
 	}{
 		Alias:   (Alias)(h),
-		Latency: durationMs(h.Latency),
+		Latency: timeutil.DurationMs(h.Latency),
 	})
 }
 
@@ -64,7 +66,7 @@ func (d DNSResult) MarshalJSON() ([]byte, error) {
 		Latency float64 `json:"latency"`
 	}{
 		Alias:   (Alias)(d),
-		Latency: durationMs(d.Latency),
+		Latency: timeutil.DurationMs(d.Latency),
 	})
 }
 
@@ -127,11 +129,6 @@ func NewConfig(overrides Config) *Config {
 		cfg.Path = overrides.Path
 	}
 	return cfg
-}
-
-// durationMs converts a time.Duration to fractional milliseconds.
-func durationMs(d time.Duration) float64 {
-	return float64(d.Microseconds()) / 1000.0
 }
 
 func Run(ctx context.Context, backend Backend, target string, cfg *Config) (*Result, error) {

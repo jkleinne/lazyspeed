@@ -1142,3 +1142,100 @@ func TestServersPinUnpinMutualExclusivity(t *testing.T) {
 		t.Errorf("expected '--pin and --unpin are mutually exclusive' error, got %q", err.Error())
 	}
 }
+
+func TestSplitServerIDs(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want []string
+	}{
+		{"two IDs", "1,2", []string{"1", "2"}},
+		{"whitespace trimmed", " 1 , 2 , 3 ", []string{"1", "2", "3"}},
+		{"empty segments skipped", "1,,2,", []string{"1", "2"}},
+		{"single ID", "42", []string{"42"}},
+		{"empty string", "", nil},
+		{"only commas", ",,,", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := splitServerIDs(tt.raw)
+			if len(got) == 0 && len(tt.want) == 0 {
+				return
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("splitServerIDs(%q) = %v (len %d), want %v (len %d)", tt.raw, got, len(got), tt.want, len(tt.want))
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("splitServerIDs(%q)[%d] = %q, want %q", tt.raw, i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestFilterFavoriteServers(t *testing.T) {
+	servers := []model.Server{
+		{ID: "1", Name: "Alpha"},
+		{ID: "2", Name: "Beta"},
+		{ID: "3", Name: "Gamma"},
+	}
+
+	t.Run("filters to favorites", func(t *testing.T) {
+		cfg := model.DefaultConfig()
+		cfg.Servers.FavoriteIDs = []string{"1", "3"}
+		got, err := filterFavoriteServers(servers, cfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(got) != 2 {
+			t.Fatalf("expected 2 servers, got %d", len(got))
+		}
+		if got[0].ID != "1" || got[1].ID != "3" {
+			t.Errorf("expected IDs [1,3], got [%s,%s]", got[0].ID, got[1].ID)
+		}
+	})
+
+	t.Run("no favorites configured returns error", func(t *testing.T) {
+		cfg := model.DefaultConfig()
+		_, err := filterFavoriteServers(servers, cfg)
+		if err == nil {
+			t.Fatal("expected error for empty favorites")
+		}
+	})
+
+	t.Run("no matching favorites returns empty", func(t *testing.T) {
+		cfg := model.DefaultConfig()
+		cfg.Servers.FavoriteIDs = []string{"99"}
+		got, err := filterFavoriteServers(servers, cfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(got) != 0 {
+			t.Errorf("expected 0 servers, got %d", len(got))
+		}
+	})
+}
+
+func TestToServerEntries(t *testing.T) {
+	servers := []model.Server{
+		{ID: "1", Name: "Alpha", Sponsor: "Sp1", Country: "US", Distance: 10.5, Latency: 5 * time.Millisecond},
+		{ID: "2", Name: "Beta", Sponsor: "Sp2", Country: "DE", Distance: 200.0, Latency: 25 * time.Millisecond},
+	}
+
+	entries := toServerEntries(servers)
+
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(entries))
+	}
+
+	if entries[0].ID != "1" || entries[0].Name != "Alpha" || entries[0].Country != "US" {
+		t.Errorf("entry[0] = %+v, want ID=1 Name=Alpha Country=US", entries[0])
+	}
+	if entries[0].Latency != 5.0 {
+		t.Errorf("entry[0].Latency = %f, want 5.0", entries[0].Latency)
+	}
+	if entries[1].Distance != 200.0 {
+		t.Errorf("entry[1].Distance = %f, want 200.0", entries[1].Distance)
+	}
+}

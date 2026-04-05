@@ -387,6 +387,54 @@ func runHeadlessTest() {
 	runCountLoop(m, server, opts, interactive)
 }
 
+// recordResult prints any pending model warning and persists the result to history.
+func recordResult(m *model.Model, res *model.SpeedTestResult) {
+	if m.Warning != "" {
+		fmt.Fprintf(os.Stderr, "Warning: %s\n", m.Warning)
+		m.Warning = ""
+	}
+	m.History.Append(res)
+	if saveErr := m.History.Save(); saveErr != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to save history: %v\n", saveErr)
+	}
+}
+
+// runSingleIteration runs one headless test with a timeout, records the result,
+// and returns it. Used by runCountLoop where each iteration is independent.
+func runSingleIteration(m *model.Model, server *speedtest.Server, opts model.RunOptions, interactive bool) (*model.SpeedTestResult, error) {
+	testCtx, testCancel := context.WithTimeout(context.Background(), m.Config.TestTimeoutDuration())
+	res, err := m.RunHeadless(testCtx, server, opts)
+	testCancel()
+	if interactive {
+		fmt.Fprint(os.Stderr, "\n")
+	}
+	if err != nil {
+		return nil, err
+	}
+	recordResult(m, res)
+	return res, nil
+}
+
+// runWatchIteration runs one headless test with a timeout. A second signal on
+// sigChan cancels the in-flight test immediately, allowing graceful shutdown.
+// Unlike runSingleIteration, this does not record the result or print
+// interactive output — callers must handle both via recordResult.
+func runWatchIteration(m *model.Model, server *speedtest.Server, opts model.RunOptions, sigChan <-chan os.Signal) (*model.SpeedTestResult, error) {
+	testCtx, testCancel := context.WithTimeout(context.Background(), m.Config.TestTimeoutDuration())
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-sigChan:
+			testCancel()
+		case <-done:
+		}
+	}()
+	res, err := m.RunHeadless(testCtx, server, opts)
+	close(done)
+	testCancel()
+	return res, err
+}
+
 // runCountLoop runs N sequential tests (the existing --count behavior).
 func runCountLoop(m *model.Model, server *speedtest.Server, opts model.RunOptions, interactive bool) {
 	var jsonResults []*model.SpeedTestResult
@@ -397,24 +445,9 @@ func runCountLoop(m *model.Model, server *speedtest.Server, opts model.RunOption
 			fmt.Printf("\n--- Test %d of %d ---\n", i+1, runCount)
 		}
 
-		testCtx, testCancel := context.WithTimeout(context.Background(), m.Config.TestTimeoutDuration())
-		res, err := m.RunHeadless(testCtx, server, opts)
-		testCancel()
-		if interactive {
-			fmt.Fprint(os.Stderr, "\n")
-		}
+		res, err := runSingleIteration(m, server, opts, interactive)
 		if err != nil {
 			exitWithError("running test: %v", err)
-		}
-
-		if m.Warning != "" {
-			fmt.Fprintf(os.Stderr, "Warning: %s\n", m.Warning)
-			m.Warning = ""
-		}
-
-		m.History.Append(res)
-		if err := m.History.Save(); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to save history: %v\n", err)
 		}
 
 		switch {
@@ -441,7 +474,6 @@ func runWatchLoop(m *model.Model, server *speedtest.Server, opts model.RunOption
 	ticker := time.NewTicker(runWatch)
 	defer ticker.Stop()
 
-	// Print CSV header once at the start.
 	if runCSV {
 		writeCSVRows(model.SpeedTestCSVHeader, nil)
 	}
@@ -459,22 +491,7 @@ func runWatchLoop(m *model.Model, server *speedtest.Server, opts model.RunOption
 			fmt.Print(formatWatchSeparator(iteration, time.Now()))
 		}
 
-		testCtx, testCancel := context.WithTimeout(context.Background(), m.Config.TestTimeoutDuration())
-
-		// Allow a second signal to force-cancel a running test.
-		done := make(chan struct{})
-		go func() {
-			select {
-			case <-sigChan:
-				testCancel()
-			case <-done:
-			}
-		}()
-
-		res, err := m.RunHeadless(testCtx, server, opts)
-		close(done)
-		testCancel()
-
+		res, err := runWatchIteration(m, server, opts, sigChan)
 		if interactive {
 			fmt.Fprint(os.Stderr, "\n")
 		}
@@ -482,16 +499,7 @@ func runWatchLoop(m *model.Model, server *speedtest.Server, opts model.RunOption
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: running test: %v\n", err)
 		} else {
-			if m.Warning != "" {
-				fmt.Fprintf(os.Stderr, "Warning: %s\n", m.Warning)
-				m.Warning = ""
-			}
-
-			m.History.Append(res)
-			if err := m.History.Save(); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to save history: %v\n", err)
-			}
-
+			recordResult(m, res)
 			emitWatchResult(res)
 		}
 
