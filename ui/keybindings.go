@@ -4,86 +4,86 @@ import (
 	"strings"
 )
 
-// BindingContext identifies the TUI screen where a keybinding is active.
-type BindingContext string
+// bindingContext identifies the TUI screen where a keybinding is active.
+type bindingContext string
 
 const (
-	ContextHome            BindingContext = "Home"
-	ContextServerSelection BindingContext = "Server Selection"
-	ContextExport          BindingContext = "Export"
-	ContextDiagCompact     BindingContext = "Diagnostics"
-	ContextDiagExpanded    BindingContext = "Diagnostics (Expanded)"
-	ContextDiagInput       BindingContext = "Diagnostics (Target)"
-	ContextAnalytics       BindingContext = "Analytics"
-	ContextComparison      BindingContext = "Comparison"
+	contextHome            bindingContext = "Home"
+	contextServerSelection bindingContext = "Server Selection"
+	contextExport          bindingContext = "Export"
+	contextDiagCompact     bindingContext = "Diagnostics"
+	contextDiagExpanded    bindingContext = "Diagnostics (Expanded)"
+	contextDiagInput       bindingContext = "Diagnostics (Target)"
+	contextAnalytics       bindingContext = "Analytics"
+	contextComparison      bindingContext = "Comparison"
 )
 
-// Binding describes a single keybinding shown in help text.
-type Binding struct {
+// binding describes a single keybinding shown in help text.
+type binding struct {
 	Key         string
 	Description string
-	Context     BindingContext
+	Context     bindingContext
 	ResultOnly  bool // only shown when a test result exists
 }
 
 // bindings is the single source of truth for all user-facing keybinding labels.
 // The Update handler switch cases remain the authoritative dispatch logic;
 // this slice drives only the help/hint renderers.
-var bindings = []Binding{
+var bindings = []binding{
 	// Home
-	{Key: "n", Description: "New Test", Context: ContextHome},
-	{Key: "d", Description: "Diagnostics", Context: ContextHome},
-	{Key: "a", Description: "Analytics", Context: ContextHome, ResultOnly: true},
-	{Key: "e", Description: "Export Result", Context: ContextHome, ResultOnly: true},
-	{Key: "↑/↓", Description: "Scroll History", Context: ContextHome, ResultOnly: true},
-	{Key: "h", Description: "Toggle Help", Context: ContextHome},
-	{Key: "q", Description: "Quit", Context: ContextHome},
+	{Key: "n", Description: "New Test", Context: contextHome},
+	{Key: "d", Description: "Diagnostics", Context: contextHome},
+	{Key: "a", Description: "Analytics", Context: contextHome, ResultOnly: true},
+	{Key: "e", Description: "Export Result", Context: contextHome, ResultOnly: true},
+	{Key: "↑/↓", Description: "Scroll History", Context: contextHome, ResultOnly: true},
+	{Key: "h", Description: "Toggle Help", Context: contextHome},
+	{Key: "q", Description: "Quit", Context: contextHome},
 
 	// Server Selection
-	{Key: "↑/↓", Description: "Navigate", Context: ContextServerSelection},
-	{Key: "Space", Description: "Toggle Select", Context: ContextServerSelection},
-	{Key: "Enter", Description: "Select Server", Context: ContextServerSelection},
-	{Key: "f", Description: "Toggle Favorite", Context: ContextServerSelection},
-	{Key: "Esc", Description: "Back to Home", Context: ContextServerSelection},
+	{Key: "↑/↓", Description: "Navigate", Context: contextServerSelection},
+	{Key: "Space", Description: "Toggle Select", Context: contextServerSelection},
+	{Key: "Enter", Description: "Select Server", Context: contextServerSelection},
+	{Key: "f", Description: "Toggle Favorite", Context: contextServerSelection},
+	{Key: "Esc", Description: "Back to Home", Context: contextServerSelection},
 
 	// Export
-	{Key: "j", Description: "JSON", Context: ContextExport},
-	{Key: "c", Description: "CSV", Context: ContextExport},
-	{Key: "Esc", Description: "Cancel", Context: ContextExport},
+	{Key: "j", Description: "JSON", Context: contextExport},
+	{Key: "c", Description: "CSV", Context: contextExport},
+	{Key: "Esc", Description: "Cancel", Context: contextExport},
 
 	// Diagnostics (compact)
-	{Key: "Enter", Description: "Expand Trace", Context: ContextDiagCompact},
-	{Key: "Esc", Description: "Back", Context: ContextDiagCompact},
-	{Key: "d", Description: "New Diagnostic", Context: ContextDiagCompact},
-	{Key: "n", Description: "Speed Test", Context: ContextDiagCompact},
-	{Key: "q", Description: "Quit", Context: ContextDiagCompact},
+	{Key: "Enter", Description: "Expand Trace", Context: contextDiagCompact},
+	{Key: "Esc", Description: "Back", Context: contextDiagCompact},
+	{Key: "d", Description: "New Diagnostic", Context: contextDiagCompact},
+	{Key: "n", Description: "Speed Test", Context: contextDiagCompact},
+	{Key: "q", Description: "Quit", Context: contextDiagCompact},
 
 	// Diagnostics (expanded)
-	{Key: "↑/↓", Description: "Scroll", Context: ContextDiagExpanded},
-	{Key: "Esc", Description: "Compact View", Context: ContextDiagExpanded},
-	{Key: "d", Description: "New Diagnostic", Context: ContextDiagExpanded},
-	{Key: "q", Description: "Quit", Context: ContextDiagExpanded},
+	{Key: "↑/↓", Description: "Scroll", Context: contextDiagExpanded},
+	{Key: "Esc", Description: "Compact View", Context: contextDiagExpanded},
+	{Key: "d", Description: "New Diagnostic", Context: contextDiagExpanded},
+	{Key: "q", Description: "Quit", Context: contextDiagExpanded},
 
 	// Diagnostics (target input)
 	// No "q" binding — the text input must accept all typed characters including "q".
 	// Ctrl+C (handled in main.go) remains available to quit.
-	{Key: "Enter", Description: "Run Diagnostic", Context: ContextDiagInput},
-	{Key: "Esc", Description: "Cancel", Context: ContextDiagInput},
+	{Key: "Enter", Description: "Run Diagnostic", Context: contextDiagInput},
+	{Key: "Esc", Description: "Cancel", Context: contextDiagInput},
 
 	// Analytics
-	{Key: "Esc", Description: "Back", Context: ContextAnalytics},
-	{Key: "n", Description: "New Test", Context: ContextAnalytics},
-	{Key: "q", Description: "Quit", Context: ContextAnalytics},
+	{Key: "Esc", Description: "Back", Context: contextAnalytics},
+	{Key: "n", Description: "New Test", Context: contextAnalytics},
+	{Key: "q", Description: "Quit", Context: contextAnalytics},
 
 	// Comparison
-	{Key: "Esc", Description: "Back", Context: ContextComparison},
-	{Key: "n", Description: "New Test", Context: ContextComparison},
-	{Key: "q", Description: "Quit", Context: ContextComparison},
+	{Key: "Esc", Description: "Back", Context: contextComparison},
+	{Key: "n", Description: "New Test", Context: contextComparison},
+	{Key: "q", Description: "Quit", Context: contextComparison},
 }
 
-// BindingsForContext returns all bindings matching the given context.
-func BindingsForContext(ctx BindingContext) []Binding {
-	var result []Binding
+// bindingsForContext returns all bindings matching the given context.
+func bindingsForContext(ctx bindingContext) []binding {
+	var result []binding
 	for _, b := range bindings {
 		if b.Context == ctx {
 			result = append(result, b)
@@ -94,8 +94,8 @@ func BindingsForContext(ctx BindingContext) []Binding {
 
 // formatHint builds a " | "-separated hint line from all bindings in a context.
 // Keys are rendered in purple (hintKeyStyle) and descriptions in secondary gray (hintDescStyle).
-func formatHint(ctx BindingContext) string {
-	bindings := BindingsForContext(ctx)
+func formatHint(ctx bindingContext) string {
+	bindings := bindingsForContext(ctx)
 	parts := make([]string, 0, len(bindings))
 	for _, b := range bindings {
 		key := hintKeyStyle.Render(b.Key)

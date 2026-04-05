@@ -106,8 +106,8 @@ type RunOptions struct {
 	ProgressFn   func(phase string)
 }
 
-// HeadlessTestContext groups the parameters shared across headless test functions.
-type HeadlessTestContext struct {
+// headlessTestContext groups the parameters shared across headless test functions.
+type headlessTestContext struct {
 	Server  *speedtest.Server
 	Opts    RunOptions
 	Index   int
@@ -302,7 +302,7 @@ func runPingPhase(ctx context.Context, backend Backend, server *speedtest.Server
 // finalizeTest records results, saves history, and sends the completion update.
 func (m *Model) finalizeTest(server *speedtest.Server, pr *pingResult, download, upload float64, updateChan chan<- ProgressUpdate) {
 	userIP, userISP := m.userInfo()
-	htc := HeadlessTestContext{Server: server, UserIP: userIP, UserISP: userISP}
+	htc := headlessTestContext{Server: server, UserIP: userIP, UserISP: userISP}
 	result := buildResult(htc, pr, download, upload)
 
 	m.History.Append(result)
@@ -384,7 +384,7 @@ func runTransferPhase(
 }
 
 // buildResult constructs a SpeedTestResult from the completed test data.
-func buildResult(htc HeadlessTestContext, pr *pingResult, download, upload float64) *SpeedTestResult {
+func buildResult(htc headlessTestContext, pr *pingResult, download, upload float64) *SpeedTestResult {
 	return &SpeedTestResult{
 		DownloadSpeed: download,
 		UploadSpeed:   upload,
@@ -497,7 +497,7 @@ type ServerError struct {
 // prefixed with "[index/total] serverName — ". Single-server runs emit
 // unprefixed messages. It does not touch Model state (no State transitions,
 // no History writes).
-func (m *Model) testSingleServerHeadless(ctx context.Context, htc HeadlessTestContext) (*SpeedTestResult, error) {
+func (m *Model) testSingleServerHeadless(ctx context.Context, htc headlessTestContext) (*SpeedTestResult, error) {
 	var prefix string
 	if htc.Total > 1 {
 		prefix = fmt.Sprintf("[%d/%d] %s — ", htc.Index, htc.Total, htc.Server.Name)
@@ -586,7 +586,7 @@ func (m *Model) RunMultiServerHeadless(
 			break
 		}
 
-		htc := HeadlessTestContext{
+		htc := headlessTestContext{
 			Server: server, Opts: opts,
 			Index: i + 1, Total: total,
 			UserIP: userIP, UserISP: userISP,
@@ -672,7 +672,7 @@ func (m *Model) testSingleServer(
 	sendUpdate(scaleProgress(progressUploadDone), fmt.Sprintf("%s — Upload: %.2f Mbps", prefix, uploadSpeed), updateChan)
 
 	userIP, userISP := m.userInfo()
-	htc := HeadlessTestContext{Server: server, UserIP: userIP, UserISP: userISP}
+	htc := headlessTestContext{Server: server, UserIP: userIP, UserISP: userISP}
 	return buildResult(htc, pr, downloadSpeed, uploadSpeed), nil
 }
 
@@ -746,7 +746,7 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		return nil, ctx.Err()
 	}
 
-	htc := HeadlessTestContext{
+	htc := headlessTestContext{
 		Server: server, Opts: opts,
 		Index: 1, Total: 1,
 		UserIP: userIP, UserISP: userISP,
