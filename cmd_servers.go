@@ -153,11 +153,9 @@ func runPinServer(id string) error {
 	m := model.NewDefaultModel()
 
 	// Check if already favorited.
-	for _, fav := range m.Config.Servers.FavoriteIDs {
-		if fav == id {
-			fmt.Printf("Server %s is already in favorites.\n", id)
-			return nil
-		}
+	if favoriteIndex(m.Config.Servers.FavoriteIDs, id) >= 0 {
+		fmt.Printf("Server %s is already in favorites.\n", id)
+		return nil
 	}
 
 	// Fetch to validate the server exists.
@@ -185,20 +183,13 @@ func runPinServer(id string) error {
 func runUnpinServer(id string) error {
 	m := model.NewDefaultModel()
 
-	found := false
 	favs := m.Config.Servers.FavoriteIDs
-	for i, fav := range favs {
-		if fav == id {
-			m.Config.Servers.FavoriteIDs = append(favs[:i], favs[i+1:]...)
-			found = true
-			break
-		}
-	}
-
-	if !found {
+	idx := favoriteIndex(favs, id)
+	if idx < 0 {
 		fmt.Printf("Server %s is not in favorites.\n", id)
 		return nil
 	}
+	m.Config.Servers.FavoriteIDs = append(favs[:idx], favs[idx+1:]...)
 
 	if err := model.SaveConfig(m.Config); err != nil {
 		exitWithError("saving config: %v", err)

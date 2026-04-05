@@ -118,6 +118,16 @@ func diagConfig(d model.DiagnosticsConfig) *diag.Config {
 	})
 }
 
+// favoriteIndex returns the index of serverID in favs, or -1 if not found.
+func favoriteIndex(favs []string, serverID string) int {
+	for i, id := range favs {
+		if id == serverID {
+			return i
+		}
+	}
+	return -1
+}
+
 // tailSlice returns the last n elements of s. Returns s unchanged if n <= 0
 // or n >= len(s).
 func tailSlice[T any](s []T, n int) []T {

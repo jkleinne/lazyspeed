@@ -424,15 +424,10 @@ func (s *speedTest) toggleFavorite() (tea.Model, tea.Cmd) {
 	serverID := s.model.Servers.List()[rawIdx].ID
 
 	favs := s.model.Config.Servers.FavoriteIDs
-	found := false
-	for i, id := range favs {
-		if id == serverID {
-			s.model.Config.Servers.FavoriteIDs = append(favs[:i], favs[i+1:]...)
-			found = true
-			break
-		}
-	}
-	if !found {
+	idx := favoriteIndex(favs, serverID)
+	if idx >= 0 {
+		s.model.Config.Servers.FavoriteIDs = append(favs[:idx], favs[idx+1:]...)
+	} else {
 		s.model.Config.Servers.FavoriteIDs = append(favs, serverID)
 	}
 
