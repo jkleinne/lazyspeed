@@ -7,6 +7,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/jkleinne/lazyspeed/internal/timeutil"
 	"github.com/showwin/speedtest-go/speedtest"
 )
 
@@ -37,7 +38,7 @@ const (
 
 // DurationMs converts a time.Duration to fractional milliseconds.
 func DurationMs(d time.Duration) float64 {
-	return float64(d.Microseconds()) / 1000.0
+	return timeutil.DurationMs(d)
 }
 
 // SpeedTestCSVHeader is the CSV header row for speed test results.
@@ -492,6 +493,50 @@ type ServerError struct {
 	Err        error
 }
 
+// serverTestFn tests a single server during a multi-server run. index is
+// 0-based; total is the number of servers being tested.
+type serverTestFn func(ctx context.Context, server *speedtest.Server, index, total int) (*SpeedTestResult, error)
+
+// runServerLoop iterates over servers, calling testFn for each. Per-server
+// failures are collected as ServerErrors; context cancellation records remaining
+// untested servers and stops the loop. Each successful result is appended to
+// History and saved before the next server is tested.
+func (m *Model) runServerLoop(
+	ctx context.Context,
+	servers []*speedtest.Server,
+	testFn serverTestFn,
+) ([]*SpeedTestResult, []ServerError) {
+	total := len(servers)
+	var results []*SpeedTestResult
+	var serverErrors []ServerError
+
+	for i, server := range servers {
+		if ctx.Err() != nil {
+			for _, remaining := range servers[i:] {
+				serverErrors = append(serverErrors, ServerError{
+					ServerName: remaining.Name,
+					Err:        ctx.Err(),
+				})
+			}
+			break
+		}
+
+		result, err := testFn(ctx, server, i, total)
+		if err != nil {
+			serverErrors = append(serverErrors, ServerError{ServerName: server.Name, Err: err})
+			continue
+		}
+
+		m.History.Append(result)
+		if saveErr := m.History.Save(); saveErr != nil {
+			m.Warning = fmt.Sprintf("failed to save history: %v", saveErr)
+		}
+		results = append(results, result)
+	}
+
+	return results, serverErrors
+}
+
 // testSingleServerHeadless runs all phases of a headless speed test for one
 // server. When testing multiple servers (Total > 1), progress updates are
 // prefixed with "[index/total] serverName — ". Single-server runs emit
@@ -570,41 +615,14 @@ func (m *Model) RunMultiServerHeadless(
 	m.fetchUserInfoOrWarn()
 	userIP, userISP := m.userInfo()
 
-	total := len(servers)
-	var results []*SpeedTestResult
-	var serverErrors []ServerError
-
-	for i, server := range servers {
-		if ctx.Err() != nil {
-			// Record all remaining servers as cancelled errors.
-			for _, remaining := range servers[i:] {
-				serverErrors = append(serverErrors, ServerError{
-					ServerName: remaining.Name,
-					Err:        ctx.Err(),
-				})
-			}
-			break
-		}
-
+	return m.runServerLoop(ctx, servers, func(ctx context.Context, server *speedtest.Server, i, total int) (*SpeedTestResult, error) {
 		htc := headlessTestContext{
 			Server: server, Opts: opts,
 			Index: i + 1, Total: total,
 			UserIP: userIP, UserISP: userISP,
 		}
-		result, err := m.testSingleServerHeadless(ctx, htc)
-		if err != nil {
-			serverErrors = append(serverErrors, ServerError{ServerName: server.Name, Err: err})
-			continue
-		}
-
-		m.History.Append(result)
-		if saveErr := m.History.Save(); saveErr != nil {
-			m.Warning = fmt.Sprintf("failed to save history: %v", saveErr)
-		}
-		results = append(results, result)
-	}
-
-	return results, serverErrors
+		return m.testSingleServerHeadless(ctx, htc)
+	})
 }
 
 // testSingleServer runs all test phases for one server in TUI mode, using
@@ -701,37 +719,12 @@ func (m *Model) RunMultiServer(
 		return nil, nil
 	}
 
-	total := len(servers)
-	var results []*SpeedTestResult
-	var serverErrors []ServerError
-
-	for i, server := range servers {
-		if ctx.Err() != nil {
-			for _, remaining := range servers[i:] {
-				serverErrors = append(serverErrors, ServerError{
-					ServerName: remaining.Name,
-					Err:        ctx.Err(),
-				})
-			}
-			break
-		}
-
+	results, serverErrors := m.runServerLoop(ctx, servers, func(ctx context.Context, server *speedtest.Server, i, total int) (*SpeedTestResult, error) {
 		baseProgress := float64(i) / float64(total)
 		serverSpan := 1.0 / float64(total)
 		prefix := fmt.Sprintf("[%d/%d] %s", i+1, total, server.Name)
-
-		result, err := m.testSingleServer(ctx, server, baseProgress, serverSpan, prefix, updateChan)
-		if err != nil {
-			serverErrors = append(serverErrors, ServerError{ServerName: server.Name, Err: err})
-			continue
-		}
-
-		m.History.Append(result)
-		if saveErr := m.History.Save(); saveErr != nil {
-			m.Warning = fmt.Sprintf("failed to save history: %v", saveErr)
-		}
-		results = append(results, result)
-	}
+		return m.testSingleServer(ctx, server, baseProgress, serverSpan, prefix, updateChan)
+	})
 
 	m.State = StateIdle
 	return results, serverErrors

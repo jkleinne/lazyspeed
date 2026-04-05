@@ -2,6 +2,8 @@ package diag
 
 import (
 	"math"
+
+	"github.com/jkleinne/lazyspeed/internal/timeutil"
 )
 
 const (
@@ -42,7 +44,7 @@ func ComputeScore(result *Result) QualityScore {
 
 	var composite float64
 	if result.DNS != nil && result.DNS.Error == "" {
-		dnsMs := durationMs(result.DNS.Latency)
+		dnsMs := timeutil.DurationMs(result.DNS.Latency)
 		dnsScore := normalizeMetric(dnsMs, dnsExcellent, dnsTerrible)
 		composite = latencyScore*weightLatency +
 			jitterScore*weightJitter +
@@ -80,7 +82,7 @@ func normalizeMetric(value, excellent, terrible float64) float64 {
 func FinalHopLatencyMs(hops []Hop) float64 {
 	for i := len(hops) - 1; i >= 0; i-- {
 		if !hops[i].Timeout {
-			return durationMs(hops[i].Latency)
+			return timeutil.DurationMs(hops[i].Latency)
 		}
 	}
 	return 0
@@ -90,7 +92,7 @@ func hopLatencyStdDev(hops []Hop) float64 {
 	var latencies []float64
 	for _, h := range hops {
 		if !h.Timeout {
-			latencies = append(latencies, durationMs(h.Latency))
+			latencies = append(latencies, timeutil.DurationMs(h.Latency))
 		}
 	}
 	if len(latencies) < 2 {

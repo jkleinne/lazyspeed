@@ -1934,14 +1934,19 @@ func TestMonitorTransferProgress(t *testing.T) {
 		rateFn:  func() float64 { return 100 * bytesPerMbit }, // 100 Mbps in bytes/sec
 	}, updateChan)
 
-	// Let the ticker fire at least once (progressInterval = 200ms)
-	time.Sleep(500 * time.Millisecond)
+	// Wait for the ticker to fire at least once instead of sleeping a fixed duration.
+	var firstUpdate ProgressUpdate
+	select {
+	case firstUpdate = <-updateChan:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for progress update")
+	}
+
 	close(done)
 	<-doneAck
 
-	// Drain updates
 	close(updateChan)
-	var updates []ProgressUpdate
+	updates := []ProgressUpdate{firstUpdate}
 	for u := range updateChan {
 		updates = append(updates, u)
 	}
