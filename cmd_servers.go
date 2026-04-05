@@ -5,6 +5,7 @@ import (
 	"os"
 	"text/tabwriter"
 
+	"github.com/jkleinne/lazyspeed/internal/timeutil"
 	"github.com/jkleinne/lazyspeed/model"
 	"github.com/jkleinne/lazyspeed/ui"
 	"github.com/spf13/cobra"
@@ -88,7 +89,7 @@ func toServerEntries(servers []model.Server) []serverEntry {
 			Name:     s.Name,
 			Sponsor:  s.Sponsor,
 			Country:  s.Country,
-			Latency:  model.DurationMs(s.Latency),
+			Latency:  timeutil.DurationMs(s.Latency),
 			Distance: s.Distance,
 		}
 	}
@@ -128,7 +129,7 @@ func runServers() {
 	for i, s := range servers {
 		csvRows[i] = []string{
 			s.ID, s.Name, s.Sponsor, s.Country,
-			fmt.Sprintf("%.2f", model.DurationMs(s.Latency)),
+			fmt.Sprintf("%.2f", timeutil.DurationMs(s.Latency)),
 			fmt.Sprintf("%.1f", s.Distance),
 		}
 	}
@@ -141,7 +142,7 @@ func runServers() {
 			sponsor := ui.Truncate(s.Sponsor, serversSponsorMaxLen)
 			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%.2f\t%.1f\n",
 				s.ID, name, sponsor, s.Country,
-				model.DurationMs(s.Latency), s.Distance)
+				timeutil.DurationMs(s.Latency), s.Distance)
 		}
 		_ = tw.Flush()
 	})

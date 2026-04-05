@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -171,7 +173,7 @@ func (s *speedTest) computeDisplayOrder() {
 
 	favSet := s.favoriteSet()
 	servers := s.model.Servers.List()
-	favorites := make([]int, 0)
+	favorites := make([]int, 0, len(favSet))
 	others := make([]int, 0, total)
 
 	for i := range total {
@@ -881,7 +883,7 @@ func migrateHistoryIfNeeded() {
 		return
 	}
 	// Check if the legacy file exists
-	if _, err := os.Stat(legacy); os.IsNotExist(err) {
+	if _, err := os.Stat(legacy); errors.Is(err, fs.ErrNotExist) {
 		return
 	}
 	// Check if the new path already exists — don't overwrite

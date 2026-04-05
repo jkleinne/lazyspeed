@@ -37,11 +37,6 @@ const (
 	progressComplete      = 1.0
 )
 
-// DurationMs converts a time.Duration to fractional milliseconds.
-func DurationMs(d time.Duration) float64 {
-	return timeutil.DurationMs(d)
-}
-
 // SpeedTestCSVHeader returns the CSV header row for speed test results.
 // Returned as a fresh slice so callers cannot mutate the canonical column order.
 func SpeedTestCSVHeader() []string {
@@ -208,7 +203,7 @@ func measurePing(ctx context.Context, backend Backend, server *speedtest.Server,
 			return nil, ctx.Err()
 		}
 		err := backend.PingTest(server, func(latency time.Duration) {
-			ping := float64(latency) / float64(time.Millisecond)
+			ping := timeutil.DurationMs(latency)
 			pings = append(pings, ping)
 			sumPing += ping
 			var currentJitter float64

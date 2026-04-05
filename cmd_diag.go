@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jkleinne/lazyspeed/diag"
+	"github.com/jkleinne/lazyspeed/internal/timeutil"
 	"github.com/jkleinne/lazyspeed/model"
 	"github.com/jkleinne/lazyspeed/ui"
 	"github.com/spf13/cobra"
@@ -173,7 +174,7 @@ func runDiagHistory() {
 			targetStr := ui.Truncate(r.Target, diagTargetMaxLen)
 			dnsMs := "-"
 			if r.DNS != nil {
-				dnsMs = fmt.Sprintf("%.1f", model.DurationMs(r.DNS.Latency))
+				dnsMs = fmt.Sprintf("%.1f", timeutil.DurationMs(r.DNS.Latency))
 			}
 			_, _ = fmt.Fprintf(tw, "%s\t%s\t%d\t%s\t%d\t%s\n",
 				dateStr, targetStr, r.Quality.Score, r.Quality.Grade, len(r.Hops), dnsMs)
@@ -189,7 +190,7 @@ func diagCSVRow(r *diag.Result) []string {
 	dnsMs := ""
 	dnsCached := ""
 	if r.DNS != nil {
-		dnsMs = fmt.Sprintf("%.3f", model.DurationMs(r.DNS.Latency))
+		dnsMs = fmt.Sprintf("%.3f", timeutil.DurationMs(r.DNS.Latency))
 		dnsCached = strconv.FormatBool(r.DNS.Cached)
 	}
 
@@ -214,7 +215,7 @@ func diagCSVRow(r *diag.Result) []string {
 func diagSimpleLine(r *diag.Result) string {
 	dnsStr := "-"
 	if r.DNS != nil {
-		dnsStr = fmt.Sprintf("%.0fms", model.DurationMs(r.DNS.Latency))
+		dnsStr = fmt.Sprintf("%.0fms", timeutil.DurationMs(r.DNS.Latency))
 	}
 	return fmt.Sprintf("Score: %d/%s | DNS: %s | Hops: %d",
 		r.Quality.Score, r.Quality.Grade, dnsStr, len(r.Hops))
@@ -235,7 +236,7 @@ func diagDefaultOutput(r *diag.Result) string {
 			cachedStr = "cached"
 		}
 		fmt.Fprintf(&b, "DNS:         %.1f ms (cached: %s)\n",
-			model.DurationMs(r.DNS.Latency), cachedStr)
+			timeutil.DurationMs(r.DNS.Latency), cachedStr)
 	}
 
 	fmt.Fprintf(&b, "\nHops (%d):\n", len(r.Hops))
@@ -244,7 +245,7 @@ func diagDefaultOutput(r *diag.Result) string {
 		if h.Timeout {
 			fmt.Fprintf(&b, "  %2d  *\n", h.Number)
 		} else {
-			latencyMs := model.DurationMs(h.Latency)
+			latencyMs := timeutil.DurationMs(h.Latency)
 			host := h.Host
 			if host == "" || host == h.IP {
 				host = h.IP
