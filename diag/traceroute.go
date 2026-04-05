@@ -14,13 +14,19 @@ import (
 )
 
 // RealBackend implements Backend using real network calls.
-type RealBackend struct{}
+type RealBackend struct {
+	resolver *net.Resolver
+}
+
+// NewRealBackend creates a RealBackend with a shared net.Resolver.
+func NewRealBackend() *RealBackend {
+	return &RealBackend{resolver: &net.Resolver{}}
+}
 
 // ResolveDNS resolves a hostname to an IP address and measures DNS lookup latency.
 func (b *RealBackend) ResolveDNS(ctx context.Context, host string) (string, time.Duration, error) {
-	resolver := &net.Resolver{}
 	start := time.Now()
-	addrs, err := resolver.LookupHost(ctx, host)
+	addrs, err := b.resolver.LookupHost(ctx, host)
 	latency := time.Since(start)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to resolve DNS for %s: %v", host, err)
@@ -32,12 +38,17 @@ func (b *RealBackend) ResolveDNS(ctx context.Context, host string) (string, time
 }
 
 // Traceroute runs a traceroute to the target, trying ICMP first and falling back to UDP.
-func (b *RealBackend) Traceroute(ctx context.Context, target string, maxHops int) ([]Hop, string, error) {
-	// Resolve target to IP if it's a hostname
-	ip := net.ParseIP(target)
+// If resolvedIP is non-empty, it is used directly, avoiding a redundant DNS lookup.
+func (b *RealBackend) Traceroute(ctx context.Context, target string, maxHops int, resolvedIP string) ([]Hop, string, error) {
+	var ip net.IP
+	if resolvedIP != "" {
+		ip = net.ParseIP(resolvedIP)
+	}
 	if ip == nil {
-		resolver := &net.Resolver{}
-		addrs, err := resolver.LookupHost(ctx, target)
+		ip = net.ParseIP(target)
+	}
+	if ip == nil {
+		addrs, err := b.resolver.LookupHost(ctx, target)
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to resolve target %s: %v", target, err)
 		}
@@ -109,7 +120,7 @@ func traceLoop(ctx context.Context, destIP string, maxHops int, hopFn func(ttl i
 
 // readICMPResponse reads an ICMP response from conn, parses it, and populates the hop
 // if the response type matches one of validTypes. Returns false if any step fails.
-func readICMPResponse(conn *icmp.PacketConn, start time.Time, hop *Hop, validTypes ...icmp.Type) bool {
+func readICMPResponse(ctx context.Context, conn *icmp.PacketConn, start time.Time, hop *Hop, validTypes ...icmp.Type) bool {
 	buf := make([]byte, maxPacketSize)
 	n, peer, err := conn.ReadFrom(buf)
 	latency := time.Since(start)
@@ -130,7 +141,7 @@ func readICMPResponse(conn *icmp.PacketConn, start time.Time, hop *Hop, validTyp
 	for _, t := range validTypes {
 		if rm.Type == t {
 			hop.IP = peerIP
-			hop.Host = reverseResolve(peerIP)
+			hop.Host = reverseResolve(ctx, peerIP)
 			hop.Latency = latency
 			return true
 		}
@@ -163,10 +174,26 @@ func setHopDeadline(ctx context.Context, conn *icmp.PacketConn) error {
 	return conn.SetReadDeadline(deadline)
 }
 
+// awaitHopResponse sets the read deadline and waits for an ICMP response,
+// populating the hop on success. Returns the hop with Timeout=true on failure.
+func awaitHopResponse(ctx context.Context, conn *icmp.PacketConn, hop *Hop, start time.Time, validTypes ...icmp.Type) Hop {
+	if err := setHopDeadline(ctx, conn); err != nil {
+		hop.Timeout = true
+		return *hop
+	}
+	if !readICMPResponse(ctx, conn, start, hop, validTypes...) {
+		hop.Timeout = true
+	}
+	return *hop
+}
+
 // traceHop sends an ICMP echo request with the given TTL and waits for a response.
 func traceHop(ctx context.Context, conn *icmp.PacketConn, destIP string, ttl int) Hop {
 	hop := Hop{Number: ttl}
 
+	// Setup errors (SetTTL, Marshal, WriteTo) are treated as timeouts — the user
+	// sees the hop as unreachable, which is correct behavior when the probe itself
+	// cannot be sent.
 	if err := conn.IPv4PacketConn().SetTTL(ttl); err != nil {
 		hop.Timeout = true
 		return hop
@@ -195,15 +222,7 @@ func traceHop(ctx context.Context, conn *icmp.PacketConn, destIP string, ttl int
 		return hop
 	}
 
-	if err := setHopDeadline(ctx, conn); err != nil {
-		hop.Timeout = true
-		return hop
-	}
-
-	if !readICMPResponse(conn, start, &hop, ipv4.ICMPTypeEchoReply, ipv4.ICMPTypeTimeExceeded) {
-		hop.Timeout = true
-	}
-	return hop
+	return awaitHopResponse(ctx, conn, &hop, start, ipv4.ICMPTypeEchoReply, ipv4.ICMPTypeTimeExceeded)
 }
 
 // udpTraceroute performs traceroute using UDP packets with increasing TTL,
@@ -225,6 +244,9 @@ func udpTraceroute(ctx context.Context, destIP string, maxHops int) ([]Hop, erro
 func udpTraceHop(ctx context.Context, icmpConn *icmp.PacketConn, destIP string, ttl int) Hop {
 	hop := Hop{Number: ttl}
 
+	// Setup errors (DialUDP, SyscallConn, setsockopt, Write) are treated as
+	// timeouts — the hop appears unreachable, which is the correct user-visible
+	// behavior when the probe cannot be sent.
 	port := tracerouteBasePort + ttl
 	udpConn, err := net.DialUDP("udp4", nil, &net.UDPAddr{
 		IP:   net.ParseIP(destIP),
@@ -263,25 +285,17 @@ func udpTraceHop(ctx context.Context, icmpConn *icmp.PacketConn, destIP string, 
 		return hop
 	}
 
-	if err := setHopDeadline(ctx, icmpConn); err != nil {
-		hop.Timeout = true
-		return hop
-	}
-
-	if !readICMPResponse(icmpConn, start, &hop, ipv4.ICMPTypeTimeExceeded, ipv4.ICMPTypeDestinationUnreachable) {
-		hop.Timeout = true
-	}
-	return hop
+	return awaitHopResponse(ctx, icmpConn, &hop, start, ipv4.ICMPTypeTimeExceeded, ipv4.ICMPTypeDestinationUnreachable)
 }
 
 // reverseResolve does best-effort reverse DNS lookup for an IP address.
 // Returns the IP string if reverse lookup fails.
-func reverseResolve(ip string) string {
-	ctx, cancel := context.WithTimeout(context.Background(), reverseDNSTimeout)
+func reverseResolve(ctx context.Context, ip string) string {
+	lookupCtx, cancel := context.WithTimeout(ctx, reverseDNSTimeout)
 	defer cancel()
 
 	resolver := &net.Resolver{}
-	names, err := resolver.LookupAddr(ctx, ip)
+	names, err := resolver.LookupAddr(lookupCtx, ip)
 	if err != nil || len(names) == 0 {
 		return ip
 	}

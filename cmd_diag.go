@@ -121,7 +121,7 @@ func runDiag(args []string) {
 	diagCtx, diagCancel := context.WithTimeout(context.Background(), timeout)
 	defer diagCancel()
 
-	backend := &diag.RealBackend{}
+	backend := diag.NewRealBackend()
 	result, err := diag.Run(diagCtx, backend, target, cfg)
 	if err != nil {
 		exitWithError("running diagnostics: %v", err)
