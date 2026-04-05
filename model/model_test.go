@@ -796,27 +796,12 @@ func TestRunHeadless(t *testing.T) {
 			name:      "All pings fail",
 			opts:      RunOptions{},
 			pingCount: 2,
+			wantErr:   "all ping measurements failed",
 			setupBackend: func(_ *testing.T) *mockBackend {
 				return &mockBackend{
 					pingTestFn: func(_ *speedtest.Server, _ func(time.Duration)) error {
 						return errors.New("ping timeout")
 					},
-					downloadTestFn: func(s *speedtest.Server) error {
-						s.DLSpeed = 100 * bytesPerMbit
-						return nil
-					},
-					uploadTestFn: func(s *speedtest.Server) error {
-						s.ULSpeed = 50 * bytesPerMbit
-						return nil
-					},
-				}
-			},
-			checkResult: func(t *testing.T, res *SpeedTestResult) {
-				if res.Ping != 0 {
-					t.Errorf("Expected Ping 0, got %f", res.Ping)
-				}
-				if res.Jitter != 0 {
-					t.Errorf("Expected Jitter 0, got %f", res.Jitter)
 				}
 			},
 		},

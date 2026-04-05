@@ -28,7 +28,7 @@ const (
 	gradeD = 25
 )
 
-func ComputeScore(result *DiagResult) QualityScore {
+func ComputeScore(result *Result) QualityScore {
 	latencyMs := FinalHopLatencyMs(result.Hops)
 	if latencyMs == 0 && len(result.Hops) > 0 {
 		latencyMs = latencyTerrible

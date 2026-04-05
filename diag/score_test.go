@@ -8,14 +8,14 @@ import (
 func TestComputeScore(t *testing.T) {
 	tests := []struct {
 		name          string
-		result        *DiagResult
+		result        *Result
 		expectedGrade string
 		minScore      int
 		maxScore      int
 	}{
 		{
 			name: "perfect connection",
-			result: &DiagResult{
+			result: &Result{
 				Hops: []Hop{
 					{Number: 1, Latency: 1 * time.Millisecond},
 					{Number: 2, Latency: 2 * time.Millisecond},
@@ -29,7 +29,7 @@ func TestComputeScore(t *testing.T) {
 		},
 		{
 			name: "terrible connection",
-			result: &DiagResult{
+			result: &Result{
 				Hops: []Hop{
 					{Number: 1, Timeout: true},
 					{Number: 2, Timeout: true},
@@ -43,7 +43,7 @@ func TestComputeScore(t *testing.T) {
 		},
 		{
 			name: "nil DNS redistributes weight",
-			result: &DiagResult{
+			result: &Result{
 				Hops: []Hop{
 					{Number: 1, Latency: 10 * time.Millisecond},
 					{Number: 2, Latency: 15 * time.Millisecond},
@@ -56,7 +56,7 @@ func TestComputeScore(t *testing.T) {
 		},
 		{
 			name: "all hops timeout scores worst latency",
-			result: &DiagResult{
+			result: &Result{
 				Hops: []Hop{
 					{Number: 1, Timeout: true},
 					{Number: 2, Timeout: true},
@@ -70,7 +70,7 @@ func TestComputeScore(t *testing.T) {
 		},
 		{
 			name: "mediocre connection",
-			result: &DiagResult{
+			result: &Result{
 				Hops: []Hop{
 					{Number: 1, Latency: 10 * time.Millisecond},
 					{Number: 2, Latency: 50 * time.Millisecond},
@@ -86,7 +86,7 @@ func TestComputeScore(t *testing.T) {
 		},
 		{
 			name: "DNS error excludes DNS from score like nil DNS",
-			result: &DiagResult{
+			result: &Result{
 				Hops: []Hop{
 					{Number: 1, Latency: 10 * time.Millisecond},
 					{Number: 2, Latency: 15 * time.Millisecond},

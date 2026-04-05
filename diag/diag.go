@@ -87,7 +87,7 @@ type QualityScore struct {
 	Label string `json:"label"`
 }
 
-type DiagResult struct {
+type Result struct {
 	Target    string       `json:"target"`
 	Method    string       `json:"method"`
 	Hops      []Hop        `json:"hops"`
@@ -96,24 +96,24 @@ type DiagResult struct {
 	Timestamp time.Time    `json:"timestamp"`
 }
 
-type DiagConfig struct {
+type Config struct {
 	MaxHops    int
 	Timeout    int
 	MaxEntries int
 	Path       string
 }
 
-func DefaultDiagConfig() *DiagConfig {
-	return &DiagConfig{
+func DefaultConfig() *Config {
+	return &Config{
 		MaxHops:    30,
 		Timeout:    60,
 		MaxEntries: 20,
 	}
 }
 
-// NewDiagConfig creates a DiagConfig by overlaying non-zero overrides onto defaults.
-func NewDiagConfig(overrides DiagConfig) *DiagConfig {
-	cfg := DefaultDiagConfig()
+// NewConfig creates a Config by overlaying non-zero overrides onto defaults.
+func NewConfig(overrides Config) *Config {
+	cfg := DefaultConfig()
 	if overrides.MaxHops > 0 {
 		cfg.MaxHops = overrides.MaxHops
 	}
@@ -134,12 +134,12 @@ func durationMs(d time.Duration) float64 {
 	return float64(d.Microseconds()) / 1000.0
 }
 
-func Run(ctx context.Context, backend DiagBackend, target string, cfg *DiagConfig) (*DiagResult, error) {
+func Run(ctx context.Context, backend Backend, target string, cfg *Config) (*Result, error) {
 	if cfg == nil {
-		cfg = DefaultDiagConfig()
+		cfg = DefaultConfig()
 	}
 
-	result := &DiagResult{
+	result := &Result{
 		Target:    target,
 		Timestamp: time.Now(),
 	}

@@ -18,7 +18,7 @@ func TestRun(t *testing.T) {
 	tests := []struct {
 		name       string
 		target     string
-		backend    *mockDiagBackend
+		backend    *mockBackend
 		wantMethod string
 		wantDNSNil bool
 		wantErr    bool
@@ -26,7 +26,7 @@ func TestRun(t *testing.T) {
 		{
 			name:   "happy path with hostname",
 			target: testExampleHost,
-			backend: &mockDiagBackend{
+			backend: &mockBackend{
 				TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
 					return []Hop{
 						{Number: 1, IP: "192.168.1.1", Host: "router.local", Latency: 1 * time.Millisecond},
@@ -43,7 +43,7 @@ func TestRun(t *testing.T) {
 		{
 			name:   "IP target skips DNS",
 			target: "8.8.8.8",
-			backend: &mockDiagBackend{
+			backend: &mockBackend{
 				TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
 					return []Hop{
 						{Number: 1, IP: "192.168.1.1", Host: "router.local", Latency: 1 * time.Millisecond},
@@ -56,7 +56,7 @@ func TestRun(t *testing.T) {
 		{
 			name:   "all hops timeout",
 			target: testExampleHost,
-			backend: &mockDiagBackend{
+			backend: &mockBackend{
 				TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
 					return []Hop{
 						{Number: 1, Timeout: true},
@@ -74,7 +74,7 @@ func TestRun(t *testing.T) {
 		{
 			name:   "traceroute error",
 			target: testExampleHost,
-			backend: &mockDiagBackend{
+			backend: &mockBackend{
 				TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
 					return nil, "", fmt.Errorf("network unreachable")
 				},
@@ -88,7 +88,7 @@ func TestRun(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := DefaultDiagConfig()
+			cfg := DefaultConfig()
 			result, err := Run(context.Background(), tt.backend, tt.target, cfg)
 			if tt.wantErr {
 				if err == nil {
@@ -119,13 +119,13 @@ func TestRunContextCancellationImmediate(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	backend := &mockDiagBackend{
+	backend := &mockBackend{
 		ResolveDNSFn: func(ctx context.Context, _ string) (string, time.Duration, error) {
 			return "", 0, ctx.Err()
 		},
 	}
 
-	cfg := DefaultDiagConfig()
+	cfg := DefaultConfig()
 	_, err := Run(ctx, backend, testExampleHost, cfg)
 	if err == nil {
 		t.Fatal("expected error from cancelled context")
@@ -135,7 +135,7 @@ func TestRunContextCancellationImmediate(t *testing.T) {
 func TestRunContextCancellationPartialResults(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	backend := &mockDiagBackend{
+	backend := &mockBackend{
 		ResolveDNSFn: func(_ context.Context, _ string) (string, time.Duration, error) {
 			return testExampleIP, 10 * time.Millisecond, nil
 		},
@@ -147,7 +147,7 @@ func TestRunContextCancellationPartialResults(t *testing.T) {
 		},
 	}
 
-	cfg := DefaultDiagConfig()
+	cfg := DefaultConfig()
 	result, err := Run(ctx, backend, testExampleHost, cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -187,8 +187,8 @@ func TestDNSResultMarshalJSON(t *testing.T) {
 	}
 }
 
-func TestDiagResultJSONRoundTrip(t *testing.T) {
-	original := DiagResult{
+func TestResultJSONRoundTrip(t *testing.T) {
+	original := Result{
 		Target: testExampleHost,
 		Method: MethodICMP,
 		Hops: []Hop{
@@ -210,7 +210,7 @@ func TestDiagResultJSONRoundTrip(t *testing.T) {
 		t.Fatalf("marshal failed: %v", err)
 	}
 
-	var decoded DiagResult
+	var decoded Result
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		t.Fatalf("unmarshal failed: %v", err)
 	}
@@ -238,10 +238,10 @@ func TestDiagResultJSONRoundTrip(t *testing.T) {
 	}
 }
 
-func TestDiagResultUnmarshalPartialJSON(t *testing.T) {
+func TestResultUnmarshalPartialJSON(t *testing.T) {
 	partial := `{"target":"example.com","method":"icmp","hops":[],"dns":null,"timestamp":"2026-03-26T12:00:00Z"}`
 
-	var result DiagResult
+	var result Result
 	if err := json.Unmarshal([]byte(partial), &result); err != nil {
 		t.Fatalf("unmarshal failed: %v", err)
 	}
@@ -255,7 +255,7 @@ func TestDiagResultUnmarshalPartialJSON(t *testing.T) {
 }
 
 func TestRunDNSFailureContinuesTraceroute(t *testing.T) {
-	backend := &mockDiagBackend{
+	backend := &mockBackend{
 		TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
 			return []Hop{
 				{Number: 1, IP: "10.0.0.1", Host: "gw", Latency: 2 * time.Millisecond},
@@ -266,7 +266,7 @@ func TestRunDNSFailureContinuesTraceroute(t *testing.T) {
 		},
 	}
 
-	result, err := Run(context.Background(), backend, testExampleHost, DefaultDiagConfig())
+	result, err := Run(context.Background(), backend, testExampleHost, DefaultConfig())
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -285,7 +285,7 @@ func TestRunDNSFailureContinuesTraceroute(t *testing.T) {
 }
 
 func TestComputeScoreZeroHops(t *testing.T) {
-	result := &DiagResult{
+	result := &Result{
 		Target: testExampleHost,
 		Hops:   []Hop{},
 		DNS: &DNSResult{
@@ -310,7 +310,7 @@ func TestComputeScoreAllHopsTimeout(t *testing.T) {
 		hops = append(hops, Hop{Number: i, Timeout: true})
 	}
 
-	result := &DiagResult{
+	result := &Result{
 		Target: testExampleHost,
 		Hops:   hops,
 		DNS: &DNSResult{
@@ -326,10 +326,10 @@ func TestComputeScoreAllHopsTimeout(t *testing.T) {
 	}
 }
 
-func TestNewDiagConfig(t *testing.T) {
+func TestNewConfig(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    DiagConfig
+		input    Config
 		wantHops int
 		wantTime int
 		wantMax  int
@@ -337,7 +337,7 @@ func TestNewDiagConfig(t *testing.T) {
 	}{
 		{
 			name:     "all zeros returns defaults",
-			input:    DiagConfig{},
+			input:    Config{},
 			wantHops: 30,
 			wantTime: 60,
 			wantMax:  20,
@@ -345,7 +345,7 @@ func TestNewDiagConfig(t *testing.T) {
 		},
 		{
 			name:     "non-zero values override defaults",
-			input:    DiagConfig{MaxHops: 15, Timeout: 45, MaxEntries: 10, Path: "/custom/path.json"},
+			input:    Config{MaxHops: 15, Timeout: 45, MaxEntries: 10, Path: "/custom/path.json"},
 			wantHops: 15,
 			wantTime: 45,
 			wantMax:  10,
@@ -353,7 +353,7 @@ func TestNewDiagConfig(t *testing.T) {
 		},
 		{
 			name:     "partial override",
-			input:    DiagConfig{MaxHops: 20},
+			input:    Config{MaxHops: 20},
 			wantHops: 20,
 			wantTime: 60,
 			wantMax:  20,
@@ -363,7 +363,7 @@ func TestNewDiagConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := NewDiagConfig(tt.input)
+			cfg := NewConfig(tt.input)
 			if cfg.MaxHops != tt.wantHops {
 				t.Errorf("MaxHops = %d, want %d", cfg.MaxHops, tt.wantHops)
 			}
@@ -382,7 +382,7 @@ func TestNewDiagConfig(t *testing.T) {
 
 func TestRunWarmDNSFailureSetsCachedFalse(t *testing.T) {
 	callCount := 0
-	backend := &mockDiagBackend{
+	backend := &mockBackend{
 		TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
 			return []Hop{
 				{Number: 1, IP: "10.0.0.1", Host: "gw", Latency: 1 * time.Millisecond},
@@ -397,7 +397,7 @@ func TestRunWarmDNSFailureSetsCachedFalse(t *testing.T) {
 		},
 	}
 
-	result, err := Run(context.Background(), backend, testExampleHost, DefaultDiagConfig())
+	result, err := Run(context.Background(), backend, testExampleHost, DefaultConfig())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -410,7 +410,7 @@ func TestRunWarmDNSFailureSetsCachedFalse(t *testing.T) {
 }
 
 func TestRunNilConfig(t *testing.T) {
-	backend := &mockDiagBackend{
+	backend := &mockBackend{
 		TracerouteFn: func(_ context.Context, _ string, maxHops int) ([]Hop, string, error) {
 			if maxHops != 30 {
 				t.Errorf("expected default maxHops 30, got %d", maxHops)
@@ -435,7 +435,7 @@ func TestRunNilConfig(t *testing.T) {
 
 func TestRunWarmDNSCachedTrue(t *testing.T) {
 	callCount := 0
-	backend := &mockDiagBackend{
+	backend := &mockBackend{
 		TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
 			return []Hop{
 				{Number: 1, IP: "10.0.0.1", Host: "gw", Latency: 1 * time.Millisecond},
@@ -450,7 +450,7 @@ func TestRunWarmDNSCachedTrue(t *testing.T) {
 		},
 	}
 
-	result, err := Run(context.Background(), backend, testExampleHost, DefaultDiagConfig())
+	result, err := Run(context.Background(), backend, testExampleHost, DefaultConfig())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -465,14 +465,14 @@ func TestRunWarmDNSCachedTrue(t *testing.T) {
 func TestRunContextCancelledBetweenDNSAndTraceroute(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	backend := &mockDiagBackend{
+	backend := &mockBackend{
 		ResolveDNSFn: func(_ context.Context, _ string) (string, time.Duration, error) {
 			cancel() // cancel after DNS completes
 			return testExampleIP, 10 * time.Millisecond, nil
 		},
 	}
 
-	_, err := Run(ctx, backend, testExampleHost, DefaultDiagConfig())
+	_, err := Run(ctx, backend, testExampleHost, DefaultConfig())
 	if err == nil {
 		t.Fatal("expected error from context cancellation between DNS and traceroute")
 	}

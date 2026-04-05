@@ -1043,7 +1043,7 @@ func TestUpdateDiagCompleteSuccess(t *testing.T) {
 	m := model.NewDefaultModel()
 	s := speedTest{model: m, spinner: ui.DefaultSpinner, viewState: ViewDiagRunning}
 
-	result := &diag.DiagResult{
+	result := &diag.Result{
 		Target: "8.8.8.8",
 		Hops:   []diag.Hop{{Number: 1, IP: "10.0.0.1"}},
 	}
@@ -1083,7 +1083,7 @@ func TestDiagCompactEscReturnsToMain(t *testing.T) {
 		model:      m,
 		spinner:    ui.DefaultSpinner,
 		viewState:  ViewDiagCompact,
-		diagResult: &diag.DiagResult{Target: "8.8.8.8"},
+		diagResult: &diag.Result{Target: "8.8.8.8"},
 	}
 
 	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -1106,7 +1106,7 @@ func TestDiagCompactEnterExpandsTrace(t *testing.T) {
 		model:      m,
 		spinner:    ui.DefaultSpinner,
 		viewState:  ViewDiagCompact,
-		diagResult: &diag.DiagResult{Target: "8.8.8.8"},
+		diagResult: &diag.Result{Target: "8.8.8.8"},
 		diagOffset: 5,
 	}
 
@@ -1128,7 +1128,7 @@ func TestDiagCompactNewTestWithServers(t *testing.T) {
 		model:      m,
 		spinner:    ui.DefaultSpinner,
 		viewState:  ViewDiagCompact,
-		diagResult: &diag.DiagResult{Target: "8.8.8.8"},
+		diagResult: &diag.Result{Target: "8.8.8.8"},
 	}
 
 	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
@@ -1151,7 +1151,7 @@ func TestDiagCompactNewTestWithoutServers(t *testing.T) {
 		model:      m,
 		spinner:    ui.DefaultSpinner,
 		viewState:  ViewDiagCompact,
-		diagResult: &diag.DiagResult{Target: "8.8.8.8"},
+		diagResult: &diag.Result{Target: "8.8.8.8"},
 	}
 
 	newModel, cmd := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
@@ -1174,7 +1174,7 @@ func TestDiagExpandedEscCollapsesToCompact(t *testing.T) {
 		model:      m,
 		spinner:    ui.DefaultSpinner,
 		viewState:  ViewDiagExpanded,
-		diagResult: &diag.DiagResult{Target: "8.8.8.8"},
+		diagResult: &diag.Result{Target: "8.8.8.8"},
 	}
 
 	newModel, _ := s.Update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -1191,7 +1191,7 @@ func TestDiagExpandedScrollNavigation(t *testing.T) {
 		model:     m,
 		spinner:   ui.DefaultSpinner,
 		viewState: ViewDiagExpanded,
-		diagResult: &diag.DiagResult{
+		diagResult: &diag.Result{
 			Target: "8.8.8.8",
 			Hops: []diag.Hop{
 				{Number: 1, IP: "10.0.0.1"},
@@ -1242,7 +1242,7 @@ func TestViewDiagStates(t *testing.T) {
 			model:     m,
 			spinner:   ui.DefaultSpinner,
 			viewState: ViewDiagCompact,
-			diagResult: &diag.DiagResult{
+			diagResult: &diag.Result{
 				Target:  "example.com",
 				Hops:    []diag.Hop{{Number: 1, IP: "10.0.0.1"}},
 				Quality: diag.QualityScore{Score: 85, Grade: "B"},
@@ -1262,7 +1262,7 @@ func TestViewDiagStates(t *testing.T) {
 			model:     m,
 			spinner:   ui.DefaultSpinner,
 			viewState: ViewDiagExpanded,
-			diagResult: &diag.DiagResult{
+			diagResult: &diag.Result{
 				Target:  "example.com",
 				Hops:    []diag.Hop{{Number: 1, IP: "10.0.0.1"}},
 				Quality: diag.QualityScore{Score: 85, Grade: "B"},
@@ -2046,7 +2046,7 @@ func TestDiagExpandedScrollClamping(t *testing.T) {
 		model:     m,
 		spinner:   ui.DefaultSpinner,
 		viewState: ViewDiagExpanded,
-		diagResult: &diag.DiagResult{
+		diagResult: &diag.Result{
 			Target: "8.8.8.8",
 			Hops:   hops,
 		},

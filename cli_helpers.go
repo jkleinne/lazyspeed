@@ -93,9 +93,9 @@ func printJSON(v any) {
 	fmt.Println(string(data))
 }
 
-// diagConfig maps model diagnostics settings to a diag.DiagConfig.
-func diagConfig(d model.DiagnosticsConfig) *diag.DiagConfig {
-	return diag.NewDiagConfig(diag.DiagConfig{
+// diagConfig maps model diagnostics settings to a diag.Config.
+func diagConfig(d model.DiagnosticsConfig) *diag.Config {
+	return diag.NewConfig(diag.Config{
 		MaxHops:    d.MaxHops,
 		Timeout:    d.Timeout,
 		MaxEntries: d.MaxEntries,

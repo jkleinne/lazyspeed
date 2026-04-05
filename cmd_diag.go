@@ -119,7 +119,7 @@ func runDiag(args []string) {
 	diagCtx, diagCancel := context.WithTimeout(context.Background(), timeout)
 	defer diagCancel()
 
-	backend := &diag.RealDiagBackend{}
+	backend := &diag.RealBackend{}
 	result, err := diag.Run(diagCtx, backend, target, cfg)
 	if err != nil {
 		exitWithError("running diagnostics: %v", err)
@@ -182,8 +182,8 @@ func runDiagHistory() {
 
 const diagTargetMaxLen = 30
 
-// diagCSVRow returns a CSV row for a DiagResult.
-func diagCSVRow(r *diag.DiagResult) []string {
+// diagCSVRow returns a CSV row for a diag.Result.
+func diagCSVRow(r *diag.Result) []string {
 	dnsMs := ""
 	dnsCached := ""
 	if r.DNS != nil {
@@ -208,8 +208,8 @@ func diagCSVRow(r *diag.DiagResult) []string {
 	}
 }
 
-// diagSimpleLine returns a one-line summary of a DiagResult.
-func diagSimpleLine(r *diag.DiagResult) string {
+// diagSimpleLine returns a one-line summary of a diag.Result.
+func diagSimpleLine(r *diag.Result) string {
 	dnsStr := "-"
 	if r.DNS != nil {
 		dnsStr = fmt.Sprintf("%.0fms", model.DurationMs(r.DNS.Latency))
@@ -218,8 +218,8 @@ func diagSimpleLine(r *diag.DiagResult) string {
 		r.Quality.Score, r.Quality.Grade, dnsStr, len(r.Hops))
 }
 
-// diagDefaultOutput formats a DiagResult as a human-readable report with a hop table.
-func diagDefaultOutput(r *diag.DiagResult) string {
+// diagDefaultOutput formats a diag.Result as a human-readable report with a hop table.
+func diagDefaultOutput(r *diag.Result) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "\nDiagnostics: %s\n", r.Target)
 	fmt.Fprintf(&b, "Timestamp:   %s\n", r.Timestamp.Format("2006-01-02 15:04:05"))

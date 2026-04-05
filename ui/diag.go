@@ -97,7 +97,7 @@ func routeStatusStyled(hops []diag.Hop) string {
 }
 
 // RenderDiagCompact renders a compact single-screen diagnostics summary.
-func RenderDiagCompact(result *diag.DiagResult, width int) string {
+func RenderDiagCompact(result *diag.Result, width int) string {
 	var b strings.Builder
 
 	// Target
@@ -149,7 +149,7 @@ func RenderDiagCompact(result *diag.DiagResult, width int) string {
 }
 
 // renderDiagHeader renders the score/label inline header and meta line.
-func renderDiagHeader(result *diag.DiagResult, width int) string {
+func renderDiagHeader(result *diag.Result, width int) string {
 	var b strings.Builder
 
 	scoreText := scoreStyle(result.Quality.Grade).Render(
@@ -264,7 +264,7 @@ func renderScrollFooter(scroll scrollState, width int) string {
 
 // RenderDiagExpanded renders the full scrollable hop table.
 // The title is rendered by the main View(); this function begins with score + label inline.
-func RenderDiagExpanded(result *diag.DiagResult, width, height, offset int) string {
+func RenderDiagExpanded(result *diag.Result, width, height, offset int) string {
 	var b strings.Builder
 
 	b.WriteString(renderDiagHeader(result, width))

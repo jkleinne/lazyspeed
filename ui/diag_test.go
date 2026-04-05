@@ -26,7 +26,7 @@ func TestRenderDiagInput(t *testing.T) {
 }
 
 func TestRenderDiagCompact(t *testing.T) {
-	result := &diag.DiagResult{
+	result := &diag.Result{
 		Target: "example.com",
 		Method: "udp",
 		Hops: []diag.Hop{
@@ -50,7 +50,7 @@ func TestRenderDiagCompact(t *testing.T) {
 }
 
 func TestRenderDiagExpanded(t *testing.T) {
-	result := &diag.DiagResult{
+	result := &diag.Result{
 		Target: "example.com",
 		Method: "udp",
 		Hops: []diag.Hop{
@@ -72,7 +72,7 @@ func TestRenderDiagExpanded(t *testing.T) {
 }
 
 func TestRenderDiagCompactNilDNS(t *testing.T) {
-	result := &diag.DiagResult{
+	result := &diag.Result{
 		Target:  "8.8.8.8",
 		Method:  "icmp",
 		Hops:    []diag.Hop{{Number: 1, IP: "8.8.8.8", Host: "dns.google", Latency: 10 * time.Millisecond}},
@@ -133,7 +133,7 @@ func TestRouteStatusStyled(t *testing.T) {
 }
 
 func TestRenderDiagExpandedAlternatingRows(t *testing.T) {
-	result := &diag.DiagResult{
+	result := &diag.Result{
 		Target: "example.com",
 		Method: "udp",
 		Hops: []diag.Hop{
@@ -168,7 +168,7 @@ func TestRenderDiagExpandedAlternatingRows(t *testing.T) {
 }
 
 func TestRenderDiagExpandedEmptyHops(t *testing.T) {
-	result := &diag.DiagResult{
+	result := &diag.Result{
 		Target:  "example.com",
 		Method:  "udp",
 		Hops:    []diag.Hop{},
@@ -287,7 +287,7 @@ func TestFindAnomalies(t *testing.T) {
 }
 
 func TestRenderDiagCompactAnomalyWarnings(t *testing.T) {
-	result := &diag.DiagResult{
+	result := &diag.Result{
 		Target: "example.com",
 		Method: "udp",
 		Hops: []diag.Hop{
