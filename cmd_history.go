@@ -12,21 +12,23 @@ import (
 
 const historyServerMaxLen = 20
 
-var (
-	historyClear  bool
-	historyFormat string
-	historyLast   int
-)
+type historyFlags struct {
+	clear  bool
+	format string
+	last   int
+}
+
+var historyF historyFlags
 
 var historyCmd = &cobra.Command{
 	Use:   "history",
 	Short: "View or export test history",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		if err := validateFormat(historyFormat); err != nil {
+		if err := validateFormat(historyF.format); err != nil {
 			return err
 		}
-		if historyLast < 0 {
-			return fmt.Errorf("--last must be >= 0, got %d", historyLast)
+		if historyF.last < 0 {
+			return fmt.Errorf("--last must be >= 0, got %d", historyF.last)
 		}
 		runHistory()
 		return nil
@@ -36,7 +38,7 @@ var historyCmd = &cobra.Command{
 func runHistory() {
 	m := model.NewDefaultModel()
 
-	if historyClear {
+	if historyF.clear {
 		// Wipe history by setting to empty and saving
 		m.History.Entries = nil
 		m.History.Results = nil
@@ -57,9 +59,9 @@ func runHistory() {
 	}
 
 	// Apply --last slice: take the last N entries
-	entries := tailSlice(m.History.Entries, historyLast)
+	entries := tailSlice(m.History.Entries, historyF.last)
 
-	format := resolveFormatString(historyFormat)
+	format := resolveFormatString(historyF.format)
 	csvRows := make([][]string, len(entries))
 	for i, res := range entries {
 		csvRows[i] = res.CSVRow()
@@ -77,8 +79,8 @@ func runHistory() {
 }
 
 func init() {
-	historyCmd.Flags().BoolVar(&historyClear, "clear", false, "Clear all history")
-	historyCmd.Flags().StringVar(&historyFormat, "format", "", "Output format: json or csv (default: table)")
-	historyCmd.Flags().IntVar(&historyLast, "last", 0, "Limit output to the last N results (0 = all)")
+	historyCmd.Flags().BoolVar(&historyF.clear, "clear", false, "Clear all history")
+	historyCmd.Flags().StringVar(&historyF.format, "format", "", "Output format: json or csv (default: table)")
+	historyCmd.Flags().IntVar(&historyF.last, "last", 0, "Limit output to the last N results (0 = all)")
 	rootCmd.AddCommand(historyCmd)
 }

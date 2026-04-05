@@ -13,10 +13,10 @@ import (
 )
 
 func TestDiagIsInteractive(t *testing.T) {
-	origJSON := diagJSON
-	origCSV := diagCSV
-	origSimple := diagSimple
-	defer func() { diagJSON = origJSON; diagCSV = origCSV; diagSimple = origSimple }()
+	origJSON := diagF.json
+	origCSV := diagF.csv
+	origSimple := diagF.simple
+	defer func() { diagF.json = origJSON; diagF.csv = origCSV; diagF.simple = origSimple }()
 
 	tests := []struct {
 		name   string
@@ -33,9 +33,9 @@ func TestDiagIsInteractive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			diagJSON = tt.json
-			diagCSV = tt.csv
-			diagSimple = tt.simple
+			diagF.json = tt.json
+			diagF.csv = tt.csv
+			diagF.simple = tt.simple
 			if got := diagIsInteractive(); got != tt.want {
 				t.Errorf("diagIsInteractive() = %v, want %v", got, tt.want)
 			}
@@ -290,17 +290,17 @@ func TestDiagDefaultOutput(t *testing.T) {
 // saveDiagFlags saves and defers restoration of all diag-related package globals.
 func saveDiagFlags(t *testing.T) {
 	t.Helper()
-	origJSON := diagJSON
-	origCSV := diagCSV
-	origSimple := diagSimple
-	origHistory := diagHistory
-	origLast := diagLast
+	origJSON := diagF.json
+	origCSV := diagF.csv
+	origSimple := diagF.simple
+	origHistory := diagF.history
+	origLast := diagF.last
 	t.Cleanup(func() {
-		diagJSON = origJSON
-		diagCSV = origCSV
-		diagSimple = origSimple
-		diagHistory = origHistory
-		diagLast = origLast
+		diagF.json = origJSON
+		diagF.csv = origCSV
+		diagF.simple = origSimple
+		diagF.history = origHistory
+		diagF.last = origLast
 	})
 }
 
@@ -340,11 +340,11 @@ func TestRunDiagHistoryEmpty(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	saveDiagFlags(t)
 
-	diagJSON = false
-	diagCSV = false
-	diagSimple = false
-	diagHistory = false
-	diagLast = 0
+	diagF.json = false
+	diagF.csv = false
+	diagF.simple = false
+	diagF.history = false
+	diagF.last = 0
 
 	out := captureStdout(runDiagHistory)
 
@@ -360,11 +360,11 @@ func TestRunDiagHistoryJSON(t *testing.T) {
 
 	populateDiagHistory(t, tmpDir, makeDiagHistory(1))
 
-	diagJSON = true
-	diagCSV = false
-	diagSimple = false
-	diagHistory = false
-	diagLast = 0
+	diagF.json = true
+	diagF.csv = false
+	diagF.simple = false
+	diagF.history = false
+	diagF.last = 0
 
 	out := captureStdout(runDiagHistory)
 
@@ -384,11 +384,11 @@ func TestRunDiagHistoryLastSlice(t *testing.T) {
 
 	populateDiagHistory(t, tmpDir, makeDiagHistory(3))
 
-	diagJSON = true
-	diagCSV = false
-	diagSimple = false
-	diagHistory = false
-	diagLast = 2
+	diagF.json = true
+	diagF.csv = false
+	diagF.simple = false
+	diagF.history = false
+	diagF.last = 2
 
 	out := captureStdout(runDiagHistory)
 

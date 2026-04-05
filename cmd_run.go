@@ -33,73 +33,75 @@ const (
 	phaseResultSuffix = "Mbps"
 )
 
-var (
-	runJSON       bool
-	runCSV        bool
-	runSimple     bool
-	runServerID   string
-	runNoUpload   bool
-	runNoDownload bool
-	runCount      int
-	runBest       int
-	runServerIDs  string
-	runFavorites  bool
-	runWatch      time.Duration
-)
+type runFlags struct {
+	json       bool
+	csv        bool
+	simple     bool
+	serverID   string
+	noUpload   bool
+	noDownload bool
+	count      int
+	best       int
+	serverIDs  string
+	favorites  bool
+	watch      time.Duration
+}
+
+var runF runFlags
 
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Run a speed test non-interactively",
 	PreRunE: func(_ *cobra.Command, _ []string) error {
-		if runWatch == 0 && runCount < 1 {
-			return fmt.Errorf("--count must be at least 1, got %d", runCount)
+		if runF.watch == 0 && runF.count < 1 {
+			return fmt.Errorf("--count must be at least 1, got %d", runF.count)
 		}
-		if runBest < 0 {
-			return fmt.Errorf("--best must be a positive number, got %d", runBest)
+		if runF.best < 0 {
+			return fmt.Errorf("--best must be a positive number, got %d", runF.best)
 		}
-		if runBest > 0 && runServerIDs != "" {
+		if runF.best > 0 && runF.serverIDs != "" {
 			return fmt.Errorf("--best and --servers are mutually exclusive")
 		}
-		if runBest == 1 {
-			return fmt.Errorf("--best must be at least 2, got %d", runBest)
+		if runF.best == 1 {
+			return fmt.Errorf("--best must be at least 2, got %d", runF.best)
 		}
-		if runCount > 1 && runBest > 0 {
+		if runF.count > 1 && runF.best > 0 {
 			return fmt.Errorf("--count and --best are mutually exclusive")
 		}
-		if runCount > 1 && runServerIDs != "" {
+		if runF.count > 1 && runF.serverIDs != "" {
 			return fmt.Errorf("--count and --servers are mutually exclusive")
 		}
-		if runServerIDs != "" {
-			ids := splitServerIDs(runServerIDs)
+		if runF.serverIDs != "" {
+			ids := splitServerIDs(runF.serverIDs)
 			if len(ids) < multiServerMinimum {
 				return fmt.Errorf("--servers requires at least 2 server IDs, got %d", len(ids))
 			}
 		}
-		if runFavorites {
-			if runServerID != "" {
+		if runF.favorites {
+			if runF.serverID != "" {
 				return fmt.Errorf("--favorites and --server are mutually exclusive")
 			}
-			if runServerIDs != "" {
+			if runF.serverIDs != "" {
 				return fmt.Errorf("--favorites and --servers are mutually exclusive")
 			}
-			if runBest > 0 {
+			if runF.best > 0 {
 				return fmt.Errorf("--favorites and --best are mutually exclusive")
 			}
-			if runCount > 1 {
+			if runF.count > 1 {
 				return fmt.Errorf("--favorites and --count are mutually exclusive")
 			}
 		}
-		if runWatch > 0 {
-			if runWatch < time.Minute {
-				return fmt.Errorf("--watch interval must be at least 1m, got %s", runWatch)
+		if runF.watch > 0 {
+			if runF.watch < time.Minute {
+				return fmt.Errorf("--watch interval must be at least 1m, got %s", runF.watch)
 			}
-			if runBest > 0 {
+			if runF.best > 0 {
 				return fmt.Errorf("--watch and --best are mutually exclusive")
 			}
-			if runServerIDs != "" {
+			if runF.serverIDs != "" {
 				return fmt.Errorf("--watch and --servers are mutually exclusive")
 			}
-			if runFavorites {
+			if runF.favorites {
 				return fmt.Errorf("--watch and --favorites are mutually exclusive")
 			}
 		}
@@ -111,23 +113,23 @@ var runCmd = &cobra.Command{
 }
 
 func init() {
-	runCmd.Flags().BoolVar(&runJSON, "json", false, "Output as JSON; single run emits a bare object, --count N>1 emits a JSON array")
-	runCmd.Flags().BoolVar(&runCSV, "csv", false, "Output results as CSV to stdout")
-	runCmd.Flags().BoolVar(&runSimple, "simple", false, "Minimal output (one line: DL/UL/Ping)")
-	runCmd.Flags().StringVar(&runServerID, "server", "", "Skip server selection, use a specific server ID")
-	runCmd.Flags().BoolVar(&runNoUpload, "no-upload", false, "Skip upload phase")
-	runCmd.Flags().BoolVar(&runNoDownload, "no-download", false, "Skip download phase")
-	runCmd.Flags().IntVar(&runCount, "count", 1, "Run multiple tests sequentially")
-	runCmd.Flags().IntVar(&runBest, "best", 0, "Auto-select the N closest servers for comparison (minimum 2)")
-	runCmd.Flags().StringVar(&runServerIDs, "servers", "", "Test specific servers by ID (comma-separated, minimum 2)")
-	runCmd.Flags().BoolVar(&runFavorites, "favorites", false, "Test all favorited servers (multi-server comparison)")
-	runCmd.Flags().DurationVar(&runWatch, "watch", 0, "Repeat tests on an interval (e.g., 5m, 1h); minimum 1m")
+	runCmd.Flags().BoolVar(&runF.json, "json", false, "Output as JSON; single run emits a bare object, --count N>1 emits a JSON array")
+	runCmd.Flags().BoolVar(&runF.csv, "csv", false, "Output results as CSV to stdout")
+	runCmd.Flags().BoolVar(&runF.simple, "simple", false, "Minimal output (one line: DL/UL/Ping)")
+	runCmd.Flags().StringVar(&runF.serverID, "server", "", "Skip server selection, use a specific server ID")
+	runCmd.Flags().BoolVar(&runF.noUpload, "no-upload", false, "Skip upload phase")
+	runCmd.Flags().BoolVar(&runF.noDownload, "no-download", false, "Skip download phase")
+	runCmd.Flags().IntVar(&runF.count, "count", 1, "Run multiple tests sequentially")
+	runCmd.Flags().IntVar(&runF.best, "best", 0, "Auto-select the N closest servers for comparison (minimum 2)")
+	runCmd.Flags().StringVar(&runF.serverIDs, "servers", "", "Test specific servers by ID (comma-separated, minimum 2)")
+	runCmd.Flags().BoolVar(&runF.favorites, "favorites", false, "Test all favorited servers (multi-server comparison)")
+	runCmd.Flags().DurationVar(&runF.watch, "watch", 0, "Repeat tests on an interval (e.g., 5m, 1h); minimum 1m")
 
 	rootCmd.AddCommand(runCmd)
 }
 
 func runIsInteractive() bool {
-	return !runJSON && !runCSV && !runSimple
+	return !runF.json && !runF.csv && !runF.simple
 }
 
 // splitServerIDs splits a comma-separated server ID string into trimmed, non-empty IDs.
@@ -204,16 +206,16 @@ func resolveMultiServers(m *model.Model, interactive bool) []*speedtest.Server {
 		exitWithError("no servers found")
 	}
 
-	if runBest > 0 {
+	if runF.best > 0 {
 		available := m.Servers.Len()
-		count := runBest
+		count := runF.best
 		if count > available {
 			count = available
 		}
 		return m.Servers.Raw()[:count]
 	}
 
-	if runFavorites {
+	if runF.favorites {
 		favIDs := m.Config.Servers.FavoriteIDs
 		if len(favIDs) == 0 {
 			exitWithError("no favorites configured; use 'lazyspeed servers --pin <id>' to add favorites")
@@ -232,7 +234,7 @@ func resolveMultiServers(m *model.Model, interactive bool) []*speedtest.Server {
 	}
 
 	// --servers path: parse and resolve each ID.
-	ids := splitServerIDs(runServerIDs)
+	ids := splitServerIDs(runF.serverIDs)
 	servers := make([]*speedtest.Server, 0, len(ids))
 	for _, id := range ids {
 		idx, found := m.Servers.FindIndex(id)
@@ -249,8 +251,8 @@ func runMultiServerHeadless(m *model.Model, interactive bool) {
 	servers := resolveMultiServers(m, interactive)
 
 	opts := model.RunOptions{
-		SkipDownload: runNoDownload,
-		SkipUpload:   runNoUpload,
+		SkipDownload: runF.noDownload,
+		SkipUpload:   runF.noUpload,
 	}
 	if interactive {
 		opts.ProgressFn = interactiveProgressFn()
@@ -278,19 +280,19 @@ func runMultiServerHeadless(m *model.Model, interactive bool) {
 	}
 
 	switch {
-	case runJSON:
+	case runF.json:
 		data, err := json.MarshalIndent(results, "", "  ")
 		if err != nil {
 			exitWithError("serialising results: %v", err)
 		}
 		fmt.Println(string(data))
-	case runCSV:
+	case runF.csv:
 		rows := make([][]string, len(results))
 		for i, res := range results {
 			rows[i] = res.CSVRow()
 		}
 		writeCSVRows(model.SpeedTestCSVHeader(), rows)
-	case runSimple:
+	case runF.simple:
 		for _, res := range results {
 			fmt.Println(formatSimpleResult(res))
 		}
@@ -363,17 +365,17 @@ func runHeadlessTest() {
 	m := model.NewDefaultModel()
 	interactive := runIsInteractive()
 
-	if runBest > 0 || runServerIDs != "" || runFavorites {
+	if runF.best > 0 || runF.serverIDs != "" || runF.favorites {
 		runMultiServerHeadless(m, interactive)
 		return
 	}
 
-	serverIdx := prepareRunServer(m, runServerID, interactive)
+	serverIdx := prepareRunServer(m, runF.serverID, interactive)
 	server := m.Servers.Raw()[serverIdx]
 
 	opts := model.RunOptions{
-		SkipDownload: runNoDownload,
-		SkipUpload:   runNoUpload,
+		SkipDownload: runF.noDownload,
+		SkipUpload:   runF.noUpload,
 	}
 	if interactive {
 		opts.ProgressFn = interactiveProgressFn()
@@ -384,7 +386,7 @@ func runHeadlessTest() {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load history: %v\n", err)
 	}
 
-	if runWatch > 0 {
+	if runF.watch > 0 {
 		runWatchLoop(m, server, opts, interactive)
 		return
 	}
@@ -445,9 +447,9 @@ func runCountLoop(m *model.Model, server *speedtest.Server, opts model.RunOption
 	var jsonResults []*model.SpeedTestResult
 	var csvRows [][]string
 
-	for i := range runCount {
-		if runCount > 1 && !runJSON && !runCSV {
-			fmt.Printf("\n--- Test %d of %d ---\n", i+1, runCount)
+	for i := range runF.count {
+		if runF.count > 1 && !runF.json && !runF.csv {
+			fmt.Printf("\n--- Test %d of %d ---\n", i+1, runF.count)
 		}
 
 		res, err := runSingleIteration(m, server, opts, interactive)
@@ -456,18 +458,18 @@ func runCountLoop(m *model.Model, server *speedtest.Server, opts model.RunOption
 		}
 
 		switch {
-		case runJSON:
+		case runF.json:
 			jsonResults = append(jsonResults, res)
-		case runCSV:
+		case runF.csv:
 			csvRows = append(csvRows, res.CSVRow())
-		case runSimple:
+		case runF.simple:
 			fmt.Println(formatSimpleResult(res))
 		default:
 			fmt.Println(formatDefaultResult(res))
 		}
 	}
 
-	writeRunResults(jsonResults, csvRows, runJSON, runCSV)
+	writeRunResults(jsonResults, csvRows, runF.json, runF.csv)
 }
 
 // runWatchLoop runs tests on a fixed interval until interrupted or --count is reached.
@@ -476,15 +478,15 @@ func runWatchLoop(m *model.Model, server *speedtest.Server, opts model.RunOption
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(sigChan)
 
-	ticker := time.NewTicker(runWatch)
+	ticker := time.NewTicker(runF.watch)
 	defer ticker.Stop()
 
-	if runCSV {
+	if runF.csv {
 		writeCSVRows(model.SpeedTestCSVHeader(), nil)
 	}
 
 	iteration := 0
-	maxIterations := runCount // 0 means indefinite
+	maxIterations := runF.count // 0 means indefinite
 
 	for {
 		iteration++
@@ -492,7 +494,7 @@ func runWatchLoop(m *model.Model, server *speedtest.Server, opts model.RunOption
 			return
 		}
 
-		if iteration > 1 && !runJSON && !runCSV {
+		if iteration > 1 && !runF.json && !runF.csv {
 			fmt.Print(formatWatchSeparator(iteration, time.Now()))
 		}
 
@@ -521,16 +523,16 @@ func runWatchLoop(m *model.Model, server *speedtest.Server, opts model.RunOption
 // Unlike the --count path, structured output is emitted incrementally.
 func emitWatchResult(res *model.SpeedTestResult) {
 	switch {
-	case runJSON:
+	case runF.json:
 		data, err := json.Marshal(res)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: serialising result: %v\n", err)
 			return
 		}
 		fmt.Println(string(data))
-	case runCSV:
+	case runF.csv:
 		writeCSVRows(nil, [][]string{res.CSVRow()})
-	case runSimple:
+	case runF.simple:
 		fmt.Println(formatSimpleResult(res))
 	default:
 		fmt.Println(formatDefaultResult(res))

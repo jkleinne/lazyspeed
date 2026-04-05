@@ -15,13 +15,14 @@ const (
 	serversSponsorMaxLen = 20
 )
 
-var serversFormat string
+type serversFlags struct {
+	format    string
+	favorites bool
+	pin       string
+	unpin     string
+}
 
-var (
-	serversFavorites bool
-	serversPin       string
-	serversUnpin     string
-)
+var serversF serversFlags
 
 // serverEntry is a clean serialization struct for JSON/CSV output,
 // decoupled from speedtest-go internals.
@@ -38,21 +39,21 @@ var serversCmd = &cobra.Command{
 	Use:   "servers",
 	Short: "List available speed test servers",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		if serversPin != "" && serversUnpin != "" {
+		if serversF.pin != "" && serversF.unpin != "" {
 			return fmt.Errorf("--pin and --unpin are mutually exclusive")
 		}
-		if (serversPin != "" || serversUnpin != "") && serversFavorites {
+		if (serversF.pin != "" || serversF.unpin != "") && serversF.favorites {
 			return fmt.Errorf("--pin/--unpin and --favorites are mutually exclusive")
 		}
 
-		if serversPin != "" {
-			return runPinServer(serversPin)
+		if serversF.pin != "" {
+			return runPinServer(serversF.pin)
 		}
-		if serversUnpin != "" {
-			return runUnpinServer(serversUnpin)
+		if serversF.unpin != "" {
+			return runUnpinServer(serversF.unpin)
 		}
 
-		if err := validateFormat(serversFormat); err != nil {
+		if err := validateFormat(serversF.format); err != nil {
 			return err
 		}
 		runServers()
@@ -102,7 +103,7 @@ func runServers() {
 
 	servers := m.Servers.List()
 
-	if serversFavorites {
+	if serversF.favorites {
 		var err error
 		servers, err = filterFavoriteServers(servers, m.Config)
 		if err != nil {
@@ -119,7 +120,7 @@ func runServers() {
 		return
 	}
 
-	format := resolveFormatString(serversFormat)
+	format := resolveFormatString(serversF.format)
 	jsonEntries := toServerEntries(servers)
 
 	csvHeader := []string{"id", "name", "sponsor", "country", "latency_ms", "distance_km"}
@@ -208,9 +209,9 @@ func runUnpinServer(id string) error {
 }
 
 func init() {
-	serversCmd.Flags().StringVar(&serversFormat, "format", "", "Output format: json or csv (default: table)")
-	serversCmd.Flags().BoolVar(&serversFavorites, "favorites", false, "Show only favorited servers")
-	serversCmd.Flags().StringVar(&serversPin, "pin", "", "Add a server to favorites by ID")
-	serversCmd.Flags().StringVar(&serversUnpin, "unpin", "", "Remove a server from favorites by ID")
+	serversCmd.Flags().StringVar(&serversF.format, "format", "", "Output format: json or csv (default: table)")
+	serversCmd.Flags().BoolVar(&serversF.favorites, "favorites", false, "Show only favorited servers")
+	serversCmd.Flags().StringVar(&serversF.pin, "pin", "", "Add a server to favorites by ID")
+	serversCmd.Flags().StringVar(&serversF.unpin, "unpin", "", "Remove a server from favorites by ID")
 	rootCmd.AddCommand(serversCmd)
 }

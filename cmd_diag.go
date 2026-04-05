@@ -16,14 +16,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	diagJSON    bool
-	diagCSV     bool
-	diagSimple  bool
-	diagHistory bool
-	diagServer  string
-	diagLast    int
-)
+type diagFlags struct {
+	json    bool
+	csv     bool
+	simple  bool
+	history bool
+	server  string
+	last    int
+}
+
+var diagF diagFlags
 
 var diagCSVHeader = []string{
 	"timestamp", "target", "method", "score", "grade",
@@ -31,7 +33,7 @@ var diagCSVHeader = []string{
 }
 
 func diagIsInteractive() bool {
-	return !diagJSON && !diagCSV && !diagSimple
+	return !diagF.json && !diagF.csv && !diagF.simple
 }
 
 var diagCmd = &cobra.Command{
@@ -41,10 +43,10 @@ var diagCmd = &cobra.Command{
 If no target is given and --server is not set, the closest speedtest server is used.
 Use --history to view past diagnostics.`,
 	RunE: func(_ *cobra.Command, args []string) error {
-		if diagLast < 0 {
-			return fmt.Errorf("--last must be >= 0, got %d", diagLast)
+		if diagF.last < 0 {
+			return fmt.Errorf("--last must be >= 0, got %d", diagF.last)
 		}
-		if diagHistory {
+		if diagF.history {
 			runDiagHistory()
 			return nil
 		}
@@ -54,12 +56,12 @@ Use --history to view past diagnostics.`,
 }
 
 func init() {
-	diagCmd.Flags().BoolVar(&diagJSON, "json", false, "Output result as JSON")
-	diagCmd.Flags().BoolVar(&diagCSV, "csv", false, "Output result as CSV")
-	diagCmd.Flags().BoolVar(&diagSimple, "simple", false, "Minimal one-line output")
-	diagCmd.Flags().BoolVar(&diagHistory, "history", false, "Show past diagnostics instead of running a new one")
-	diagCmd.Flags().StringVar(&diagServer, "server", "", "Use a specific speedtest server ID as the target")
-	diagCmd.Flags().IntVar(&diagLast, "last", 0, "Limit history output to the last N results (0 = all)")
+	diagCmd.Flags().BoolVar(&diagF.json, "json", false, "Output result as JSON")
+	diagCmd.Flags().BoolVar(&diagF.csv, "csv", false, "Output result as CSV")
+	diagCmd.Flags().BoolVar(&diagF.simple, "simple", false, "Minimal one-line output")
+	diagCmd.Flags().BoolVar(&diagF.history, "history", false, "Show past diagnostics instead of running a new one")
+	diagCmd.Flags().StringVar(&diagF.server, "server", "", "Use a specific speedtest server ID as the target")
+	diagCmd.Flags().IntVar(&diagF.last, "last", 0, "Limit history output to the last N results (0 = all)")
 
 	rootCmd.AddCommand(diagCmd)
 }
@@ -89,10 +91,10 @@ func resolveDiagTarget(m *model.Model, args []string) string {
 
 	fetchDiagServers(m)
 
-	if diagServer != "" {
-		idx, found := m.Servers.FindIndex(diagServer)
+	if diagF.server != "" {
+		idx, found := m.Servers.FindIndex(diagF.server)
 		if !found {
-			exitWithError("server %s not found", diagServer)
+			exitWithError("server %s not found", diagF.server)
 		}
 		return stripPort(m.Servers.Raw()[idx].Host)
 	}
@@ -131,9 +133,9 @@ func runDiag(args []string) {
 		}
 	}
 
-	format := resolveFormat(diagJSON, diagCSV)
+	format := resolveFormat(diagF.json, diagF.csv)
 	formatOutput(format, result, diagCSVHeader, [][]string{diagCSVRow(result)}, func() {
-		if diagSimple {
+		if diagF.simple {
 			fmt.Println(diagSimpleLine(result))
 		} else {
 			fmt.Println(diagDefaultOutput(result))
@@ -156,9 +158,9 @@ func runDiagHistory() {
 	}
 
 	// Apply --last slice
-	entries := tailSlice(history, diagLast)
+	entries := tailSlice(history, diagF.last)
 
-	format := resolveFormat(diagJSON, diagCSV)
+	format := resolveFormat(diagF.json, diagF.csv)
 	csvRows := make([][]string, len(entries))
 	for i, r := range entries {
 		csvRows[i] = diagCSVRow(r)
