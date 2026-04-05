@@ -493,10 +493,15 @@ type ServerError struct {
 }
 
 // testSingleServerHeadless runs all phases of a headless speed test for one
-// server, prefixing each progress update with "[index/total] serverName — ".
-// It does not touch Model state (no State transitions, no History writes).
+// server. When testing multiple servers (Total > 1), progress updates are
+// prefixed with "[index/total] serverName — ". Single-server runs emit
+// unprefixed messages. It does not touch Model state (no State transitions,
+// no History writes).
 func (m *Model) testSingleServerHeadless(ctx context.Context, htc HeadlessTestContext) (*SpeedTestResult, error) {
-	prefix := fmt.Sprintf("[%d/%d] %s — ", htc.Index, htc.Total, htc.Server.Name)
+	var prefix string
+	if htc.Total > 1 {
+		prefix = fmt.Sprintf("[%d/%d] %s — ", htc.Index, htc.Total, htc.Server.Name)
+	}
 
 	callProgressFn(htc.Opts.ProgressFn, prefix+"Measuring ping...")
 	pr, err := measurePing(ctx, m.backend, htc.Server, m.Config.PingCount(), func(pingNum int, ping, _ float64) {
@@ -741,52 +746,10 @@ func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts 
 		return nil, ctx.Err()
 	}
 
-	pingCount := m.Config.PingCount()
-
-	callProgressFn(opts.ProgressFn, "Measuring ping...")
-	pingResult, err := measurePing(ctx, m.backend, server, pingCount, func(pingNum int, ping, _ float64) {
-		callProgressFn(opts.ProgressFn, fmt.Sprintf("Measuring ping (%d): %.1f ms", pingNum, ping))
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to measure ping: %v", err)
-	}
-
-	var downloadSpeed, uploadSpeed float64
-
-	if !opts.SkipDownload {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		callProgressFn(opts.ProgressFn, "Testing download...")
-		if err := runHeadlessTransfer(ctx, "download", "", opts.ProgressFn,
-			func() float64 { return server.Context.GetEWMADownloadRate() },
-			func() error { return m.backend.DownloadTest(server) },
-		); err != nil {
-			return nil, fmt.Errorf("failed to measure download speed: %v", err)
-		}
-		downloadSpeed = float64(server.DLSpeed) / bytesPerMbit
-		callProgressFn(opts.ProgressFn, fmt.Sprintf("Download: %.2f Mbps", downloadSpeed))
-	}
-
-	if !opts.SkipUpload {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		callProgressFn(opts.ProgressFn, "Testing upload...")
-		if err := runHeadlessTransfer(ctx, "upload", "", opts.ProgressFn,
-			func() float64 { return server.Context.GetEWMAUploadRate() },
-			func() error { return m.backend.UploadTest(server) },
-		); err != nil {
-			return nil, fmt.Errorf("failed to measure upload speed: %v", err)
-		}
-		uploadSpeed = float64(server.ULSpeed) / bytesPerMbit
-		callProgressFn(opts.ProgressFn, fmt.Sprintf("Upload: %.2f Mbps", uploadSpeed))
-	}
-
 	htc := HeadlessTestContext{
 		Server: server, Opts: opts,
 		Index: 1, Total: 1,
 		UserIP: userIP, UserISP: userISP,
 	}
-	return buildResult(htc, pingResult, downloadSpeed, uploadSpeed), nil
+	return m.testSingleServerHeadless(ctx, htc)
 }
