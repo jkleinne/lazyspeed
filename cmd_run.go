@@ -26,6 +26,11 @@ const (
 
 	// comparisonStarMarker is appended to rows that hold the best value in any metric.
 	comparisonStarMarker = " ★"
+
+	// phaseResultSuffix is the suffix appended to CLI progress phases that
+	// carry a speed result. The interactive progress function uses this to
+	// detect when a newline should be emitted to preserve the result on screen.
+	phaseResultSuffix = "Mbps"
 )
 
 var (
@@ -182,7 +187,7 @@ func writeRunResults(jsonResults []*model.SpeedTestResult, csvRows [][]string, o
 	}
 
 	if outputCSV {
-		writeCSVRows(model.SpeedTestCSVHeader, csvRows)
+		writeCSVRows(model.SpeedTestCSVHeader(), csvRows)
 	}
 }
 
@@ -284,7 +289,7 @@ func runMultiServerHeadless(m *model.Model, interactive bool) {
 		for i, res := range results {
 			rows[i] = res.CSVRow()
 		}
-		writeCSVRows(model.SpeedTestCSVHeader, rows)
+		writeCSVRows(model.SpeedTestCSVHeader(), rows)
 	case runSimple:
 		for _, res := range results {
 			fmt.Println(formatSimpleResult(res))
@@ -475,7 +480,7 @@ func runWatchLoop(m *model.Model, server *speedtest.Server, opts model.RunOption
 	defer ticker.Stop()
 
 	if runCSV {
-		writeCSVRows(model.SpeedTestCSVHeader, nil)
+		writeCSVRows(model.SpeedTestCSVHeader(), nil)
 	}
 
 	iteration := 0

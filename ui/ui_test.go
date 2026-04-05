@@ -98,7 +98,7 @@ func TestRenderResults(t *testing.T) {
 			Ping:          10.5,
 			Jitter:        2.1,
 			ServerName:    "Test Server",
-			ServerCountry: "US",
+			Country:       "US",
 			Timestamp:     testTimestamp,
 		},
 	}
@@ -331,7 +331,7 @@ func TestRenderResultsMissingSponsorDistance(t *testing.T) {
 			Ping:          15.0,
 			Jitter:        2.0,
 			ServerName:    "Old Server",
-			ServerCountry: "DE",
+			Country:       "DE",
 			ServerSponsor: "",
 			Distance:      0,
 			Timestamp:     time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -342,7 +342,7 @@ func TestRenderResultsMissingSponsorDistance(t *testing.T) {
 			Ping:          10.0,
 			Jitter:        1.0,
 			ServerName:    "New Server",
-			ServerCountry: "US",
+			Country:       "US",
 			ServerSponsor: "Valid Sponsor",
 			Distance:      42.5,
 			Timestamp:     time.Date(2026, 1, 2, 12, 0, 0, 0, time.UTC),
@@ -382,7 +382,7 @@ func TestRenderResultsManyEntries(t *testing.T) {
 			Ping:          float64(10 + i),
 			Jitter:        1.0,
 			ServerName:    "TestServer",
-			ServerCountry: "US",
+			Country:       "US",
 			Timestamp:     testTimestamp,
 		}
 	}
@@ -404,7 +404,7 @@ func TestRenderResultsPagination(t *testing.T) {
 			Ping:          float64(10 + i),
 			Jitter:        1.0,
 			ServerName:    "TestServer",
-			ServerCountry: "US",
+			Country:       "US",
 			Timestamp:     testTimestamp,
 		}
 	}
@@ -429,7 +429,7 @@ func TestRenderResultsNoPaginationSmallHistory(t *testing.T) {
 			Ping:          float64(10 + i),
 			Jitter:        1.0,
 			ServerName:    "TestServer",
-			ServerCountry: "US",
+			Country:       "US",
 			Timestamp:     testTimestamp,
 		}
 	}
@@ -451,7 +451,7 @@ func TestRenderResultsWithHistoryOffset(t *testing.T) {
 			Ping:          float64(10 + i),
 			Jitter:        1.0,
 			ServerName:    fmt.Sprintf("Server%d", i),
-			ServerCountry: "US",
+			Country:       "US",
 			Timestamp:     testTimestamp,
 		}
 	}
@@ -472,7 +472,7 @@ func TestRenderResultsHistoryOffsetClamped(t *testing.T) {
 			Ping:          float64(10 + i),
 			Jitter:        1.0,
 			ServerName:    "TestServer",
-			ServerCountry: "US",
+			Country:       "US",
 			Timestamp:     testTimestamp,
 		}
 	}
@@ -661,7 +661,7 @@ func TestRenderComparison(t *testing.T) {
 	results := []*model.SpeedTestResult{
 		{
 			ServerName:    "Fast Server",
-			ServerCountry: "US",
+			Country:       "US",
 			DownloadSpeed: 200.0,
 			UploadSpeed:   100.0,
 			Ping:          5.0,
@@ -669,7 +669,7 @@ func TestRenderComparison(t *testing.T) {
 		},
 		{
 			ServerName:    "Slow Server",
-			ServerCountry: "DE",
+			Country:       "DE",
 			DownloadSpeed: 50.0,
 			UploadSpeed:   25.0,
 			Ping:          30.0,
@@ -695,7 +695,7 @@ func TestRenderComparison_WithErrors(t *testing.T) {
 	results := []*model.SpeedTestResult{
 		{
 			ServerName:    "Good Server",
-			ServerCountry: "US",
+			Country:       "US",
 			DownloadSpeed: 150.0,
 			UploadSpeed:   75.0,
 			Ping:          10.0,

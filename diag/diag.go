@@ -85,7 +85,7 @@ func (d *DNSResult) UnmarshalJSON(data []byte) error {
 
 type QualityScore struct {
 	Score int    `json:"score"`
-	Grade string `json:"grade"`
+	Grade grade  `json:"grade"`
 	Label string `json:"label"`
 }
 

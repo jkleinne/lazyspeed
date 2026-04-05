@@ -40,7 +40,7 @@ func ExportResult(result *model.SpeedTestResult, format string, dir string) (pat
 			}
 		}()
 		csvWriter := csv.NewWriter(f)
-		_ = csvWriter.Write(model.SpeedTestCSVHeader)
+		_ = csvWriter.Write(model.SpeedTestCSVHeader())
 		_ = csvWriter.Write(result.CSVRow())
 		csvWriter.Flush()
 		if err = csvWriter.Error(); err != nil {

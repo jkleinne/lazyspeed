@@ -65,35 +65,55 @@ func findAnomalies(hops []diag.Hop) []diag.Hop {
 	return anomalies
 }
 
-// routeStatus returns a short health summary string for the hop list.
-func routeStatus(hops []diag.Hop) string {
-	var timeouts int
+// routeHealth classifies the overall health of a traceroute path by the
+// number of timed-out hops. Three severity levels map directly to the three
+// colour bands used in the diagnostics UI.
+type routeHealth int
+
+const (
+	routeHealthy      routeHealth = iota // no timed-out hops
+	routeMinorTimeout                    // exactly one timed-out hop
+	routeDegraded                        // two or more timed-out hops
+)
+
+// countTimeouts returns the number of timed-out hops.
+func countTimeouts(hops []diag.Hop) int {
+	var n int
 	for _, h := range hops {
 		if h.Timeout {
-			timeouts++
+			n++
 		}
 	}
+	return n
+}
+
+// routeStatus returns a short human-readable health summary and the
+// corresponding health level for the hop list.
+func routeStatus(hops []diag.Hop) (string, routeHealth) {
+	timeouts := countTimeouts(hops)
 	switch timeouts {
 	case 0:
-		return "healthy"
+		return "healthy", routeHealthy
 	case 1:
-		return "1 timeout"
+		return "1 timeout", routeMinorTimeout
 	default:
-		return fmt.Sprintf("%d timeouts", timeouts)
+		return fmt.Sprintf("%d timeouts", timeouts), routeDegraded
 	}
 }
 
 // routeStatusStyled returns a color-coded route health string.
 func routeStatusStyled(hops []diag.Hop) string {
-	status := routeStatus(hops)
-	switch status {
-	case "healthy":
+	status, health := routeStatus(hops)
+	switch health {
+	case routeHealthy:
 		return latencyGreenStyle.Render(status)
-	case "1 timeout":
+	case routeMinorTimeout:
 		return latencyAmberStyle.Render(status)
-	default:
+	case routeDegraded:
 		return latencyRedStyle.Render(status)
 	}
+	// Unreachable: all routeHealth values are covered above.
+	return status
 }
 
 // RenderDiagCompact renders a compact single-screen diagnostics summary.
@@ -106,7 +126,7 @@ func RenderDiagCompact(result *diag.Result, width int) string {
 	b.WriteString("\n\n")
 
 	// Score line
-	scoreStr := scoreStyle(result.Quality.Grade).Render(
+	scoreStr := scoreStyle(string(result.Quality.Grade)).Render(
 		fmt.Sprintf("%d/100 (%s)", result.Quality.Score, result.Quality.Grade))
 	b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, scoreStr))
 	b.WriteString("\n")
@@ -152,7 +172,7 @@ func RenderDiagCompact(result *diag.Result, width int) string {
 func renderDiagHeader(result *diag.Result, width int) string {
 	var b strings.Builder
 
-	scoreText := scoreStyle(result.Quality.Grade).Render(
+	scoreText := scoreStyle(string(result.Quality.Grade)).Render(
 		fmt.Sprintf("%d/100 (%s)", result.Quality.Score, result.Quality.Grade))
 	labelText := diagLabelStyle.Render(result.Quality.Label)
 	header := lipgloss.JoinHorizontal(lipgloss.Top, scoreText, "  ", labelText)

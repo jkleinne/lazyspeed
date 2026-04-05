@@ -83,8 +83,8 @@ const clearLine = "\r\033[K"
 func interactiveProgressFn() func(string) {
 	return func(phase string) {
 		fmt.Fprintf(os.Stderr, "%s  %s", clearLine, phase)
-		// Speed result phases end with "Mbps"; print a newline to preserve them.
-		if strings.HasSuffix(phase, "Mbps") {
+		// Speed result phases end with phaseResultSuffix; print a newline to preserve them.
+		if strings.HasSuffix(phase, phaseResultSuffix) {
 			fmt.Fprint(os.Stderr, "\n")
 		}
 	}

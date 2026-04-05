@@ -16,7 +16,9 @@ var (
 
 const shortHashLen = 7
 
-// Returns a formatted version string using embedded build info
+// GetVersionInfo returns a formatted version string using embedded build info.
+// It prefers values injected at build time via GoReleaser ldflags and falls
+// back to debug.ReadBuildInfo() for local `go build` invocations.
 func GetVersionInfo() string {
 	// Prefer values injected by GoReleaser via ldflags
 	if version != "" {

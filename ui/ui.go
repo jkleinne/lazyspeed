@@ -16,6 +16,14 @@ const (
 	historyMinVisible    = 3
 	serverListOverhead   = 8 // title + header + hint + padding
 	serverListMinVisible = 3
+
+	// resultSeparator is the horizontal rule drawn below the "Latest Results" heading.
+	// Width is chosen to match the typical content width of the results box.
+	resultSeparator = "──────────────────────"
+
+	// serverDividerWidth is the number of em-dashes drawn between the favorites
+	// group and the remaining servers in the selection list.
+	serverDividerWidth = 40
 )
 
 // Viewport groups the display dimensions shared by windowed render functions.
@@ -37,6 +45,9 @@ func clampViewport(total, maxVisible, offset int) (clampedOffset, end int) {
 	return clampedOffset, end
 }
 
+// DefaultSpinner is a pre-configured spinner used by the TUI loading state.
+// The frame set and style are intentionally fixed so that all callers share a
+// consistent animation; do not mutate this value directly.
 var DefaultSpinner = spinner.New(
 	spinner.WithSpinner(spinner.Spinner{
 		Frames: []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"},
@@ -45,6 +56,7 @@ var DefaultSpinner = spinner.New(
 	spinner.WithStyle(spinnerStyle),
 )
 
+// RenderTitle renders the application banner centered within width columns.
 func RenderTitle(width int) string {
 	name := gradientText("LazySpeed", gradientColors)
 	banner := bannerBoxStyle.Render(name)
@@ -56,6 +68,9 @@ func RenderTitle(width int) string {
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, title)
 }
 
+// RenderSpinner renders the animated spinner with a progress bar and phase label.
+// phase may contain a colon-separated label:value pair; both sides are styled
+// differently for visual hierarchy.
 func RenderSpinner(s spinner.Model, width int, phase string, progressAmount float64) string {
 	spinnerView := spinnerStyle.Render(s.View())
 
@@ -93,13 +108,13 @@ func renderLatestResult(latest *model.SpeedTestResult) string {
 	var b strings.Builder
 	b.WriteString(sectionLabelStyle.Render("Latest Results"))
 	b.WriteString("\n")
-	b.WriteString(diagSeparatorStyle.Render("──────────────────────"))
+	b.WriteString(diagSeparatorStyle.Render(resultSeparator))
 	b.WriteString("\n")
 	fmt.Fprintf(&b, "Download  %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f Mbps", latest.DownloadSpeed)))
 	fmt.Fprintf(&b, "Upload    %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f Mbps", latest.UploadSpeed)))
 	fmt.Fprintf(&b, "Ping      %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f ms", latest.Ping)))
 	fmt.Fprintf(&b, "Jitter    %s\n", metricValueStyle.Render(fmt.Sprintf("%.2f ms", latest.Jitter)))
-	fmt.Fprintf(&b, "Server    %s\n", infoStyle.Render(fmt.Sprintf("%s (%s)", latest.ServerName, latest.ServerCountry)))
+	fmt.Fprintf(&b, "Server    %s\n", infoStyle.Render(fmt.Sprintf("%s (%s)", latest.ServerName, latest.Country)))
 	if latest.ServerSponsor != "" {
 		fmt.Fprintf(&b, "Sponsor   %s\n", infoStyle.Render(latest.ServerSponsor))
 	}
@@ -137,7 +152,7 @@ func buildHistoryRows(history []*model.SpeedTestResult) [][]string {
 		rows = append(rows, []string{
 			fmt.Sprintf("%d", rowNum),
 			test.Timestamp.Format("Jan 02 03:04 PM"),
-			fmt.Sprintf("%s (%s)", test.ServerName, test.ServerCountry),
+			fmt.Sprintf("%s (%s)", test.ServerName, test.Country),
 			sponsorStr,
 			distStr,
 			fmt.Sprintf("%.2f", test.DownloadSpeed),
@@ -185,6 +200,9 @@ func renderHistoryTable(history []*model.SpeedTestResult, vp Viewport) string {
 	return historyContent
 }
 
+// RenderResults renders the full results view: latest-result box for the most
+// recent entry plus a paginated history table for all prior entries.
+// Returns an empty string when history is empty.
 func RenderResults(history []*model.SpeedTestResult, vp Viewport) string {
 	if len(history) == 0 {
 		return ""
@@ -202,6 +220,7 @@ func RenderResults(history []*model.SpeedTestResult, vp Viewport) string {
 	return lipgloss.PlaceHorizontal(vp.Width, lipgloss.Center, content)
 }
 
+// RenderError renders err as a centered error banner. Returns empty string for nil.
 func RenderError(err error, width int) string {
 	if err == nil {
 		return ""
@@ -210,6 +229,7 @@ func RenderError(err error, width int) string {
 		errorStyle.Render(fmt.Sprintf("Error: %v", err)))
 }
 
+// RenderWarning renders warning as a centered warning banner. Returns empty string for "".
 func RenderWarning(warning string, width int) string {
 	if warning == "" {
 		return ""
@@ -342,7 +362,7 @@ func RenderServerSelection(servers []model.Server, vp Viewport, selected map[int
 
 	for i := offset; i < end; i++ {
 		if i == favCount && favCount > 0 && i > offset {
-			b.WriteString(dimStyle.Render("  " + strings.Repeat("─", 40)))
+			b.WriteString(dimStyle.Render("  " + strings.Repeat("─", serverDividerWidth)))
 			b.WriteString("\n")
 		}
 
@@ -426,7 +446,7 @@ func buildComparisonRows(results []*model.SpeedTestResult, bm model.BestMetrics)
 		}
 		rows = append(rows, []string{
 			r.ServerName,
-			r.ServerCountry,
+			r.Country,
 			fmt.Sprintf("%.2f", r.DownloadSpeed),
 			fmt.Sprintf("%.2f", r.UploadSpeed),
 			fmt.Sprintf("%.1f", r.Ping),

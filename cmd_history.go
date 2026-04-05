@@ -64,7 +64,7 @@ func runHistory() {
 	for i, res := range entries {
 		csvRows[i] = res.CSVRow()
 	}
-	formatOutput(format, entries, model.SpeedTestCSVHeader, csvRows, func() {
+	formatOutput(format, entries, model.SpeedTestCSVHeader(), csvRows, func() {
 		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		_, _ = fmt.Fprintln(tw, "DATE\tSERVER\tDL (Mbps)\tUL (Mbps)\tPING (ms)")
 		for _, res := range entries {

@@ -41,14 +41,22 @@ func DurationMs(d time.Duration) float64 {
 	return timeutil.DurationMs(d)
 }
 
-// SpeedTestCSVHeader is the CSV header row for speed test results.
-var SpeedTestCSVHeader = []string{"timestamp", "server", "country", "download_mbps", "upload_mbps", "ping_ms", "jitter_ms", "ip", "isp"}
+// SpeedTestCSVHeader returns the CSV header row for speed test results.
+// Returned as a fresh slice so callers cannot mutate the canonical column order.
+func SpeedTestCSVHeader() []string {
+	return []string{"timestamp", "server", "country", "download_mbps", "upload_mbps", "ping_ms", "jitter_ms", "ip", "isp"}
+}
 
+// ProgressUpdate carries a progress fraction ([0,1]) and a human-readable
+// phase label. It is sent over a channel from the test goroutine to the TUI.
 type ProgressUpdate struct {
 	Progress float64
 	Phase    string
 }
 
+// SpeedTestResult holds the outcome of a single completed speed test.
+// The Country field is serialised as "server_country" for JSON/CSV compatibility;
+// the legacy "server_loc" key is accepted on read via the custom UnmarshalJSON.
 type SpeedTestResult struct {
 	DownloadSpeed float64   `json:"download_speed"`
 	UploadSpeed   float64   `json:"upload_speed"`
@@ -56,7 +64,7 @@ type SpeedTestResult struct {
 	Jitter        float64   `json:"jitter"`
 	ServerName    string    `json:"server_name"`
 	ServerSponsor string    `json:"server_sponsor"`
-	ServerCountry string    `json:"server_country"`
+	Country       string    `json:"server_country"`
 	Distance      float64   `json:"distance"`
 	Timestamp     time.Time `json:"timestamp"`
 	UserIP        string    `json:"user_ip"`
@@ -79,8 +87,8 @@ func (r *SpeedTestResult) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("failed to unmarshal speed test result: %v", err)
 	}
 	// Prefer the canonical key; fall back to the legacy key.
-	if r.ServerCountry == "" && aux.ServerLoc != "" {
-		r.ServerCountry = aux.ServerLoc
+	if r.Country == "" && aux.ServerLoc != "" {
+		r.Country = aux.ServerLoc
 	}
 	return nil
 }
@@ -90,7 +98,7 @@ func (r *SpeedTestResult) CSVRow() []string {
 	return []string{
 		r.Timestamp.Format(time.RFC3339),
 		r.ServerName,
-		r.ServerCountry,
+		r.Country,
 		fmt.Sprintf("%.2f", r.DownloadSpeed),
 		fmt.Sprintf("%.2f", r.UploadSpeed),
 		fmt.Sprintf("%.2f", r.Ping),
@@ -136,6 +144,8 @@ type Model struct {
 	ExportMessage string
 }
 
+// NewModel constructs a Model with the given backend and config.
+// Pass a nil cfg to use the package defaults — useful in tests.
 func NewModel(backend Backend, cfg *Config) *Model {
 	if cfg == nil {
 		cfg = DefaultConfig()
@@ -148,6 +158,9 @@ func NewModel(backend Backend, cfg *Config) *Model {
 	}
 }
 
+// NewDefaultModel loads config from disk and constructs a production Model
+// backed by the real speedtest-go library. Config load errors are non-fatal:
+// the default config is used and a warning is surfaced in the TUI.
 func NewDefaultModel() *Model {
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -393,7 +406,7 @@ func buildResult(htc headlessTestContext, pr *pingResult, download, upload float
 		Jitter:        pr.jitter,
 		ServerName:    htc.Server.Name,
 		ServerSponsor: htc.Server.Sponsor,
-		ServerCountry: htc.Server.Country,
+		Country:       htc.Server.Country,
 		Distance:      htc.Server.Distance,
 		Timestamp:     time.Now(),
 		UserIP:        htc.UserIP,
@@ -434,6 +447,8 @@ func (m *Model) fetchNetworkInfo(ctx context.Context, updateChan chan<- Progress
 	return nil
 }
 
+// PerformSpeedTest runs a full single-server speed test (ping → download → upload)
+// and appends the result to history. Progress is streamed via updateChan.
 func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, updateChan chan<- ProgressUpdate) error {
 	m.initTestState(updateChan)
 
@@ -730,6 +745,8 @@ func (m *Model) RunMultiServer(
 	return results, serverErrors
 }
 
+// RunHeadless runs a single-server speed test without a TUI, writing progress
+// via opts.ProgressFn. Used by the `run` CLI command.
 func (m *Model) RunHeadless(ctx context.Context, server *speedtest.Server, opts RunOptions) (*SpeedTestResult, error) {
 	callProgressFn(opts.ProgressFn, "Fetching network information...")
 	m.fetchUserInfoOrWarn()

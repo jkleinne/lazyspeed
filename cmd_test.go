@@ -253,7 +253,7 @@ func makeHistoryEntries(n int) []*model.SpeedTestResult {
 			Ping:          float64(10 + i),
 			Jitter:        1.0,
 			ServerName:    "Server",
-			ServerCountry: "US",
+			Country:       "US",
 			UserIP:        "1.2.3.4",
 			UserISP:       "TestISP",
 			Timestamp:     time.Date(2026, 1, i+1, 12, 0, 0, 0, time.UTC),
@@ -583,7 +583,7 @@ func TestHistoryTableFormatTruncation(t *testing.T) {
 			UploadSpeed:   50.0,
 			Ping:          10.0,
 			ServerName:    "A Very Long Server Name XY",
-			ServerCountry: "US",
+			Country:       "US",
 			Timestamp:     time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
 		},
 	}
@@ -838,7 +838,7 @@ func TestFormatComparisonTable(t *testing.T) {
 		{
 			ServerName:    "Tokyo Fiber",
 			ServerSponsor: "NTT",
-			ServerCountry: "Japan",
+			Country:       "Japan",
 			Distance:      150.50,
 			DownloadSpeed: 95.12,
 			UploadSpeed:   45.23,
@@ -850,7 +850,7 @@ func TestFormatComparisonTable(t *testing.T) {
 		{
 			ServerName:    "London Edge",
 			ServerSponsor: "BT",
-			ServerCountry: "UK",
+			Country:       "UK",
 			Distance:      5400.00,
 			DownloadSpeed: 80.00,
 			UploadSpeed:   60.00,
@@ -862,7 +862,7 @@ func TestFormatComparisonTable(t *testing.T) {
 		{
 			ServerName:    "New York Hub",
 			ServerSponsor: "Comcast",
-			ServerCountry: "USA",
+			Country:       "USA",
 			Distance:      600.25,
 			DownloadSpeed: 110.00,
 			UploadSpeed:   40.00,
@@ -909,7 +909,7 @@ func TestFormatComparisonTable_IdenticalValues(t *testing.T) {
 	results := []*model.SpeedTestResult{
 		{
 			ServerName:    "Server A",
-			ServerCountry: "US",
+			Country:       "US",
 			DownloadSpeed: 100.00,
 			UploadSpeed:   50.00,
 			Ping:          10.00,
@@ -917,7 +917,7 @@ func TestFormatComparisonTable_IdenticalValues(t *testing.T) {
 		},
 		{
 			ServerName:    "Server B",
-			ServerCountry: "US",
+			Country:       "US",
 			DownloadSpeed: 100.00,
 			UploadSpeed:   50.00,
 			Ping:          10.00,
