@@ -61,7 +61,7 @@ type speedTest struct {
 	errChan      chan error
 	cancelTest   context.CancelFunc
 
-	diagResult *diag.DiagResult
+	diagResult *diag.Result
 	viewState  ViewState
 	diagOffset int
 	diagInput  textinput.Model
@@ -95,7 +95,7 @@ type serverListMsg struct {
 }
 
 type diagCompleteMsg struct {
-	result *diag.DiagResult
+	result *diag.Result
 	err    error
 }
 
@@ -104,12 +104,12 @@ type multiServerCompleteMsg struct {
 	errors  []model.ServerError
 }
 
-func runDiagCmd(target string, cfg *diag.DiagConfig) tea.Cmd {
+func runDiagCmd(target string, cfg *diag.Config) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Timeout)*time.Second)
 		defer cancel()
 
-		backend := &diag.RealDiagBackend{}
+		backend := &diag.RealBackend{}
 		result, err := diag.Run(ctx, backend, target, cfg)
 		return diagCompleteMsg{result: result, err: err}
 	}

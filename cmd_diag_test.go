@@ -68,7 +68,7 @@ func TestDiagConfig(t *testing.T) {
 
 	t.Run("zero values fall back to defaults", func(t *testing.T) {
 		got := diagConfig(model.DiagnosticsConfig{})
-		defaults := diag.DefaultDiagConfig()
+		defaults := diag.DefaultConfig()
 
 		if got.MaxHops != defaults.MaxHops {
 			t.Errorf("MaxHops = %d, want default %d", got.MaxHops, defaults.MaxHops)
@@ -153,7 +153,7 @@ func TestDiagCSVRow(t *testing.T) {
 	ts := time.Date(2026, 3, 26, 12, 0, 0, 0, time.UTC)
 
 	t.Run("with DNS", func(t *testing.T) {
-		r := &diag.DiagResult{
+		r := &diag.Result{
 			Target: "example.com",
 			Method: diag.MethodICMP,
 			Hops: []diag.Hop{
@@ -182,7 +182,7 @@ func TestDiagCSVRow(t *testing.T) {
 	})
 
 	t.Run("nil DNS", func(t *testing.T) {
-		r := &diag.DiagResult{
+		r := &diag.Result{
 			Target:    "10.0.0.1",
 			Method:    diag.MethodUDP,
 			Hops:      []diag.Hop{},
@@ -207,7 +207,7 @@ func TestDiagCSVRow(t *testing.T) {
 
 func TestDiagSimpleLine(t *testing.T) {
 	t.Run("with DNS", func(t *testing.T) {
-		r := &diag.DiagResult{
+		r := &diag.Result{
 			Target: "example.com",
 			Method: diag.MethodICMP,
 			Hops: []diag.Hop{
@@ -232,7 +232,7 @@ func TestDiagSimpleLine(t *testing.T) {
 	})
 
 	t.Run("nil DNS", func(t *testing.T) {
-		r := &diag.DiagResult{
+		r := &diag.Result{
 			Target:  "10.0.0.1",
 			Method:  diag.MethodUDP,
 			Hops:    []diag.Hop{},
@@ -248,7 +248,7 @@ func TestDiagSimpleLine(t *testing.T) {
 }
 
 func TestDiagDefaultOutput(t *testing.T) {
-	r := &diag.DiagResult{
+	r := &diag.Result{
 		Target: "example.com",
 		Method: diag.MethodICMP,
 		Hops: []diag.Hop{
@@ -304,11 +304,11 @@ func saveDiagFlags(t *testing.T) {
 	})
 }
 
-// makeDiagHistory builds a slice of DiagResult values for use in tests.
-func makeDiagHistory(n int) []*diag.DiagResult {
-	results := make([]*diag.DiagResult, n)
+// makeDiagHistory builds a slice of diag.Result values for use in tests.
+func makeDiagHistory(n int) []*diag.Result {
+	results := make([]*diag.Result, n)
 	for i := range n {
-		results[i] = &diag.DiagResult{
+		results[i] = &diag.Result{
 			Target: "8.8.8.8",
 			Method: diag.MethodICMP,
 			Hops: []diag.Hop{
@@ -322,7 +322,7 @@ func makeDiagHistory(n int) []*diag.DiagResult {
 }
 
 // populateDiagHistory writes diag history entries to the XDG-compliant path under tmpDir.
-func populateDiagHistory(t *testing.T, tmpDir string, entries []*diag.DiagResult) {
+func populateDiagHistory(t *testing.T, tmpDir string, entries []*diag.Result) {
 	t.Helper()
 	histDir := filepath.Join(tmpDir, ".local", "share", "lazyspeed")
 	if err := os.MkdirAll(histDir, 0700); err != nil {
@@ -368,7 +368,7 @@ func TestRunDiagHistoryJSON(t *testing.T) {
 
 	out := captureStdout(runDiagHistory)
 
-	var arr []*diag.DiagResult
+	var arr []*diag.Result
 	if err := json.Unmarshal([]byte(out), &arr); err != nil {
 		t.Fatalf("expected valid JSON array, got parse error: %v\noutput: %s", err, out)
 	}
@@ -392,7 +392,7 @@ func TestRunDiagHistoryLastSlice(t *testing.T) {
 
 	out := captureStdout(runDiagHistory)
 
-	var arr []*diag.DiagResult
+	var arr []*diag.Result
 	if err := json.Unmarshal([]byte(out), &arr); err != nil {
 		t.Fatalf("expected valid JSON array, got parse error: %v\noutput: %s", err, out)
 	}

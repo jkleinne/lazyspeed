@@ -13,11 +13,11 @@ import (
 	"golang.org/x/net/ipv4"
 )
 
-// RealDiagBackend implements DiagBackend using real network calls.
-type RealDiagBackend struct{}
+// RealBackend implements Backend using real network calls.
+type RealBackend struct{}
 
 // ResolveDNS resolves a hostname to an IP address and measures DNS lookup latency.
-func (b *RealDiagBackend) ResolveDNS(ctx context.Context, host string) (string, time.Duration, error) {
+func (b *RealBackend) ResolveDNS(ctx context.Context, host string) (string, time.Duration, error) {
 	resolver := &net.Resolver{}
 	start := time.Now()
 	addrs, err := resolver.LookupHost(ctx, host)
@@ -32,7 +32,7 @@ func (b *RealDiagBackend) ResolveDNS(ctx context.Context, host string) (string, 
 }
 
 // Traceroute runs a traceroute to the target, trying ICMP first and falling back to UDP.
-func (b *RealDiagBackend) Traceroute(ctx context.Context, target string, maxHops int) ([]Hop, string, error) {
+func (b *RealBackend) Traceroute(ctx context.Context, target string, maxHops int) ([]Hop, string, error) {
 	// Resolve target to IP if it's a hostname
 	ip := net.ParseIP(target)
 	if ip == nil {

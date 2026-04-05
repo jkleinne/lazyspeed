@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-func TestRealDiagBackendResolveDNS(t *testing.T) {
-	b := &RealDiagBackend{}
+func TestRealBackendResolveDNS(t *testing.T) {
+	b := &RealBackend{}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -26,8 +26,8 @@ func TestRealDiagBackendResolveDNS(t *testing.T) {
 	}
 }
 
-func TestRealDiagBackendResolveDNSCancelled(t *testing.T) {
-	b := &RealDiagBackend{}
+func TestRealBackendResolveDNSCancelled(t *testing.T) {
+	b := &RealBackend{}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 

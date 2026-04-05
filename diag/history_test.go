@@ -24,7 +24,7 @@ func TestSaveAndLoadHistory(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sub", "diagnostics.json")
 
-	results := []*DiagResult{
+	results := []*Result{
 		{
 			Target:    testExampleHost,
 			Method:    MethodUDP,
@@ -53,9 +53,9 @@ func TestSaveAndLoadHistory(t *testing.T) {
 func TestSaveHistoryRetention(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "diagnostics.json")
 
-	var results []*DiagResult
+	var results []*Result
 	for i := range 25 {
-		results = append(results, &DiagResult{
+		results = append(results, &Result{
 			Target:    "target",
 			Timestamp: testTimestamp.Add(time.Duration(i) * time.Minute),
 		})
@@ -77,9 +77,9 @@ func TestSaveHistoryRetention(t *testing.T) {
 func TestSaveHistoryMaxEntriesZero_NoTruncation(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "diagnostics.json")
 
-	var results []*DiagResult
+	var results []*Result
 	for i := range 25 {
-		results = append(results, &DiagResult{
+		results = append(results, &Result{
 			Target:    "target",
 			Timestamp: testTimestamp.Add(time.Duration(i) * time.Minute),
 		})
@@ -119,7 +119,7 @@ func TestAppendHistory(t *testing.T) {
 	path := filepath.Join(dir, "diag_history.json")
 
 	// Append to non-existent file creates it
-	result := &DiagResult{Target: testExampleHost, Method: MethodICMP}
+	result := &Result{Target: testExampleHost, Method: MethodICMP}
 	if err := AppendHistory(path, result, 5); err != nil {
 		t.Fatalf("AppendHistory on new file: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestAppendHistory(t *testing.T) {
 
 	// Append respects maxEntries
 	for i := range 6 {
-		r := &DiagResult{Target: fmt.Sprintf("host-%d", i), Method: MethodUDP}
+		r := &Result{Target: fmt.Sprintf("host-%d", i), Method: MethodUDP}
 		if err := AppendHistory(path, r, 5); err != nil {
 			t.Fatalf("AppendHistory iteration %d: %v", i, err)
 		}
