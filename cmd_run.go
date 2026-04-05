@@ -31,6 +31,12 @@ const (
 	// carry a speed result. The interactive progress function uses this to
 	// detect when a newline should be emitted to preserve the result on screen.
 	phaseResultSuffix = "Mbps"
+
+	// Column widths for the headless comparison table.
+	colServer  = 20
+	colSponsor = 20
+	colDist    = 10
+	colNum     = 10
 )
 
 type runFlags struct {
@@ -279,38 +285,43 @@ func runMultiServerHeadless(m *model.Model, interactive bool) {
 		exitWithError("all server tests failed")
 	}
 
-	switch {
-	case runF.json:
-		data, err := json.MarshalIndent(results, "", "  ")
-		if err != nil {
-			exitWithError("serialising results: %v", err)
-		}
-		fmt.Println(string(data))
-	case runF.csv:
-		rows := make([][]string, len(results))
-		for i, res := range results {
-			rows[i] = res.CSVRow()
-		}
-		writeCSVRows(model.SpeedTestCSVHeader(), rows)
-	case runF.simple:
-		for _, res := range results {
-			fmt.Println(formatSimpleResult(res))
-		}
-	default:
-		fmt.Println(formatComparisonTable(results))
+	csvRows := make([][]string, len(results))
+	for i, res := range results {
+		csvRows[i] = res.CSVRow()
 	}
+	format := resolveFormat(runF.json, runF.csv)
+	formatOutput(format, results, model.SpeedTestCSVHeader(), csvRows, func() {
+		if runF.simple {
+			for _, res := range results {
+				fmt.Println(formatSimpleResult(res))
+			}
+		} else {
+			fmt.Println(formatComparisonTable(results))
+		}
+	})
+}
+
+// formatComparisonRow formats a single row for the headless comparison table.
+func formatComparisonRow(res *model.SpeedTestResult, isBest bool) string {
+	star := ""
+	if isBest {
+		star = comparisonStarMarker
+	}
+	return fmt.Sprintf("%-*s  %-*s  %*.2f  %*.2f  %*.2f  %*.2f  %*.2f%s",
+		colServer, ui.Truncate(res.ServerName, comparisonServerNameMaxLen),
+		colSponsor, ui.Truncate(res.ServerSponsor, comparisonServerNameMaxLen),
+		colDist, res.Distance,
+		colNum, res.DownloadSpeed,
+		colNum, res.UploadSpeed,
+		colNum, res.Ping,
+		colNum, res.Jitter,
+		star,
+	)
 }
 
 // formatComparisonTable renders a fixed-width comparison table for multiple server results.
 // Best-value rows are marked with a star: higher is better for DL/UL, lower for Ping/Jitter.
 func formatComparisonTable(results []*model.SpeedTestResult) string {
-	const (
-		colServer  = 20
-		colSponsor = 20
-		colDist    = 10
-		colNum     = 10
-	)
-
 	var sb strings.Builder
 
 	if len(results) > 0 {
@@ -337,24 +348,8 @@ func formatComparisonTable(results []*model.SpeedTestResult) string {
 	sb.WriteByte('\n')
 
 	for i, res := range results {
-		hasStar := i == bm.DownloadIdx || i == bm.UploadIdx || i == bm.PingIdx || i == bm.JitterIdx
-
-		star := ""
-		if hasStar {
-			star = comparisonStarMarker
-		}
-
-		row := fmt.Sprintf("%-*s  %-*s  %*.2f  %*.2f  %*.2f  %*.2f  %*.2f%s",
-			colServer, ui.Truncate(res.ServerName, comparisonServerNameMaxLen),
-			colSponsor, ui.Truncate(res.ServerSponsor, comparisonServerNameMaxLen),
-			colDist, res.Distance,
-			colNum, res.DownloadSpeed,
-			colNum, res.UploadSpeed,
-			colNum, res.Ping,
-			colNum, res.Jitter,
-			star,
-		)
-		sb.WriteString(row)
+		isBest := i == bm.DownloadIdx || i == bm.UploadIdx || i == bm.PingIdx || i == bm.JitterIdx
+		sb.WriteString(formatComparisonRow(res, isBest))
 		sb.WriteByte('\n')
 	}
 
