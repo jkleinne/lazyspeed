@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/jkleinne/lazyspeed/internal/timeutil"
@@ -298,6 +299,34 @@ func runHeadlessTransfer(
 	}
 }
 
+// headlessDirection defines a single download or upload phase in headless mode.
+type headlessDirection struct {
+	label      string         // "download" or "upload"
+	skip       bool           // true when the user opted out of this phase
+	rateFn     func() float64 // EWMA rate in bytes/sec for live progress
+	testFn     func() error   // runs the actual transfer test
+	rawSpeedFn func() float64 // raw speed from server after test completes
+}
+
+// runHeadlessDirection executes one headless transfer phase, reporting progress
+// via htc.Opts.ProgressFn. Returns the measured speed in Mbps, or 0 when skipped.
+func runHeadlessDirection(ctx context.Context, htc headlessTestContext, prefix string, dir headlessDirection) (float64, error) {
+	if dir.skip {
+		return 0, nil
+	}
+	if ctx.Err() != nil {
+		return 0, ctx.Err()
+	}
+	callProgressFn(htc.Opts.ProgressFn, prefix+"Testing "+dir.label+"...")
+	if err := runHeadlessTransfer(ctx, dir.label, prefix, htc.Opts.ProgressFn, dir.rateFn, dir.testFn); err != nil {
+		return 0, fmt.Errorf("failed to measure %s speed: %v", dir.label, err)
+	}
+	speed := dir.rawSpeedFn() / bytesPerMbit
+	doneLabel := strings.ToUpper(dir.label[:1]) + dir.label[1:]
+	callProgressFn(htc.Opts.ProgressFn, fmt.Sprintf("%s%s: %.2f Mbps", prefix, doneLabel, speed))
+	return speed, nil
+}
+
 // runPingPhase measures ping/jitter and reports TUI progress updates.
 func runPingPhase(ctx context.Context, backend Backend, server *speedtest.Server, pingCount int, updateChan chan<- ProgressUpdate) (*pingResult, error) {
 	sendUpdate(progressPingStart, "Measuring ping and jitter...", updateChan)
@@ -397,6 +426,61 @@ func runTransferPhase(
 	return rawSpeed() / bytesPerMbit, nil
 }
 
+// transferDirection defines the parameters for a single download or upload phase
+// in TUI mode, used by runTUITransfer to encapsulate the full lifecycle.
+type transferDirection struct {
+	label      string         // "download" or "upload" — used in transferPhase.label
+	doneLabel  string         // "Download" or "Upload" — used in done/start messages
+	startConst float64        // progress fraction for phase start
+	spanConst  float64        // progress span (may be pre-scaled for multi-server)
+	maxConst   float64        // progress fraction for max clamping
+	doneConst  float64        // progress fraction for done update
+	rateFn     func() float64 // EWMA rate in bytes/sec
+	testFn     func() error   // runs the actual transfer test
+	rawSpeedFn func() float64 // raw speed from server after test completes
+}
+
+// scaleProgressFn maps a progress fraction through an optional transform.
+// PerformSpeedTest uses identity; testSingleServer scales into its server slice.
+type scaleProgressFn func(float64) float64
+
+func identity(v float64) float64 { return v }
+
+// runTUITransfer encapsulates the full TUI transfer lifecycle: send start update,
+// run the transfer phase with progress monitoring, send done update. When prefix
+// is non-empty, messages are prefixed with "prefix — ".
+func runTUITransfer(
+	ctx context.Context,
+	dir transferDirection,
+	prefix string,
+	scaleProgress scaleProgressFn,
+	updateChan chan<- ProgressUpdate,
+) (float64, error) {
+	startMsg := fmt.Sprintf("Starting %s test...", dir.label)
+	if prefix != "" {
+		startMsg = prefix + " — " + startMsg
+	}
+	sendUpdate(scaleProgress(dir.startConst), startMsg, updateChan)
+
+	speed, err := runTransferPhase(ctx, transferPhase{
+		start:   scaleProgress(dir.startConst),
+		span:    dir.spanConst,
+		maxProg: scaleProgress(dir.maxConst),
+		label:   dir.label,
+		rateFn:  dir.rateFn,
+	}, dir.testFn, dir.rawSpeedFn, updateChan)
+	if err != nil {
+		return 0, err
+	}
+
+	doneMsg := fmt.Sprintf("%s complete: %.2f Mbps", dir.doneLabel, speed)
+	if prefix != "" {
+		doneMsg = fmt.Sprintf("%s — %s: %.2f Mbps", prefix, dir.doneLabel, speed)
+	}
+	sendUpdate(scaleProgress(dir.doneConst), doneMsg, updateChan)
+	return speed, nil
+}
+
 // buildResult constructs a SpeedTestResult from the completed test data.
 func buildResult(htc headlessTestContext, pr *pingResult, download, upload float64) *SpeedTestResult {
 	return &SpeedTestResult{
@@ -412,6 +496,19 @@ func buildResult(htc headlessTestContext, pr *pingResult, download, upload float
 		UserIP:        htc.UserIP,
 		UserISP:       htc.UserISP,
 	}
+}
+
+// pingFailureMessage returns a descriptive message when all pings fail,
+// or an empty string if at least one ping succeeded.
+func pingFailureMessage(pr *pingResult) string {
+	if len(pr.pings) > 0 {
+		return ""
+	}
+	msg := "all ping measurements failed"
+	if pr.lastErr != nil {
+		msg = fmt.Sprintf("%s (last error: %v)", msg, pr.lastErr)
+	}
+	return msg
 }
 
 // initTestState clears model fields and sends the initialization progress update.
@@ -451,6 +548,11 @@ func (m *Model) fetchNetworkInfo(ctx context.Context, updateChan chan<- Progress
 // and appends the result to history. Progress is streamed via updateChan.
 func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, updateChan chan<- ProgressUpdate) error {
 	m.initTestState(updateChan)
+	defer func() {
+		if m.State == StateTesting {
+			m.State = StateIdle
+		}
+	}()
 
 	if err := m.fetchNetworkInfo(ctx, updateChan); err != nil {
 		return err
@@ -460,7 +562,6 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 
 	pr, err := runPingPhase(ctx, m.backend, server, m.Config.PingCount(), updateChan)
 	if err != nil {
-		m.State = StateIdle
 		return fmt.Errorf("failed to measure ping: %v", err)
 	}
 	if len(pr.pings) == 0 {
@@ -471,31 +572,29 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		m.Warning = msg
 	}
 
-	sendUpdate(progressDownloadStart, "Starting download test...", updateChan)
-	downloadSpeed, err := runTransferPhase(ctx, transferPhase{
-		start: progressDownloadStart, span: progressDownloadSpan,
-		maxProg: progressDownloadMax, label: "download",
-		rateFn: func() float64 { return server.Context.GetEWMADownloadRate() },
-	}, func() error { return m.backend.DownloadTest(server) },
-		func() float64 { return float64(server.DLSpeed) }, updateChan)
+	downloadSpeed, err := runTUITransfer(ctx, transferDirection{
+		label: "download", doneLabel: "Download",
+		startConst: progressDownloadStart, spanConst: progressDownloadSpan,
+		maxConst: progressDownloadMax, doneConst: progressDownloadDone,
+		rateFn:     func() float64 { return server.Context.GetEWMADownloadRate() },
+		testFn:     func() error { return m.backend.DownloadTest(server) },
+		rawSpeedFn: func() float64 { return float64(server.DLSpeed) },
+	}, "", identity, updateChan)
 	if err != nil {
-		m.State = StateIdle
 		return err
 	}
-	sendUpdate(progressDownloadDone, fmt.Sprintf("Download complete: %.2f Mbps", downloadSpeed), updateChan)
 
-	sendUpdate(progressUploadStart, "Starting upload test...", updateChan)
-	uploadSpeed, err := runTransferPhase(ctx, transferPhase{
-		start: progressUploadStart, span: progressUploadSpan,
-		maxProg: progressUploadMax, label: "upload",
-		rateFn: func() float64 { return server.Context.GetEWMAUploadRate() },
-	}, func() error { return m.backend.UploadTest(server) },
-		func() float64 { return float64(server.ULSpeed) }, updateChan)
+	uploadSpeed, err := runTUITransfer(ctx, transferDirection{
+		label: "upload", doneLabel: "Upload",
+		startConst: progressUploadStart, spanConst: progressUploadSpan,
+		maxConst: progressUploadMax, doneConst: progressUploadDone,
+		rateFn:     func() float64 { return server.Context.GetEWMAUploadRate() },
+		testFn:     func() error { return m.backend.UploadTest(server) },
+		rawSpeedFn: func() float64 { return float64(server.ULSpeed) },
+	}, "", identity, updateChan)
 	if err != nil {
-		m.State = StateIdle
 		return err
 	}
-	sendUpdate(progressUploadDone, fmt.Sprintf("Upload complete: %.2f Mbps", uploadSpeed), updateChan)
 
 	m.finalizeTest(server, pr, downloadSpeed, uploadSpeed, updateChan)
 	return nil
@@ -570,44 +669,28 @@ func (m *Model) testSingleServerHeadless(ctx context.Context, htc headlessTestCo
 	if err != nil {
 		return nil, fmt.Errorf("failed to measure ping: %v", err)
 	}
-	if len(pr.pings) == 0 {
-		errMsg := "all ping measurements failed"
-		if pr.lastErr != nil {
-			errMsg = fmt.Sprintf("%s (last error: %v)", errMsg, pr.lastErr)
-		}
-		return nil, fmt.Errorf("failed to measure ping: %s", errMsg)
+	if msg := pingFailureMessage(pr); msg != "" {
+		return nil, fmt.Errorf("failed to measure ping: %s", msg)
 	}
 
-	var downloadSpeed, uploadSpeed float64
-
-	if !htc.Opts.SkipDownload {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		callProgressFn(htc.Opts.ProgressFn, prefix+"Testing download...")
-		if err := runHeadlessTransfer(ctx, "download", prefix, htc.Opts.ProgressFn,
-			func() float64 { return htc.Server.Context.GetEWMADownloadRate() },
-			func() error { return m.backend.DownloadTest(htc.Server) },
-		); err != nil {
-			return nil, fmt.Errorf("failed to measure download speed: %v", err)
-		}
-		downloadSpeed = float64(htc.Server.DLSpeed) / bytesPerMbit
-		callProgressFn(htc.Opts.ProgressFn, fmt.Sprintf("%sDownload: %.2f Mbps", prefix, downloadSpeed))
+	downloadSpeed, err := runHeadlessDirection(ctx, htc, prefix, headlessDirection{
+		label: "download", skip: htc.Opts.SkipDownload,
+		rateFn:     func() float64 { return htc.Server.Context.GetEWMADownloadRate() },
+		testFn:     func() error { return m.backend.DownloadTest(htc.Server) },
+		rawSpeedFn: func() float64 { return float64(htc.Server.DLSpeed) },
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	if !htc.Opts.SkipUpload {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		callProgressFn(htc.Opts.ProgressFn, prefix+"Testing upload...")
-		if err := runHeadlessTransfer(ctx, "upload", prefix, htc.Opts.ProgressFn,
-			func() float64 { return htc.Server.Context.GetEWMAUploadRate() },
-			func() error { return m.backend.UploadTest(htc.Server) },
-		); err != nil {
-			return nil, fmt.Errorf("failed to measure upload speed: %v", err)
-		}
-		uploadSpeed = float64(htc.Server.ULSpeed) / bytesPerMbit
-		callProgressFn(htc.Opts.ProgressFn, fmt.Sprintf("%sUpload: %.2f Mbps", prefix, uploadSpeed))
+	uploadSpeed, err := runHeadlessDirection(ctx, htc, prefix, headlessDirection{
+		label: "upload", skip: htc.Opts.SkipUpload,
+		rateFn:     func() float64 { return htc.Server.Context.GetEWMAUploadRate() },
+		testFn:     func() error { return m.backend.UploadTest(htc.Server) },
+		rawSpeedFn: func() float64 { return float64(htc.Server.ULSpeed) },
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return buildResult(htc, pr, downloadSpeed, uploadSpeed), nil
@@ -668,41 +751,33 @@ func (m *Model) testSingleServer(
 	if err != nil {
 		return nil, fmt.Errorf("failed to measure ping: %v", err)
 	}
-	if len(pr.pings) == 0 {
-		errMsg := "all ping measurements failed"
-		if pr.lastErr != nil {
-			errMsg = fmt.Sprintf("%s (last error: %v)", errMsg, pr.lastErr)
-		}
-		return nil, fmt.Errorf("failed to measure ping: %s", errMsg)
+	if msg := pingFailureMessage(pr); msg != "" {
+		return nil, fmt.Errorf("failed to measure ping: %s", msg)
 	}
 
-	sendUpdate(scaleProgress(progressDownloadStart), prefix+" — Starting download test...", updateChan)
-	downloadSpeed, err := runTransferPhase(ctx, transferPhase{
-		start:   scaleProgress(progressDownloadStart),
-		span:    serverSpan * progressDownloadSpan,
-		maxProg: scaleProgress(progressDownloadMax),
-		label:   "download",
-		rateFn:  func() float64 { return server.Context.GetEWMADownloadRate() },
-	}, func() error { return m.backend.DownloadTest(server) },
-		func() float64 { return float64(server.DLSpeed) }, updateChan)
+	downloadSpeed, err := runTUITransfer(ctx, transferDirection{
+		label: "download", doneLabel: "Download",
+		startConst: progressDownloadStart, spanConst: serverSpan * progressDownloadSpan,
+		maxConst: progressDownloadMax, doneConst: progressDownloadDone,
+		rateFn:     func() float64 { return server.Context.GetEWMADownloadRate() },
+		testFn:     func() error { return m.backend.DownloadTest(server) },
+		rawSpeedFn: func() float64 { return float64(server.DLSpeed) },
+	}, prefix, scaleProgress, updateChan)
 	if err != nil {
 		return nil, err
 	}
-	sendUpdate(scaleProgress(progressDownloadDone), fmt.Sprintf("%s — Download: %.2f Mbps", prefix, downloadSpeed), updateChan)
 
-	sendUpdate(scaleProgress(progressUploadStart), prefix+" — Starting upload test...", updateChan)
-	uploadSpeed, err := runTransferPhase(ctx, transferPhase{
-		start:   scaleProgress(progressUploadStart),
-		span:    serverSpan * progressUploadSpan,
-		maxProg: scaleProgress(progressUploadMax),
-		label:   "upload",
-		rateFn:  func() float64 { return server.Context.GetEWMAUploadRate() },
-	}, func() error { return m.backend.UploadTest(server) },
-		func() float64 { return float64(server.ULSpeed) }, updateChan)
+	uploadSpeed, err := runTUITransfer(ctx, transferDirection{
+		label: "upload", doneLabel: "Upload",
+		startConst: progressUploadStart, spanConst: serverSpan * progressUploadSpan,
+		maxConst: progressUploadMax, doneConst: progressUploadDone,
+		rateFn:     func() float64 { return server.Context.GetEWMAUploadRate() },
+		testFn:     func() error { return m.backend.UploadTest(server) },
+		rawSpeedFn: func() float64 { return float64(server.ULSpeed) },
+	}, prefix, scaleProgress, updateChan)
 	if err != nil {
 		return nil, err
 	}
-	sendUpdate(scaleProgress(progressUploadDone), fmt.Sprintf("%s — Upload: %.2f Mbps", prefix, uploadSpeed), updateChan)
 
 	userIP, userISP := m.userInfo()
 	htc := headlessTestContext{Server: server, UserIP: userIP, UserISP: userISP}
