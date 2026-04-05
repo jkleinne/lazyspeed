@@ -248,12 +248,7 @@ func runMultiServerHeadless(m *model.Model, interactive bool) {
 		SkipUpload:   runNoUpload,
 	}
 	if interactive {
-		opts.ProgressFn = func(phase string) {
-			fmt.Fprintf(os.Stderr, "\r\033[K  %s", phase)
-			if strings.HasSuffix(phase, "Mbps") {
-				fmt.Fprint(os.Stderr, "\n")
-			}
-		}
+		opts.ProgressFn = interactiveProgressFn()
 	}
 
 	if err := m.History.Load(); err != nil {
@@ -376,12 +371,7 @@ func runHeadlessTest() {
 		SkipUpload:   runNoUpload,
 	}
 	if interactive {
-		opts.ProgressFn = func(phase string) {
-			fmt.Fprintf(os.Stderr, "\r\033[K  %s", phase)
-			if strings.HasSuffix(phase, "Mbps") {
-				fmt.Fprint(os.Stderr, "\n")
-			}
-		}
+		opts.ProgressFn = interactiveProgressFn()
 	}
 
 	// Load before the loop so results from each iteration accumulate correctly.

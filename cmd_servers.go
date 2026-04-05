@@ -60,6 +60,40 @@ var serversCmd = &cobra.Command{
 	},
 }
 
+// filterFavoriteServers returns only servers whose IDs are in the config's
+// favorites list. Returns an error if no favorites are configured. Returns an
+// empty slice (without error) if favorites are configured but none match.
+func filterFavoriteServers(servers []model.Server, cfg *model.Config) ([]model.Server, error) {
+	favIDs := cfg.Servers.FavoriteIDs
+	if len(favIDs) == 0 {
+		return nil, fmt.Errorf("no favorites configured; use 'lazyspeed servers --pin <id>' to add favorites")
+	}
+	favSet := cfg.FavoriteIDSet()
+	filtered := make([]model.Server, 0, len(favIDs))
+	for _, s := range servers {
+		if favSet[s.ID] {
+			filtered = append(filtered, s)
+		}
+	}
+	return filtered, nil
+}
+
+// toServerEntries converts model servers to serialization-friendly entries.
+func toServerEntries(servers []model.Server) []serverEntry {
+	entries := make([]serverEntry, len(servers))
+	for i, s := range servers {
+		entries[i] = serverEntry{
+			ID:       s.ID,
+			Name:     s.Name,
+			Sponsor:  s.Sponsor,
+			Country:  s.Country,
+			Latency:  model.DurationMs(s.Latency),
+			Distance: s.Distance,
+		}
+	}
+	return entries
+}
+
 func runServers() {
 	m := model.NewDefaultModel()
 
@@ -69,18 +103,11 @@ func runServers() {
 	servers := m.Servers.List()
 
 	if serversFavorites {
-		favIDs := m.Config.Servers.FavoriteIDs
-		if len(favIDs) == 0 {
-			exitWithError("no favorites configured; use 'lazyspeed servers --pin <id>' to add favorites")
+		var err error
+		servers, err = filterFavoriteServers(servers, m.Config)
+		if err != nil {
+			exitWithError(err.Error())
 		}
-		favSet := m.Config.FavoriteIDSet()
-		filtered := make([]model.Server, 0, len(favIDs))
-		for _, s := range servers {
-			if favSet[s.ID] {
-				filtered = append(filtered, s)
-			}
-		}
-		servers = filtered
 		if len(servers) == 0 {
 			fmt.Println("No favorited servers found in the current server list.")
 			return
@@ -93,18 +120,7 @@ func runServers() {
 	}
 
 	format := resolveFormatString(serversFormat)
-
-	jsonEntries := make([]serverEntry, len(servers))
-	for i, s := range servers {
-		jsonEntries[i] = serverEntry{
-			ID:       s.ID,
-			Name:     s.Name,
-			Sponsor:  s.Sponsor,
-			Country:  s.Country,
-			Latency:  model.DurationMs(s.Latency),
-			Distance: s.Distance,
-		}
-	}
+	jsonEntries := toServerEntries(servers)
 
 	csvHeader := []string{"id", "name", "sponsor", "country", "latency_ms", "distance_km"}
 	csvRows := make([][]string, len(servers))
