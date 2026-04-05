@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/jkleinne/lazyspeed/diag"
 	"github.com/jkleinne/lazyspeed/model"
@@ -73,6 +74,20 @@ func validateFormat(format string) error {
 		return fmt.Errorf("invalid --format %q: must be %q or %q", format, formatJSON, formatCSV)
 	}
 	return nil
+}
+
+const clearLine = "\r\033[K"
+
+// interactiveProgressFn returns a progress callback that overwrites the current
+// stderr line with the phase string, adding a newline after speed results.
+func interactiveProgressFn() func(string) {
+	return func(phase string) {
+		fmt.Fprintf(os.Stderr, "%s  %s", clearLine, phase)
+		// Speed result phases end with "Mbps"; print a newline to preserve them.
+		if strings.HasSuffix(phase, "Mbps") {
+			fmt.Fprint(os.Stderr, "\n")
+		}
+	}
 }
 
 // fetchServersOrExit fetches the server list with timeout, exiting on failure.
