@@ -113,7 +113,7 @@ func runDiagCmd(target string, cfg *diag.Config) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Timeout)*time.Second)
 		defer cancel()
 
-		backend := &diag.RealBackend{}
+		backend := diag.NewRealBackend()
 		result, err := diag.Run(ctx, backend, target, cfg)
 		return diagCompleteMsg{result: result, err: err}
 	}

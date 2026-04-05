@@ -6,13 +6,13 @@ import (
 )
 
 type mockBackend struct {
-	TracerouteFn func(ctx context.Context, target string, maxHops int) ([]Hop, string, error)
+	TracerouteFn func(ctx context.Context, target string, maxHops int, resolvedIP string) ([]Hop, string, error)
 	ResolveDNSFn func(ctx context.Context, host string) (string, time.Duration, error)
 }
 
-func (m *mockBackend) Traceroute(ctx context.Context, target string, maxHops int) ([]Hop, string, error) {
+func (m *mockBackend) Traceroute(ctx context.Context, target string, maxHops int, resolvedIP string) ([]Hop, string, error) {
 	if m.TracerouteFn != nil {
-		return m.TracerouteFn(ctx, target, maxHops)
+		return m.TracerouteFn(ctx, target, maxHops, resolvedIP)
 	}
 	return []Hop{}, MethodUDP, nil
 }

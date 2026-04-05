@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/jkleinne/lazyspeed/internal/jsonstore"
 )
 
 var testTimestamp = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -34,7 +36,8 @@ func TestSaveAndLoadHistory(t *testing.T) {
 		},
 	}
 
-	if err := saveHistory(path, results, 20); err != nil {
+	s := jsonstore.New[Result](path, 20, historyFilePerm)
+	if err := s.Save(results); err != nil {
 		t.Fatalf("save failed: %v", err)
 	}
 
@@ -61,7 +64,8 @@ func TestSaveHistoryRetention(t *testing.T) {
 		})
 	}
 
-	if err := saveHistory(path, results, 20); err != nil {
+	s := jsonstore.New[Result](path, 20, historyFilePerm)
+	if err := s.Save(results); err != nil {
 		t.Fatalf("save failed: %v", err)
 	}
 
@@ -85,7 +89,8 @@ func TestSaveHistoryMaxEntriesZero_NoTruncation(t *testing.T) {
 		})
 	}
 
-	if err := saveHistory(path, results, 0); err != nil {
+	s := jsonstore.New[Result](path, 0, historyFilePerm)
+	if err := s.Save(results); err != nil {
 		t.Fatalf("save failed: %v", err)
 	}
 
@@ -101,7 +106,8 @@ func TestSaveHistoryMaxEntriesZero_NoTruncation(t *testing.T) {
 func TestSaveHistoryNilSlice(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "diagnostics.json")
 
-	if err := saveHistory(path, nil, 20); err != nil {
+	s := jsonstore.New[Result](path, 20, historyFilePerm)
+	if err := s.Save(nil); err != nil {
 		t.Fatalf("save failed: %v", err)
 	}
 

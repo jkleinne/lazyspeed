@@ -17,6 +17,10 @@ const (
 	// dnsCacheThresholdDivisor is the factor by which warm DNS latency must be lower
 	// than cold latency to be considered a cached result.
 	dnsCacheThresholdDivisor = 2
+
+	defaultMaxHops    = 30
+	defaultTimeoutSec = 60
+	defaultMaxEntries = 20
 )
 
 type Hop struct {
@@ -34,7 +38,7 @@ func (h Hop) MarshalJSON() ([]byte, error) {
 		Latency float64 `json:"latency"`
 	}{
 		Alias:   (Alias)(h),
-		Latency: timeutil.DurationMs(h.Latency),
+		Latency: marshalDurationAsMs(h.Latency),
 	})
 }
 
@@ -47,7 +51,7 @@ func (h *Hop) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, aux); err != nil {
 		return fmt.Errorf("failed to unmarshal hop: %v", err)
 	}
-	h.Latency = time.Duration(aux.Latency * float64(time.Millisecond))
+	h.Latency = unmarshalMsAsDuration(aux.Latency)
 	return nil
 }
 
@@ -66,7 +70,7 @@ func (d DNSResult) MarshalJSON() ([]byte, error) {
 		Latency float64 `json:"latency"`
 	}{
 		Alias:   (Alias)(d),
-		Latency: timeutil.DurationMs(d.Latency),
+		Latency: marshalDurationAsMs(d.Latency),
 	})
 }
 
@@ -79,7 +83,7 @@ func (d *DNSResult) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, aux); err != nil {
 		return fmt.Errorf("failed to unmarshal DNS result: %v", err)
 	}
-	d.Latency = time.Duration(aux.Latency * float64(time.Millisecond))
+	d.Latency = unmarshalMsAsDuration(aux.Latency)
 	return nil
 }
 
@@ -105,11 +109,12 @@ type Config struct {
 	Path       string
 }
 
+// DefaultConfig returns sensible defaults for diagnostics configuration.
 func DefaultConfig() *Config {
 	return &Config{
-		MaxHops:    30,
-		Timeout:    60,
-		MaxEntries: 20,
+		MaxHops:    defaultMaxHops,
+		Timeout:    defaultTimeoutSec,
+		MaxEntries: defaultMaxEntries,
 	}
 }
 
@@ -150,6 +155,9 @@ func Run(ctx context.Context, backend Backend, target string, cfg *Config) (*Res
 		}
 		coldIP, coldLatency, err := backend.ResolveDNS(ctx, target)
 		if err != nil {
+			// DNS failure is non-fatal — we record the error in the result and proceed
+			// to traceroute using the raw target string. The user sees DNS status in the
+			// output and the quality score adjusts by redistributing DNS weight.
 			result.DNS = &DNSResult{
 				Host:  target,
 				Error: fmt.Sprintf("dns resolution failed: %v", err),
@@ -166,11 +174,15 @@ func Run(ctx context.Context, backend Backend, target string, cfg *Config) (*Res
 		}
 	}
 
-	// Phase 2: Traceroute
+	// Phase 2: Traceroute — pass the already-resolved IP to avoid duplicate resolution
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
-	hops, method, err := backend.Traceroute(ctx, target, cfg.MaxHops)
+	resolvedIP := ""
+	if result.DNS != nil && result.DNS.IP != "" {
+		resolvedIP = result.DNS.IP
+	}
+	hops, method, err := backend.Traceroute(ctx, target, cfg.MaxHops, resolvedIP)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run traceroute: %v", err)
 	}
@@ -181,4 +193,14 @@ func Run(ctx context.Context, backend Backend, target string, cfg *Config) (*Res
 	result.Quality = ComputeScore(result)
 
 	return result, nil
+}
+
+// marshalDurationAsMs converts a time.Duration to fractional milliseconds for JSON output.
+func marshalDurationAsMs(d time.Duration) float64 {
+	return timeutil.DurationMs(d)
+}
+
+// unmarshalMsAsDuration converts a float64 millisecond value to a time.Duration.
+func unmarshalMsAsDuration(ms float64) time.Duration {
+	return time.Duration(ms * float64(time.Millisecond))
 }

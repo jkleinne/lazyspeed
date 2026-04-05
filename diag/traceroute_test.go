@@ -10,7 +10,7 @@ import (
 )
 
 func TestRealBackendResolveDNS(t *testing.T) {
-	b := &RealBackend{}
+	b := NewRealBackend()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -27,7 +27,7 @@ func TestRealBackendResolveDNS(t *testing.T) {
 }
 
 func TestRealBackendResolveDNSCancelled(t *testing.T) {
-	b := &RealBackend{}
+	b := NewRealBackend()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 

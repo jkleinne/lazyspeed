@@ -27,7 +27,7 @@ func TestRun(t *testing.T) {
 			name:   "happy path with hostname",
 			target: testExampleHost,
 			backend: &mockBackend{
-				TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
+				TracerouteFn: func(_ context.Context, _ string, _ int, _ string) ([]Hop, string, error) {
 					return []Hop{
 						{Number: 1, IP: "192.168.1.1", Host: "router.local", Latency: 1 * time.Millisecond},
 						{Number: 2, IP: testExampleIP, Host: testExampleHost, Latency: 20 * time.Millisecond},
@@ -44,7 +44,7 @@ func TestRun(t *testing.T) {
 			name:   "IP target skips DNS",
 			target: "8.8.8.8",
 			backend: &mockBackend{
-				TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
+				TracerouteFn: func(_ context.Context, _ string, _ int, _ string) ([]Hop, string, error) {
 					return []Hop{
 						{Number: 1, IP: "192.168.1.1", Host: "router.local", Latency: 1 * time.Millisecond},
 					}, MethodUDP, nil
@@ -57,7 +57,7 @@ func TestRun(t *testing.T) {
 			name:   "all hops timeout",
 			target: testExampleHost,
 			backend: &mockBackend{
-				TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
+				TracerouteFn: func(_ context.Context, _ string, _ int, _ string) ([]Hop, string, error) {
 					return []Hop{
 						{Number: 1, Timeout: true},
 						{Number: 2, Timeout: true},
@@ -75,7 +75,7 @@ func TestRun(t *testing.T) {
 			name:   "traceroute error",
 			target: testExampleHost,
 			backend: &mockBackend{
-				TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
+				TracerouteFn: func(_ context.Context, _ string, _ int, _ string) ([]Hop, string, error) {
 					return nil, "", fmt.Errorf("network unreachable")
 				},
 				ResolveDNSFn: func(_ context.Context, _ string) (string, time.Duration, error) {
@@ -139,7 +139,7 @@ func TestRunContextCancellationPartialResults(t *testing.T) {
 		ResolveDNSFn: func(_ context.Context, _ string) (string, time.Duration, error) {
 			return testExampleIP, 10 * time.Millisecond, nil
 		},
-		TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
+		TracerouteFn: func(_ context.Context, _ string, _ int, _ string) ([]Hop, string, error) {
 			cancel()
 			return []Hop{
 				{Number: 1, IP: "10.0.0.1", Host: "gw", Latency: 1 * time.Millisecond},
@@ -256,7 +256,7 @@ func TestResultUnmarshalPartialJSON(t *testing.T) {
 
 func TestRunDNSFailureContinuesTraceroute(t *testing.T) {
 	backend := &mockBackend{
-		TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
+		TracerouteFn: func(_ context.Context, _ string, _ int, _ string) ([]Hop, string, error) {
 			return []Hop{
 				{Number: 1, IP: "10.0.0.1", Host: "gw", Latency: 2 * time.Millisecond},
 			}, MethodICMP, nil
@@ -383,7 +383,7 @@ func TestNewConfig(t *testing.T) {
 func TestRunWarmDNSFailureSetsCachedFalse(t *testing.T) {
 	callCount := 0
 	backend := &mockBackend{
-		TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
+		TracerouteFn: func(_ context.Context, _ string, _ int, _ string) ([]Hop, string, error) {
 			return []Hop{
 				{Number: 1, IP: "10.0.0.1", Host: "gw", Latency: 1 * time.Millisecond},
 			}, MethodICMP, nil
@@ -411,7 +411,7 @@ func TestRunWarmDNSFailureSetsCachedFalse(t *testing.T) {
 
 func TestRunNilConfig(t *testing.T) {
 	backend := &mockBackend{
-		TracerouteFn: func(_ context.Context, _ string, maxHops int) ([]Hop, string, error) {
+		TracerouteFn: func(_ context.Context, _ string, maxHops int, _ string) ([]Hop, string, error) {
 			if maxHops != 30 {
 				t.Errorf("expected default maxHops 30, got %d", maxHops)
 			}
@@ -436,7 +436,7 @@ func TestRunNilConfig(t *testing.T) {
 func TestRunWarmDNSCachedTrue(t *testing.T) {
 	callCount := 0
 	backend := &mockBackend{
-		TracerouteFn: func(_ context.Context, _ string, _ int) ([]Hop, string, error) {
+		TracerouteFn: func(_ context.Context, _ string, _ int, _ string) ([]Hop, string, error) {
 			return []Hop{
 				{Number: 1, IP: "10.0.0.1", Host: "gw", Latency: 1 * time.Millisecond},
 			}, MethodICMP, nil
