@@ -268,3 +268,286 @@ func TestSaveConfigAtomicWrite(t *testing.T) {
 		}
 	}
 }
+
+// ptrFloat64 is a test helper that returns a pointer to a float64 value.
+func ptrFloat64(v float64) *float64 { return &v }
+
+func TestWebhookConfigDefaults(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if len(cfg.Webhooks.Endpoints) != 0 {
+		t.Errorf("expected empty endpoints, got %d", len(cfg.Webhooks.Endpoints))
+	}
+	if cfg.Webhooks.Timeout != defaultWebhookTimeout {
+		t.Errorf("expected timeout %d, got %d", defaultWebhookTimeout, cfg.Webhooks.Timeout)
+	}
+	if cfg.Webhooks.MaxRetries != defaultWebhookMaxRetries {
+		t.Errorf("expected max_retries %d, got %d", defaultWebhookMaxRetries, cfg.Webhooks.MaxRetries)
+	}
+	if cfg.Webhooks.Thresholds.MinDownload != nil {
+		t.Error("expected nil MinDownload threshold")
+	}
+	if cfg.Webhooks.Thresholds.MinUpload != nil {
+		t.Error("expected nil MinUpload threshold")
+	}
+	if cfg.Webhooks.Thresholds.MaxPing != nil {
+		t.Error("expected nil MaxPing threshold")
+	}
+	if cfg.Webhooks.Thresholds.MaxJitter != nil {
+		t.Error("expected nil MaxJitter threshold")
+	}
+}
+
+func TestLoadConfigWithWebhooks(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	cfgDir := filepath.Join(dir, "lazyspeed")
+	if err := os.MkdirAll(cfgDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	content := []byte(`webhooks:
+  timeout: 15
+  max_retries: 3
+  endpoints:
+    - url: "https://example.com/hook"
+    - url: "https://other.com/hook"
+      headers:
+        Authorization: "Bearer token"
+        X-Custom: "value"
+  thresholds:
+    min_download: 50.0
+    max_ping: 100.0
+`)
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.yaml"), content, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.Webhooks.Timeout != 15 {
+		t.Errorf("expected timeout 15, got %d", cfg.Webhooks.Timeout)
+	}
+	if cfg.Webhooks.MaxRetries != 3 {
+		t.Errorf("expected max_retries 3, got %d", cfg.Webhooks.MaxRetries)
+	}
+	if len(cfg.Webhooks.Endpoints) != 2 {
+		t.Fatalf("expected 2 endpoints, got %d", len(cfg.Webhooks.Endpoints))
+	}
+	if cfg.Webhooks.Endpoints[0].URL != "https://example.com/hook" {
+		t.Errorf("unexpected first endpoint URL: %s", cfg.Webhooks.Endpoints[0].URL)
+	}
+	if len(cfg.Webhooks.Endpoints[0].Headers) != 0 {
+		t.Errorf("expected no headers on first endpoint, got %d", len(cfg.Webhooks.Endpoints[0].Headers))
+	}
+	if cfg.Webhooks.Endpoints[1].URL != "https://other.com/hook" {
+		t.Errorf("unexpected second endpoint URL: %s", cfg.Webhooks.Endpoints[1].URL)
+	}
+	if cfg.Webhooks.Endpoints[1].Headers["Authorization"] != "Bearer token" {
+		t.Errorf("unexpected Authorization header: %s", cfg.Webhooks.Endpoints[1].Headers["Authorization"])
+	}
+	if cfg.Webhooks.Endpoints[1].Headers["X-Custom"] != "value" {
+		t.Errorf("unexpected X-Custom header: %s", cfg.Webhooks.Endpoints[1].Headers["X-Custom"])
+	}
+
+	// min_download and max_ping set; min_upload and max_jitter absent (nil).
+	if cfg.Webhooks.Thresholds.MinDownload == nil {
+		t.Fatal("expected non-nil MinDownload threshold")
+	}
+	if *cfg.Webhooks.Thresholds.MinDownload != 50.0 {
+		t.Errorf("expected MinDownload 50.0, got %f", *cfg.Webhooks.Thresholds.MinDownload)
+	}
+	if cfg.Webhooks.Thresholds.MinUpload != nil {
+		t.Error("expected nil MinUpload threshold (not set in YAML)")
+	}
+	if cfg.Webhooks.Thresholds.MaxPing == nil {
+		t.Fatal("expected non-nil MaxPing threshold")
+	}
+	if *cfg.Webhooks.Thresholds.MaxPing != 100.0 {
+		t.Errorf("expected MaxPing 100.0, got %f", *cfg.Webhooks.Thresholds.MaxPing)
+	}
+	if cfg.Webhooks.Thresholds.MaxJitter != nil {
+		t.Error("expected nil MaxJitter threshold (not set in YAML)")
+	}
+}
+
+func TestValidateWebhookConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     WebhookConfig
+		wantErr bool
+	}{
+		{
+			name:    "empty config is valid",
+			cfg:     WebhookConfig{},
+			wantErr: false,
+		},
+		{
+			name: "valid single endpoint",
+			cfg: WebhookConfig{
+				Endpoints:  []WebhookEndpoint{{URL: "https://example.com/hook"}},
+				Timeout:    10,
+				MaxRetries: 1,
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty URL rejected",
+			cfg: WebhookConfig{
+				Endpoints:  []WebhookEndpoint{{URL: ""}},
+				Timeout:    10,
+				MaxRetries: 1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "max_retries zero rejected",
+			cfg: WebhookConfig{
+				Endpoints:  []WebhookEndpoint{{URL: "https://example.com/hook"}},
+				Timeout:    10,
+				MaxRetries: 0,
+			},
+			wantErr: true,
+		},
+		{
+			name: "max_retries above cap rejected",
+			cfg: WebhookConfig{
+				Endpoints:  []WebhookEndpoint{{URL: "https://example.com/hook"}},
+				Timeout:    10,
+				MaxRetries: maxWebhookRetries + 1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "timeout zero rejected",
+			cfg: WebhookConfig{
+				Endpoints:  []WebhookEndpoint{{URL: "https://example.com/hook"}},
+				Timeout:    0,
+				MaxRetries: 1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative min_download threshold rejected",
+			cfg: WebhookConfig{
+				Endpoints:  []WebhookEndpoint{{URL: "https://example.com/hook"}},
+				Timeout:    10,
+				MaxRetries: 1,
+				Thresholds: ThresholdConfig{MinDownload: ptrFloat64(-1.0)},
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative min_upload threshold rejected",
+			cfg: WebhookConfig{
+				Endpoints:  []WebhookEndpoint{{URL: "https://example.com/hook"}},
+				Timeout:    10,
+				MaxRetries: 1,
+				Thresholds: ThresholdConfig{MinUpload: ptrFloat64(-0.1)},
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative max_ping threshold rejected",
+			cfg: WebhookConfig{
+				Endpoints:  []WebhookEndpoint{{URL: "https://example.com/hook"}},
+				Timeout:    10,
+				MaxRetries: 1,
+				Thresholds: ThresholdConfig{MaxPing: ptrFloat64(-5.0)},
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative max_jitter threshold rejected",
+			cfg: WebhookConfig{
+				Endpoints:  []WebhookEndpoint{{URL: "https://example.com/hook"}},
+				Timeout:    10,
+				MaxRetries: 1,
+				Thresholds: ThresholdConfig{MaxJitter: ptrFloat64(-2.0)},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateWebhookConfig(tt.cfg)
+			if tt.wantErr && err == nil {
+				t.Error("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestSaveConfigWithWebhooks(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	cfg := DefaultConfig()
+	cfg.Webhooks = WebhookConfig{
+		Timeout:    20,
+		MaxRetries: 2,
+		Endpoints: []WebhookEndpoint{
+			{
+				URL: "https://example.com/hook",
+				Headers: map[string]string{
+					"Authorization": "Bearer secret",
+				},
+			},
+		},
+		Thresholds: ThresholdConfig{
+			MinDownload: ptrFloat64(25.0),
+			MaxPing:     ptrFloat64(200.0),
+		},
+	}
+
+	if err := SaveConfig(cfg); err != nil {
+		t.Fatalf("unexpected error saving config: %v", err)
+	}
+
+	loaded, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("unexpected error loading config: %v", err)
+	}
+
+	if loaded.Webhooks.Timeout != 20 {
+		t.Errorf("expected timeout 20, got %d", loaded.Webhooks.Timeout)
+	}
+	if loaded.Webhooks.MaxRetries != 2 {
+		t.Errorf("expected max_retries 2, got %d", loaded.Webhooks.MaxRetries)
+	}
+	if len(loaded.Webhooks.Endpoints) != 1 {
+		t.Fatalf("expected 1 endpoint, got %d", len(loaded.Webhooks.Endpoints))
+	}
+	if loaded.Webhooks.Endpoints[0].URL != "https://example.com/hook" {
+		t.Errorf("unexpected endpoint URL: %s", loaded.Webhooks.Endpoints[0].URL)
+	}
+	if loaded.Webhooks.Endpoints[0].Headers["Authorization"] != "Bearer secret" {
+		t.Errorf("unexpected Authorization header: %s", loaded.Webhooks.Endpoints[0].Headers["Authorization"])
+	}
+	if loaded.Webhooks.Thresholds.MinDownload == nil {
+		t.Fatal("expected non-nil MinDownload after round-trip")
+	}
+	if *loaded.Webhooks.Thresholds.MinDownload != 25.0 {
+		t.Errorf("expected MinDownload 25.0, got %f", *loaded.Webhooks.Thresholds.MinDownload)
+	}
+	if loaded.Webhooks.Thresholds.MinUpload != nil {
+		t.Error("expected nil MinUpload after round-trip (not set)")
+	}
+	if loaded.Webhooks.Thresholds.MaxPing == nil {
+		t.Fatal("expected non-nil MaxPing after round-trip")
+	}
+	if *loaded.Webhooks.Thresholds.MaxPing != 200.0 {
+		t.Errorf("expected MaxPing 200.0, got %f", *loaded.Webhooks.Thresholds.MaxPing)
+	}
+	if loaded.Webhooks.Thresholds.MaxJitter != nil {
+		t.Error("expected nil MaxJitter after round-trip (not set)")
+	}
+}
