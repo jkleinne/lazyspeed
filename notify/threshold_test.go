@@ -223,10 +223,10 @@ func TestEvaluateThresholds_BreachFields(t *testing.T) {
 		threshold float64
 	}
 	expected := []want{
-		{"download", 30, 50},
-		{"upload", 10, 25},
-		{"ping", 200, 100},
-		{"jitter", 25, 10},
+		{MetricDownload, 30, 50},
+		{MetricUpload, 10, 25},
+		{MetricPing, 200, 100},
+		{MetricJitter, 25, 10},
 	}
 	for i, b := range breaches {
 		w := expected[i]

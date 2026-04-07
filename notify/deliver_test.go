@@ -33,7 +33,7 @@ func TestDeliver_Success(t *testing.T) {
 	}
 
 	endpoints := []model.WebhookEndpoint{{URL: "http://example.com/hook"}}
-	payload := NewPayload(&model.SpeedTestResult{DownloadSpeed: 100}, nil, "1.0.0")
+	payload := NewPayload(&model.SpeedTestResult{DownloadSpeed: 100}, nil, "1.0.0", time.Now())
 
 	errs := Deliver(context.Background(), sender, endpoints, payload, 5*time.Second, 1)
 
@@ -64,7 +64,7 @@ func TestDeliver_CustomHeaders(t *testing.T) {
 		URL:     "http://example.com/hook",
 		Headers: map[string]string{"X-Secret": "abc123", "X-Tenant": "acme"},
 	}}
-	payload := NewPayload(&model.SpeedTestResult{}, nil, "1.0.0")
+	payload := NewPayload(&model.SpeedTestResult{}, nil, "1.0.0", time.Now())
 
 	errs := Deliver(context.Background(), sender, endpoints, payload, 5*time.Second, 1)
 
@@ -89,7 +89,7 @@ func TestDeliver_4xxNoRetry(t *testing.T) {
 	}
 
 	endpoints := []model.WebhookEndpoint{{URL: "http://example.com/hook"}}
-	payload := NewPayload(&model.SpeedTestResult{}, nil, "1.0.0")
+	payload := NewPayload(&model.SpeedTestResult{}, nil, "1.0.0", time.Now())
 
 	errs := Deliver(context.Background(), sender, endpoints, payload, 5*time.Second, 3)
 
@@ -111,7 +111,7 @@ func TestDeliver_5xxRetries(t *testing.T) {
 	}
 
 	endpoints := []model.WebhookEndpoint{{URL: "http://example.com/hook"}}
-	payload := NewPayload(&model.SpeedTestResult{}, nil, "1.0.0")
+	payload := NewPayload(&model.SpeedTestResult{}, nil, "1.0.0", time.Now())
 
 	// maxRetries=3 means 3 total attempts with exponential backoff between them.
 	// Backoff: 1s after attempt 1, 2s after attempt 2. This test takes ~3 seconds.
@@ -135,7 +135,7 @@ func TestDeliver_NetworkErrorRetries(t *testing.T) {
 	}
 
 	endpoints := []model.WebhookEndpoint{{URL: "http://example.com/hook"}}
-	payload := NewPayload(&model.SpeedTestResult{}, nil, "1.0.0")
+	payload := NewPayload(&model.SpeedTestResult{}, nil, "1.0.0", time.Now())
 
 	// maxRetries=2 means 2 total attempts with 1s backoff between them.
 	// This test takes ~1 second.
@@ -165,7 +165,7 @@ func TestDeliver_MultipleEndpointsPartialFailure(t *testing.T) {
 		{URL: failURL},
 		{URL: "http://ok2.example.com/hook"},
 	}
-	payload := NewPayload(&model.SpeedTestResult{}, nil, "1.0.0")
+	payload := NewPayload(&model.SpeedTestResult{}, nil, "1.0.0", time.Now())
 
 	errs := Deliver(context.Background(), sender, endpoints, payload, 5*time.Second, 1)
 
@@ -183,7 +183,7 @@ func TestDeliver_ContextCancellation(t *testing.T) {
 
 	sender := &mockSender{}
 	endpoints := []model.WebhookEndpoint{{URL: "http://example.com/hook"}}
-	payload := NewPayload(&model.SpeedTestResult{}, nil, "1.0.0")
+	payload := NewPayload(&model.SpeedTestResult{}, nil, "1.0.0", time.Now())
 
 	errs := Deliver(ctx, sender, endpoints, payload, 5*time.Second, 1)
 

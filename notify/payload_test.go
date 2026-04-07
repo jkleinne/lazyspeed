@@ -18,7 +18,8 @@ func TestNewPayload_TestComplete(t *testing.T) {
 		Timestamp:     time.Date(2026, 4, 6, 14, 30, 0, 0, time.UTC),
 	}
 
-	p := NewPayload(result, nil, "1.3.0")
+	now := time.Now()
+	p := NewPayload(result, nil, "1.3.0", now)
 	if p.Event != EventTestComplete {
 		t.Errorf("expected event %q, got %q", EventTestComplete, p.Event)
 	}
@@ -31,13 +32,16 @@ func TestNewPayload_TestComplete(t *testing.T) {
 	if p.Version != "1.3.0" {
 		t.Errorf("expected version '1.3.0', got %q", p.Version)
 	}
+	if p.Timestamp != now {
+		t.Errorf("expected timestamp %v, got %v", now, p.Timestamp)
+	}
 }
 
 func TestNewPayload_ThresholdBreach(t *testing.T) {
 	result := &model.SpeedTestResult{DownloadSpeed: 42.1}
 	breaches := []Breach{{Metric: "download", Value: 42.1, Threshold: 50.0}}
 
-	p := NewPayload(result, breaches, "1.3.0")
+	p := NewPayload(result, breaches, "1.3.0", time.Now())
 	if p.Event != EventThresholdBreach {
 		t.Errorf("expected event %q, got %q", EventThresholdBreach, p.Event)
 	}
@@ -61,7 +65,7 @@ func TestPayload_JSONStructure(t *testing.T) {
 		UserISP:       "Example ISP",
 	}
 
-	p := NewPayload(result, nil, "1.3.0")
+	p := NewPayload(result, nil, "1.3.0", time.Now())
 	data, err := json.Marshal(p)
 	if err != nil {
 		t.Fatalf("marshal error: %v", err)

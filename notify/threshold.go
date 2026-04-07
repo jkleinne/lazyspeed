@@ -2,6 +2,14 @@ package notify
 
 import "github.com/jkleinne/lazyspeed/model"
 
+// Metric name constants used in Breach records and webhook payloads.
+const (
+	MetricDownload = "download"
+	MetricUpload   = "upload"
+	MetricPing     = "ping"
+	MetricJitter   = "jitter"
+)
+
 // Breach records a single threshold violation, capturing the metric name,
 // the measured value, and the configured threshold that was crossed.
 type Breach struct {
@@ -33,28 +41,28 @@ func EvaluateThresholds(result *model.SpeedTestResult, thresholds model.Threshol
 
 	if thresholds.MinDownload != nil && result.DownloadSpeed < *thresholds.MinDownload {
 		breaches = append(breaches, Breach{
-			Metric:    "download",
+			Metric:    MetricDownload,
 			Value:     result.DownloadSpeed,
 			Threshold: *thresholds.MinDownload,
 		})
 	}
 	if thresholds.MinUpload != nil && result.UploadSpeed < *thresholds.MinUpload {
 		breaches = append(breaches, Breach{
-			Metric:    "upload",
+			Metric:    MetricUpload,
 			Value:     result.UploadSpeed,
 			Threshold: *thresholds.MinUpload,
 		})
 	}
 	if thresholds.MaxPing != nil && result.Ping > *thresholds.MaxPing {
 		breaches = append(breaches, Breach{
-			Metric:    "ping",
+			Metric:    MetricPing,
 			Value:     result.Ping,
 			Threshold: *thresholds.MaxPing,
 		})
 	}
 	if thresholds.MaxJitter != nil && result.Jitter > *thresholds.MaxJitter {
 		breaches = append(breaches, Breach{
-			Metric:    "jitter",
+			Metric:    MetricJitter,
 			Value:     result.Jitter,
 			Threshold: *thresholds.MaxJitter,
 		})

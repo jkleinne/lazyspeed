@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"slices"
@@ -121,8 +122,9 @@ var runCmd = &cobra.Command{
 			}
 		}
 		if runF.webhookURL != "" {
-			if !strings.HasPrefix(runF.webhookURL, "http://") && !strings.HasPrefix(runF.webhookURL, "https://") {
-				return fmt.Errorf("--webhook-url must start with http:// or https://")
+			parsed, err := url.Parse(runF.webhookURL)
+			if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+				return fmt.Errorf("--webhook-url must be a valid http:// or https:// URL")
 			}
 		}
 		return nil

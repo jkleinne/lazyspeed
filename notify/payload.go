@@ -25,8 +25,8 @@ type Payload struct {
 
 // NewPayload builds a webhook payload from a speed test result and optional breaches.
 // A nil breaches slice produces a "test_complete" event; a non-empty slice produces
-// a "threshold_breach" event.
-func NewPayload(result *model.SpeedTestResult, breaches []Breach, version string) Payload {
+// a "threshold_breach" event. The timestamp is caller-supplied (typically time.Now()).
+func NewPayload(result *model.SpeedTestResult, breaches []Breach, version string, ts time.Time) Payload {
 	event := EventTestComplete
 	if len(breaches) > 0 {
 		event = EventThresholdBreach
@@ -36,6 +36,6 @@ func NewPayload(result *model.SpeedTestResult, breaches []Breach, version string
 		Breaches:  breaches,
 		Result:    result,
 		Version:   version,
-		Timestamp: time.Now(),
+		Timestamp: ts,
 	}
 }

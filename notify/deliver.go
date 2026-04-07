@@ -15,6 +15,7 @@ const (
 	contentTypeJSON = "application/json"
 	initialBackoff  = 1 * time.Second
 	backoffFactor   = 2
+	maxBackoff      = 8 * time.Second
 )
 
 // Sender abstracts HTTP POST for testability. *http.Client satisfies this interface.
@@ -67,6 +68,9 @@ func deliverOne(ctx context.Context, sender Sender, ep model.WebhookEndpoint, bo
 				return fmt.Errorf("cancelled during backoff: %v", ctx.Err())
 			case <-time.After(backoff):
 				backoff *= backoffFactor
+				if backoff > maxBackoff {
+					backoff = maxBackoff
+				}
 			}
 		}
 
@@ -117,7 +121,7 @@ func Dispatch(ctx context.Context, sender Sender, cfg model.WebhookConfig, resul
 		return nil
 	}
 
-	payload := NewPayload(result, breaches, version)
+	payload := NewPayload(result, breaches, version, time.Now())
 	timeout := time.Duration(cfg.Timeout) * time.Second
 	return Deliver(ctx, sender, cfg.Endpoints, payload, timeout, cfg.MaxRetries)
 }
