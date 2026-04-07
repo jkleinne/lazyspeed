@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,10 @@ const (
 	defaultDiagMaxHops    = 30
 	defaultDiagTimeout    = 60
 	defaultDiagMaxEntries = 20
+
+	defaultWebhookTimeout    = 10 // seconds
+	defaultWebhookMaxRetries = 1
+	maxWebhookRetries        = 5
 )
 
 // HistoryConfig holds history-related configuration.
@@ -52,6 +57,30 @@ type ServersConfig struct {
 	FavoriteIDs []string `yaml:"favorite_ids"`
 }
 
+// WebhookEndpoint is a single outbound webhook target.
+type WebhookEndpoint struct {
+	URL     string            `yaml:"url"`
+	Headers map[string]string `yaml:"headers"`
+}
+
+// ThresholdConfig defines optional metric thresholds for webhook filtering.
+// Each field is a pointer so that absent YAML keys are distinguished from
+// an explicit zero value: nil means "no threshold set".
+type ThresholdConfig struct {
+	MinDownload *float64 `yaml:"min_download"`
+	MinUpload   *float64 `yaml:"min_upload"`
+	MaxPing     *float64 `yaml:"max_ping"`
+	MaxJitter   *float64 `yaml:"max_jitter"`
+}
+
+// WebhookConfig groups all outbound webhook settings.
+type WebhookConfig struct {
+	Endpoints  []WebhookEndpoint `yaml:"endpoints"`
+	Thresholds ThresholdConfig   `yaml:"thresholds"`
+	Timeout    int               `yaml:"timeout"`
+	MaxRetries int               `yaml:"max_retries"`
+}
+
 // Config holds all configurable options for lazyspeed.
 type Config struct {
 	History     HistoryConfig     `yaml:"history"`
@@ -59,6 +88,7 @@ type Config struct {
 	Export      ExportConfig      `yaml:"export"`
 	Diagnostics DiagnosticsConfig `yaml:"diagnostics"`
 	Servers     ServersConfig     `yaml:"servers"`
+	Webhooks    WebhookConfig     `yaml:"webhooks"`
 }
 
 // DefaultConfig returns a Config with all defaults filled in.
@@ -78,6 +108,11 @@ func DefaultConfig() *Config {
 			Timeout:    defaultDiagTimeout,
 			MaxEntries: defaultDiagMaxEntries,
 			Path:       defaultDiagnosticsPath(),
+		},
+		Webhooks: WebhookConfig{
+			Endpoints:  []WebhookEndpoint{},
+			Timeout:    defaultWebhookTimeout,
+			MaxRetries: defaultWebhookMaxRetries,
 		},
 	}
 }
@@ -208,8 +243,75 @@ func LoadConfig() (*Config, error) {
 	if len(partial.Servers.FavoriteIDs) > 0 {
 		cfg.Servers.FavoriteIDs = deduplicateStrings(partial.Servers.FavoriteIDs)
 	}
+	if len(partial.Webhooks.Endpoints) > 0 {
+		cfg.Webhooks.Endpoints = partial.Webhooks.Endpoints
+	}
+	if partial.Webhooks.Thresholds.MinDownload != nil {
+		cfg.Webhooks.Thresholds.MinDownload = partial.Webhooks.Thresholds.MinDownload
+	}
+	if partial.Webhooks.Thresholds.MinUpload != nil {
+		cfg.Webhooks.Thresholds.MinUpload = partial.Webhooks.Thresholds.MinUpload
+	}
+	if partial.Webhooks.Thresholds.MaxPing != nil {
+		cfg.Webhooks.Thresholds.MaxPing = partial.Webhooks.Thresholds.MaxPing
+	}
+	if partial.Webhooks.Thresholds.MaxJitter != nil {
+		cfg.Webhooks.Thresholds.MaxJitter = partial.Webhooks.Thresholds.MaxJitter
+	}
+	if partial.Webhooks.Timeout > 0 {
+		cfg.Webhooks.Timeout = partial.Webhooks.Timeout
+	}
+	if partial.Webhooks.MaxRetries > 0 {
+		cfg.Webhooks.MaxRetries = partial.Webhooks.MaxRetries
+	}
+
+	if len(cfg.Webhooks.Endpoints) > 0 {
+		if err := ValidateWebhookConfig(cfg.Webhooks); err != nil {
+			return nil, fmt.Errorf("invalid webhook config: %v", err)
+		}
+	}
 
 	return cfg, nil
+}
+
+// ValidateWebhookConfig checks that a WebhookConfig is self-consistent.
+// Returns an error describing the first violation found.
+// An empty Endpoints slice is always valid (webhooks disabled).
+func ValidateWebhookConfig(cfg WebhookConfig) error {
+	if len(cfg.Endpoints) == 0 {
+		return nil
+	}
+	for i, ep := range cfg.Endpoints {
+		if ep.URL == "" {
+			return fmt.Errorf("endpoint %d has an empty URL", i)
+		}
+		parsed, err := url.Parse(ep.URL)
+		if err != nil {
+			return fmt.Errorf("endpoint %d has an invalid URL %q: %v", i, ep.URL, err)
+		}
+		if parsed.Scheme != "http" && parsed.Scheme != "https" {
+			return fmt.Errorf("endpoint %d URL %q must use http or https scheme", i, ep.URL)
+		}
+	}
+	if cfg.Timeout <= 0 {
+		return fmt.Errorf("webhook timeout must be > 0, got %d", cfg.Timeout)
+	}
+	if cfg.MaxRetries < 1 || cfg.MaxRetries > maxWebhookRetries {
+		return fmt.Errorf("webhook max_retries must be between 1 and %d, got %d", maxWebhookRetries, cfg.MaxRetries)
+	}
+	if cfg.Thresholds.MinDownload != nil && *cfg.Thresholds.MinDownload < 0 {
+		return fmt.Errorf("webhook threshold min_download must be >= 0, got %f", *cfg.Thresholds.MinDownload)
+	}
+	if cfg.Thresholds.MinUpload != nil && *cfg.Thresholds.MinUpload < 0 {
+		return fmt.Errorf("webhook threshold min_upload must be >= 0, got %f", *cfg.Thresholds.MinUpload)
+	}
+	if cfg.Thresholds.MaxPing != nil && *cfg.Thresholds.MaxPing < 0 {
+		return fmt.Errorf("webhook threshold max_ping must be >= 0, got %f", *cfg.Thresholds.MaxPing)
+	}
+	if cfg.Thresholds.MaxJitter != nil && *cfg.Thresholds.MaxJitter < 0 {
+		return fmt.Errorf("webhook threshold max_jitter must be >= 0, got %f", *cfg.Thresholds.MaxJitter)
+	}
+	return nil
 }
 
 // xdgDataPath returns the XDG-compliant path for a data file.

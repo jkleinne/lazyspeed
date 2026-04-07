@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -16,6 +17,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jkleinne/lazyspeed/diag"
 	"github.com/jkleinne/lazyspeed/model"
+	"github.com/jkleinne/lazyspeed/notify"
 	"github.com/jkleinne/lazyspeed/ui"
 	"github.com/showwin/speedtest-go/speedtest"
 )
@@ -24,6 +26,11 @@ import (
 type exportDoneMsg struct {
 	path string
 	err  error
+}
+
+// webhookDoneMsg is sent when background webhook delivery completes.
+type webhookDoneMsg struct {
+	errs []notify.DeliveryError
 }
 
 const (
@@ -247,6 +254,16 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return s, nil
 
+	case webhookDoneMsg:
+		if len(msg.errs) > 0 {
+			warnings := make([]string, len(msg.errs))
+			for i, e := range msg.errs {
+				warnings[i] = e.Error()
+			}
+			s.model.Warning = fmt.Sprintf("Webhook: %s", strings.Join(warnings, "; "))
+		}
+		return s, nil
+
 	case serverListMsg:
 		return s.handleServerListMsg(msg)
 
@@ -332,6 +349,10 @@ func (s *speedTest) handleTestComplete(msg testComplete) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
 		s.model.Error = msg.err
 		s.model.History.Results = nil
+		return s, nil
+	}
+	if s.model.History.Results != nil && len(s.model.Config.Webhooks.Endpoints) > 0 {
+		return s, webhookCmd(s.model.Config.Webhooks, s.model.History.Results)
 	}
 	return s, nil
 }
@@ -829,6 +850,14 @@ func (s *speedTest) handleMultiServerComplete(msg multiServerCompleteMsg) (tea.M
 	s.comparisonErrors = msg.errors
 	s.selectedServers = nil
 	s.viewState = ViewComparison
+
+	if len(s.model.Config.Webhooks.Endpoints) > 0 && len(msg.results) > 0 {
+		cmds := make([]tea.Cmd, len(msg.results))
+		for i, res := range msg.results {
+			cmds[i] = webhookCmd(s.model.Config.Webhooks, res)
+		}
+		return s, tea.Batch(cmds...)
+	}
 	return s, nil
 }
 
@@ -873,6 +902,15 @@ func exportCmd(result *model.SpeedTestResult, format string, m *model.Model) tea
 		}
 		path, err := ExportResult(result, format, dir)
 		return exportDoneMsg{path: path, err: err}
+	}
+}
+
+// webhookCmd dispatches webhook notifications in a goroutine and returns the result as a tea.Cmd.
+func webhookCmd(cfg model.WebhookConfig, result *model.SpeedTestResult) tea.Cmd {
+	return func() tea.Msg {
+		client := &http.Client{}
+		errs := notify.Dispatch(context.Background(), client, cfg, result, version)
+		return webhookDoneMsg{errs: errs}
 	}
 }
 

@@ -4,13 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/jkleinne/lazyspeed/model"
+	"github.com/jkleinne/lazyspeed/notify"
 	"github.com/jkleinne/lazyspeed/ui"
 	"github.com/showwin/speedtest-go/speedtest"
 	"github.com/spf13/cobra"
@@ -51,9 +55,15 @@ type runFlags struct {
 	serverIDs  string
 	favorites  bool
 	watch      time.Duration
+	webhookURL string
 }
 
 var runF runFlags
+
+// webhookCfg holds the merged webhook configuration for the current headless run,
+// combining config-file endpoints with any --webhook-url flag value.
+// Initialized by runHeadlessTest before any sub-function reads it.
+var webhookCfg model.WebhookConfig
 
 var runCmd = &cobra.Command{
 	Use:   "run",
@@ -111,6 +121,12 @@ var runCmd = &cobra.Command{
 				return fmt.Errorf("--watch and --favorites are mutually exclusive")
 			}
 		}
+		if runF.webhookURL != "" {
+			parsed, err := url.Parse(runF.webhookURL)
+			if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+				return fmt.Errorf("--webhook-url must be a valid http:// or https:// URL")
+			}
+		}
 		return nil
 	},
 	Run: func(_ *cobra.Command, _ []string) {
@@ -130,6 +146,7 @@ func init() {
 	runCmd.Flags().StringVar(&runF.serverIDs, "servers", "", "Test specific servers by ID (comma-separated, minimum 2)")
 	runCmd.Flags().BoolVar(&runF.favorites, "favorites", false, "Test all favorited servers (multi-server comparison)")
 	runCmd.Flags().DurationVar(&runF.watch, "watch", 0, "Repeat tests on an interval (e.g., 5m, 1h); minimum 1m")
+	runCmd.Flags().StringVar(&runF.webhookURL, "webhook-url", "", "POST results to this URL (additive to config webhooks)")
 
 	rootCmd.AddCommand(runCmd)
 }
@@ -299,6 +316,10 @@ func runMultiServerHeadless(m *model.Model, interactive bool) {
 			fmt.Println(formatComparisonTable(results))
 		}
 	})
+
+	for _, res := range results {
+		dispatchWebhooks(context.Background(), webhookCfg, res)
+	}
 }
 
 // formatComparisonRow formats a single row for the headless comparison table.
@@ -360,6 +381,14 @@ func runHeadlessTest() {
 	m := model.NewDefaultModel()
 	interactive := runIsInteractive()
 
+	webhookCfg = m.Config.Webhooks
+	if runF.webhookURL != "" {
+		webhookCfg.Endpoints = append(
+			slices.Clone(webhookCfg.Endpoints),
+			model.WebhookEndpoint{URL: runF.webhookURL},
+		)
+	}
+
 	if runF.best > 0 || runF.serverIDs != "" || runF.favorites {
 		runMultiServerHeadless(m, interactive)
 		return
@@ -398,6 +427,19 @@ func recordResult(m *model.Model, res *model.SpeedTestResult) {
 	m.History.Append(res)
 	if saveErr := m.History.Save(); saveErr != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to save history: %v\n", saveErr)
+	}
+}
+
+// dispatchWebhooks sends the result to configured webhook endpoints.
+// Errors are printed as warnings to stderr and do not affect the test result.
+func dispatchWebhooks(ctx context.Context, cfg model.WebhookConfig, result *model.SpeedTestResult) {
+	if len(cfg.Endpoints) == 0 {
+		return
+	}
+	client := &http.Client{}
+	errs := notify.Dispatch(ctx, client, cfg, result, version)
+	for _, e := range errs {
+		fmt.Fprintf(os.Stderr, "Warning: webhook delivery to %s failed: %v\n", e.URL, e.Err)
 	}
 }
 
@@ -452,6 +494,8 @@ func runCountLoop(m *model.Model, server *speedtest.Server, opts model.RunOption
 			exitWithError("running test: %v", err)
 		}
 
+		dispatchWebhooks(context.Background(), webhookCfg, res)
+
 		switch {
 		case runF.json:
 			jsonResults = append(jsonResults, res)
@@ -502,6 +546,7 @@ func runWatchLoop(m *model.Model, server *speedtest.Server, opts model.RunOption
 			fmt.Fprintf(os.Stderr, "Error: running test: %v\n", err)
 		} else {
 			recordResult(m, res)
+			dispatchWebhooks(context.Background(), webhookCfg, res)
 			emitWatchResult(res)
 		}
 
