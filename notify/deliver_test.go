@@ -3,6 +3,7 @@ package notify
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"testing"
@@ -129,7 +130,7 @@ func TestDeliver_NetworkErrorRetries(t *testing.T) {
 	sender := &mockSender{
 		doFn: func(req *http.Request) (*http.Response, error) {
 			attempts++
-			return nil, &networkError{"connection refused"}
+			return nil, errors.New("connection refused")
 		},
 	}
 
@@ -147,12 +148,6 @@ func TestDeliver_NetworkErrorRetries(t *testing.T) {
 		t.Errorf("expected 2 attempts for network error with maxRetries=2, got %d", attempts)
 	}
 }
-
-// networkError is a minimal error type that satisfies the error interface,
-// used to simulate a network failure in tests.
-type networkError struct{ msg string }
-
-func (e *networkError) Error() string { return e.msg }
 
 func TestDeliver_MultipleEndpointsPartialFailure(t *testing.T) {
 	const failURL = "http://fail.example.com/hook"
@@ -214,11 +209,10 @@ func TestDispatch_NoEndpoints(t *testing.T) {
 
 func TestDispatch_ThresholdsSuppressFiring(t *testing.T) {
 	// Thresholds configured but result passes all of them — webhook must not fire.
-	minDownload := 50.0
 	cfg := model.WebhookConfig{
 		Endpoints: []model.WebhookEndpoint{{URL: "http://example.com/hook"}},
 		Thresholds: model.ThresholdConfig{
-			MinDownload: &minDownload,
+			MinDownload: ptrFloat64(50),
 		},
 		Timeout:    10,
 		MaxRetries: 1,
@@ -246,11 +240,10 @@ func TestDispatch_ThresholdsSuppressFiring(t *testing.T) {
 
 func TestDispatch_ThresholdBreachFires(t *testing.T) {
 	// Result breaches the threshold — webhook must fire and body must be valid JSON.
-	minDownload := 50.0
 	cfg := model.WebhookConfig{
 		Endpoints: []model.WebhookEndpoint{{URL: "http://example.com/hook"}},
 		Thresholds: model.ThresholdConfig{
-			MinDownload: &minDownload,
+			MinDownload: ptrFloat64(50),
 		},
 		Timeout:    10,
 		MaxRetries: 1,
