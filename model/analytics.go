@@ -226,6 +226,7 @@ func sparkline(values []float64) string {
 			runes[i] = sparkRunes[midLevel]
 		} else {
 			idx := int((v - lowest) / valueRange * float64(levels-1))
+			idx = min(idx, levels-1)
 			runes[i] = sparkRunes[idx]
 		}
 	}

@@ -544,7 +544,7 @@ func (s *speedTest) startNewTest() (tea.Model, tea.Cmd) {
 	if s.model.Servers.Len() == 0 {
 		s.model.State = model.StateAwaitingServers
 		s.model.CurrentPhase = fetchingServerListPhase
-		return s, s.spinner.Tick
+		return s, tea.Batch(fetchServerListCmd(s.model), s.spinner.Tick)
 	}
 	s.model.State = model.StateSelectingServer
 	s.cursor = 0
