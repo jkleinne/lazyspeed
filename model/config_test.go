@@ -405,6 +405,24 @@ func TestValidateWebhookConfig(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "non-http scheme rejected",
+			cfg: WebhookConfig{
+				Endpoints:  []WebhookEndpoint{{URL: "ftp://example.com/hook"}},
+				Timeout:    10,
+				MaxRetries: 1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing scheme rejected",
+			cfg: WebhookConfig{
+				Endpoints:  []WebhookEndpoint{{URL: "example.com/hook"}},
+				Timeout:    10,
+				MaxRetries: 1,
+			},
+			wantErr: true,
+		},
+		{
 			name: "max_retries zero rejected",
 			cfg: WebhookConfig{
 				Endpoints:  []WebhookEndpoint{{URL: "https://example.com/hook"}},

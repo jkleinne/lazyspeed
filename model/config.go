@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -283,6 +284,13 @@ func ValidateWebhookConfig(cfg WebhookConfig) error {
 	for i, ep := range cfg.Endpoints {
 		if ep.URL == "" {
 			return fmt.Errorf("endpoint %d has an empty URL", i)
+		}
+		parsed, err := url.Parse(ep.URL)
+		if err != nil {
+			return fmt.Errorf("endpoint %d has an invalid URL %q: %v", i, ep.URL, err)
+		}
+		if parsed.Scheme != "http" && parsed.Scheme != "https" {
+			return fmt.Errorf("endpoint %d URL %q must use http or https scheme", i, ep.URL)
 		}
 	}
 	if cfg.Timeout <= 0 {
