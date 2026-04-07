@@ -61,6 +61,7 @@ var runF runFlags
 
 // webhookCfg holds the merged webhook configuration for the current headless run,
 // combining config-file endpoints with any --webhook-url flag value.
+// Initialized by runHeadlessTest before any sub-function reads it.
 var webhookCfg model.WebhookConfig
 
 var runCmd = &cobra.Command{
