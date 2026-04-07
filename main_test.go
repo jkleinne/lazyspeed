@@ -1687,7 +1687,39 @@ func TestStartNewTestWithoutServers(t *testing.T) {
 		t.Errorf("Expected CurrentPhase %q, got %q", fetchingServerListPhase, newS.model.CurrentPhase)
 	}
 	if cmd == nil {
-		t.Errorf("Expected non-nil cmd for spinner tick")
+		t.Errorf("Expected non-nil cmd (fetch + spinner batch)")
+	}
+}
+
+func TestStartNewTestWithoutServersFetchesServerList(t *testing.T) {
+	m := model.NewModel(&noopBackend{}, model.DefaultConfig())
+	m.Servers.SetRaw(nil)
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	_, cmd := s.startNewTest()
+	if cmd == nil {
+		t.Fatal("Expected non-nil cmd")
+	}
+
+	msg := cmd()
+	batch, ok := msg.(tea.BatchMsg)
+	if !ok {
+		t.Fatalf("Expected tea.BatchMsg, got %T", msg)
+	}
+
+	var foundFetch bool
+	for _, c := range batch {
+		if c == nil {
+			continue
+		}
+		result := c()
+		if _, ok := result.(serverListMsg); ok {
+			foundFetch = true
+			break
+		}
+	}
+	if !foundFetch {
+		t.Error("Expected batch to contain fetchServerListCmd producing serverListMsg")
 	}
 }
 
