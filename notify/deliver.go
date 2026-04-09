@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -86,13 +87,18 @@ func deliverOne(ctx context.Context, sender Sender, ep model.WebhookEndpoint, bo
 		}
 
 		resp, err := sender.Do(req)
-		reqCancel()
-
 		if err != nil {
+			reqCancel()
 			lastErr = fmt.Errorf("request failed: %v", err)
 			continue
 		}
+
+		// Drain body before closing to allow HTTP connection reuse.
+		// Drain errors are safe to ignore: failure just means the
+		// connection won't be reused, which is a performance detail.
+		_, _ = io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
+		reqCancel()
 
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			return nil
