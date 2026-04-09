@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/jkleinne/lazyspeed/diag"
 	"github.com/jkleinne/lazyspeed/internal/timeutil"
 )
@@ -233,9 +234,9 @@ func renderHopRow(hop diag.Hop, absoluteIndex int) string {
 		latStr,
 	)
 
-	rowRunes := []rune(row)
-	if len(rowRunes) < hopTableWidth {
-		row += strings.Repeat(" ", hopTableWidth-len(rowRunes))
+	w := ansi.StringWidth(row)
+	if w < hopTableWidth {
+		row += strings.Repeat(" ", hopTableWidth-w)
 	}
 
 	if absoluteIndex%2 == 0 {

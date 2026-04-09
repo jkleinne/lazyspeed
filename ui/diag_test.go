@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/jkleinne/lazyspeed/diag"
 )
 
@@ -356,5 +357,24 @@ func TestScoreStyle(t *testing.T) {
 				t.Error("expected styled output to differ from plain text")
 			}
 		})
+	}
+}
+
+func TestRenderHopRowVisualWidth(t *testing.T) {
+	hop := diag.Hop{
+		Number:  3,
+		IP:      "10.0.0.1",
+		Host:    "gateway.local",
+		Latency: 25 * time.Millisecond,
+	}
+
+	rendered := renderHopRow(hop, 0)
+	// Strip the outer row style (diagEvenRowStyle/diagOddRowStyle) to measure
+	// the inner content width. The row styles only add foreground/background
+	// color, not padding or margins, so stripping ANSI gives us the plain text
+	// whose length equals the visual width before row styling.
+	plain := ansi.Strip(rendered)
+	if len([]rune(plain)) != hopTableWidth {
+		t.Errorf("visual width = %d, want %d", len([]rune(plain)), hopTableWidth)
 	}
 }
