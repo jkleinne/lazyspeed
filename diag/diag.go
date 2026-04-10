@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/jkleinne/lazyspeed/internal/timeutil"
@@ -139,6 +140,11 @@ func NewConfig(overrides Config) *Config {
 func Run(ctx context.Context, backend Backend, target string, cfg *Config) (*Result, error) {
 	if cfg == nil {
 		cfg = DefaultConfig()
+	}
+
+	target = strings.TrimSpace(target)
+	if target == "" {
+		return nil, fmt.Errorf("target must not be empty")
 	}
 
 	result := &Result{
