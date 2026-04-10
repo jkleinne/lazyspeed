@@ -121,7 +121,7 @@ func traceLoop(ctx context.Context, destIP string, maxHops int, hopFn func(ttl i
 
 // readICMPResponse reads an ICMP response from conn, parses it, and populates the hop
 // if the response type matches one of validTypes. Returns false if any step fails.
-func readICMPResponse(ctx context.Context, conn *icmp.PacketConn, start time.Time, hop *Hop, rdns *reverseDNS, validTypes ...icmp.Type) bool {
+func readICMPResponse(conn *icmp.PacketConn, start time.Time, hop *Hop, rdns *reverseDNS, validTypes ...icmp.Type) bool {
 	buf := make([]byte, maxPacketSize)
 	n, peer, err := conn.ReadFrom(buf)
 	latency := time.Since(start)
@@ -186,7 +186,7 @@ func awaitHopResponse(ctx context.Context, conn *icmp.PacketConn, hop *Hop, star
 		hop.Timeout = true
 		return *hop
 	}
-	if !readICMPResponse(ctx, conn, start, hop, rdns, validTypes...) {
+	if !readICMPResponse(conn, start, hop, rdns, validTypes...) {
 		hop.Timeout = true
 	}
 	return *hop
