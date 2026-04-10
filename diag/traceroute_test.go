@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"testing"
 	"time"
@@ -105,5 +106,62 @@ func TestIsPermissionError(t *testing.T) {
 				t.Errorf("isPermissionError(%v) = %v, want %v", tt.err, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestReverseDNSBudgetBoundsTotal(t *testing.T) {
+	budget := 500 * time.Millisecond
+	perLookup := 200 * time.Millisecond
+	totalCalls := 10
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	dnsCtx, dnsCancel := context.WithTimeout(ctx, budget)
+	defer dnsCancel()
+
+	slowResolver := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			select {
+			case <-time.After(perLookup):
+				return nil, fmt.Errorf("simulated slow DNS")
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		},
+	}
+
+	rdns := &reverseDNS{ctx: dnsCtx, resolver: slowResolver}
+
+	var callDurations []time.Duration
+	start := time.Now()
+	for i := range totalCalls {
+		callStart := time.Now()
+		ip := fmt.Sprintf("10.0.0.%d", i+1)
+		result := rdns.resolve(ip)
+		callDurations = append(callDurations, time.Since(callStart))
+
+		if result != ip {
+			t.Errorf("call %d: expected raw IP %q, got %q", i, ip, result)
+		}
+	}
+	elapsed := time.Since(start)
+
+	if elapsed > budget+300*time.Millisecond {
+		t.Errorf("total time %v exceeds budget %v by too much", elapsed, budget)
+	}
+
+	var fastCalls int
+	for _, d := range callDurations {
+		if d < 50*time.Millisecond {
+			fastCalls++
+		}
+	}
+	if fastCalls == 0 {
+		t.Error("expected some calls to return instantly after budget exhaustion")
+	}
+	if fastCalls == totalCalls {
+		t.Error("expected some calls to block before budget exhaustion")
 	}
 }
