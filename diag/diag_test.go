@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 	"testing"
 	"time"
 )
@@ -475,6 +476,31 @@ func TestRunContextCancelledBetweenDNSAndTraceroute(t *testing.T) {
 	_, err := Run(ctx, backend, testExampleHost, DefaultConfig())
 	if err == nil {
 		t.Fatal("expected error from context cancellation between DNS and traceroute")
+	}
+}
+
+func TestRunEmptyTarget(t *testing.T) {
+	tests := []struct {
+		name   string
+		target string
+	}{
+		{"empty string", ""},
+		{"whitespace only", "   "},
+		{"tabs and newlines", "\t\n"},
+	}
+
+	backend := &mockBackend{}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Run(context.Background(), backend, tt.target, DefaultConfig())
+			if err == nil {
+				t.Fatal("expected error for empty target")
+			}
+			if !strings.Contains(err.Error(), "target must not be empty") {
+				t.Errorf("unexpected error message: %v", err)
+			}
+		})
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -325,5 +326,61 @@ func TestDispatch_NoThresholdsAlwaysFires(t *testing.T) {
 	}
 	if p.Event != EventTestComplete {
 		t.Errorf("expected event %q for no thresholds, got %q", EventTestComplete, p.Event)
+	}
+}
+
+// trackingReader wraps an io.Reader and calls onEOF exactly once when Read returns io.EOF.
+// Used in tests to verify the response body is fully consumed before Close is called.
+type trackingReader struct {
+	io.Reader
+	onEOF  func()
+	hitEOF bool
+}
+
+func (r *trackingReader) Read(p []byte) (int, error) {
+	n, err := r.Reader.Read(p)
+	if err == io.EOF && !r.hitEOF {
+		r.hitEOF = true
+		if r.onEOF != nil {
+			r.onEOF()
+		}
+	}
+	return n, err
+}
+
+func TestDeliver_DrainsResponseBody(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+	}{
+		{"2xx drains body", http.StatusOK},
+		{"5xx drains body", http.StatusInternalServerError},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bodyContent := "response payload"
+			drained := false
+
+			sender := &mockSender{
+				doFn: func(req *http.Request) (*http.Response, error) {
+					return &http.Response{
+						StatusCode: tt.status,
+						Body: io.NopCloser(&trackingReader{
+							Reader: strings.NewReader(bodyContent),
+							onEOF:  func() { drained = true },
+						}),
+					}, nil
+				},
+			}
+
+			endpoints := []model.WebhookEndpoint{{URL: "http://example.com/hook"}}
+			payload := NewPayload(&model.SpeedTestResult{}, nil, "1.0.0", time.Now())
+			Deliver(context.Background(), sender, endpoints, payload, 5*time.Second, 1)
+
+			if !drained {
+				t.Errorf("response body was not drained for status %d", tt.status)
+			}
+		})
 	}
 }
