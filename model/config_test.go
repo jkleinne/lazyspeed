@@ -504,6 +504,266 @@ func TestValidateWebhookConfig(t *testing.T) {
 	}
 }
 
+func TestMetricsConfigDefaults(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if len(cfg.Metrics.Endpoints) != 0 {
+		t.Errorf("expected empty endpoints, got %d", len(cfg.Metrics.Endpoints))
+	}
+	if cfg.Metrics.Timeout != defaultMetricsTimeout {
+		t.Errorf("expected timeout %d, got %d", defaultMetricsTimeout, cfg.Metrics.Timeout)
+	}
+	if cfg.Metrics.MaxRetries != defaultMetricsMaxRetries {
+		t.Errorf("expected max_retries %d, got %d", defaultMetricsMaxRetries, cfg.Metrics.MaxRetries)
+	}
+	if cfg.Metrics.HostTag != "" {
+		t.Errorf("expected empty host_tag, got %q", cfg.Metrics.HostTag)
+	}
+	if cfg.Metrics.OmitHostTag {
+		t.Error("expected omit_host_tag to be false")
+	}
+}
+
+func TestValidateMetricsConfig(t *testing.T) {
+	v2ok := &InfluxV2{Token: "t", Org: "o", Bucket: "b"}
+	v1ok := &InfluxV1{Database: "db"}
+
+	tests := []struct {
+		name    string
+		cfg     MetricsConfig
+		wantErr bool
+	}{
+		{
+			name:    "empty config is valid",
+			cfg:     MetricsConfig{},
+			wantErr: false,
+		},
+		{
+			name: "valid v2 endpoint",
+			cfg: MetricsConfig{
+				Endpoints:  []MetricsEndpoint{{URL: "https://example.com", V2: v2ok}},
+				Timeout:    10,
+				MaxRetries: 1,
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid v1 endpoint",
+			cfg: MetricsConfig{
+				Endpoints:  []MetricsEndpoint{{URL: "http://localhost:8086", V1: v1ok}},
+				Timeout:    10,
+				MaxRetries: 1,
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty URL rejected",
+			cfg: MetricsConfig{
+				Endpoints:  []MetricsEndpoint{{URL: "", V2: v2ok}},
+				Timeout:    10,
+				MaxRetries: 1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "non-http scheme rejected",
+			cfg: MetricsConfig{
+				Endpoints:  []MetricsEndpoint{{URL: "ftp://example.com", V2: v2ok}},
+				Timeout:    10,
+				MaxRetries: 1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing scheme rejected",
+			cfg: MetricsConfig{
+				Endpoints:  []MetricsEndpoint{{URL: "example.com", V2: v2ok}},
+				Timeout:    10,
+				MaxRetries: 1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "neither v1 nor v2 rejected",
+			cfg: MetricsConfig{
+				Endpoints:  []MetricsEndpoint{{URL: "https://example.com"}},
+				Timeout:    10,
+				MaxRetries: 1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "both v1 and v2 rejected",
+			cfg: MetricsConfig{
+				Endpoints:  []MetricsEndpoint{{URL: "https://example.com", V1: v1ok, V2: v2ok}},
+				Timeout:    10,
+				MaxRetries: 1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "v2 missing token rejected",
+			cfg: MetricsConfig{
+				Endpoints:  []MetricsEndpoint{{URL: "https://example.com", V2: &InfluxV2{Org: "o", Bucket: "b"}}},
+				Timeout:    10,
+				MaxRetries: 1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "v2 missing org rejected",
+			cfg: MetricsConfig{
+				Endpoints:  []MetricsEndpoint{{URL: "https://example.com", V2: &InfluxV2{Token: "t", Bucket: "b"}}},
+				Timeout:    10,
+				MaxRetries: 1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "v2 missing bucket rejected",
+			cfg: MetricsConfig{
+				Endpoints:  []MetricsEndpoint{{URL: "https://example.com", V2: &InfluxV2{Token: "t", Org: "o"}}},
+				Timeout:    10,
+				MaxRetries: 1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "v1 missing database rejected",
+			cfg: MetricsConfig{
+				Endpoints:  []MetricsEndpoint{{URL: "http://localhost:8086", V1: &InfluxV1{}}},
+				Timeout:    10,
+				MaxRetries: 1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "v1 password without username rejected",
+			cfg: MetricsConfig{
+				Endpoints:  []MetricsEndpoint{{URL: "http://localhost:8086", V1: &InfluxV1{Database: "db", Password: "p"}}},
+				Timeout:    10,
+				MaxRetries: 1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "timeout zero rejected",
+			cfg: MetricsConfig{
+				Endpoints:  []MetricsEndpoint{{URL: "https://example.com", V2: v2ok}},
+				Timeout:    0,
+				MaxRetries: 1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "max_retries zero rejected",
+			cfg: MetricsConfig{
+				Endpoints:  []MetricsEndpoint{{URL: "https://example.com", V2: v2ok}},
+				Timeout:    10,
+				MaxRetries: 0,
+			},
+			wantErr: true,
+		},
+		{
+			name: "max_retries above cap rejected",
+			cfg: MetricsConfig{
+				Endpoints:  []MetricsEndpoint{{URL: "https://example.com", V2: v2ok}},
+				Timeout:    10,
+				MaxRetries: maxWebhookRetries + 1,
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateMetricsConfig(tt.cfg)
+			if tt.wantErr && err == nil {
+				t.Error("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestSaveConfigWithMetrics(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	cfg := DefaultConfig()
+	cfg.Metrics = MetricsConfig{
+		Timeout:    20,
+		MaxRetries: 3,
+		HostTag:    "custom-host",
+		Endpoints: []MetricsEndpoint{
+			{
+				URL: "https://influx.example.com:8086",
+				V2: &InfluxV2{
+					Token:  "abc123",
+					Org:    "my-org",
+					Bucket: "speedtest",
+				},
+			},
+			{
+				URL: "http://localhost:8086",
+				V1: &InfluxV1{
+					Database: "lazyspeed",
+					Username: "admin",
+					Password: "secret",
+				},
+			},
+		},
+	}
+
+	if err := SaveConfig(cfg); err != nil {
+		t.Fatalf("SaveConfig failed: %v", err)
+	}
+
+	loaded, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	if len(loaded.Metrics.Endpoints) != 2 {
+		t.Fatalf("expected 2 endpoints, got %d", len(loaded.Metrics.Endpoints))
+	}
+	if loaded.Metrics.Endpoints[0].V2 == nil {
+		t.Fatal("expected endpoint 0 to have V2 set")
+	}
+	if loaded.Metrics.Endpoints[0].V2.Token != "abc123" {
+		t.Errorf("token mismatch: got %q", loaded.Metrics.Endpoints[0].V2.Token)
+	}
+	if loaded.Metrics.Endpoints[0].V2.Org != "my-org" {
+		t.Errorf("org mismatch: got %q", loaded.Metrics.Endpoints[0].V2.Org)
+	}
+	if loaded.Metrics.Endpoints[0].V2.Bucket != "speedtest" {
+		t.Errorf("bucket mismatch: got %q", loaded.Metrics.Endpoints[0].V2.Bucket)
+	}
+	if loaded.Metrics.Endpoints[1].V1 == nil {
+		t.Fatal("expected endpoint 1 to have V1 set")
+	}
+	if loaded.Metrics.Endpoints[1].V1.Database != "lazyspeed" {
+		t.Errorf("database mismatch: got %q", loaded.Metrics.Endpoints[1].V1.Database)
+	}
+	if loaded.Metrics.Endpoints[1].V1.Username != "admin" {
+		t.Errorf("username mismatch: got %q", loaded.Metrics.Endpoints[1].V1.Username)
+	}
+	if loaded.Metrics.Endpoints[1].V1.Password != "secret" {
+		t.Errorf("password mismatch: got %q", loaded.Metrics.Endpoints[1].V1.Password)
+	}
+	if loaded.Metrics.Timeout != 20 {
+		t.Errorf("timeout mismatch: got %d", loaded.Metrics.Timeout)
+	}
+	if loaded.Metrics.MaxRetries != 3 {
+		t.Errorf("max_retries mismatch: got %d", loaded.Metrics.MaxRetries)
+	}
+	if loaded.Metrics.HostTag != "custom-host" {
+		t.Errorf("host_tag mismatch: got %q", loaded.Metrics.HostTag)
+	}
+}
+
 func TestSaveConfigWithWebhooks(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)

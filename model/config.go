@@ -24,6 +24,9 @@ const (
 	defaultWebhookTimeout    = 10 // seconds
 	defaultWebhookMaxRetries = 1
 	maxWebhookRetries        = 5
+
+	defaultMetricsTimeout    = 10
+	defaultMetricsMaxRetries = 1
 )
 
 // HistoryConfig holds history-related configuration.
@@ -81,6 +84,42 @@ type WebhookConfig struct {
 	MaxRetries int               `yaml:"max_retries"`
 }
 
+// InfluxV1 holds InfluxDB v1 authentication fields.
+// Username and Password are optional to support passwordless deployments.
+type InfluxV1 struct {
+	Database string `yaml:"database"`
+	Username string `yaml:"username,omitempty"`
+	Password string `yaml:"password,omitempty"`
+}
+
+// InfluxV2 holds InfluxDB v2 authentication fields.
+// All three fields are required for v2 writes.
+type InfluxV2 struct {
+	Token  string `yaml:"token"`
+	Org    string `yaml:"org"`
+	Bucket string `yaml:"bucket"`
+}
+
+// MetricsEndpoint describes a single InfluxDB write target.
+// Exactly one of V1 or V2 must be set; enforced by ValidateMetricsConfig.
+type MetricsEndpoint struct {
+	URL string    `yaml:"url"`
+	V1  *InfluxV1 `yaml:"v1,omitempty"`
+	V2  *InfluxV2 `yaml:"v2,omitempty"`
+}
+
+// MetricsConfig groups outbound InfluxDB export settings.
+// HostTag is an optional literal override for the host tag value; when empty,
+// the resolver falls back to os.Hostname(). OmitHostTag, when true,
+// suppresses the host tag entirely regardless of HostTag.
+type MetricsConfig struct {
+	Endpoints   []MetricsEndpoint `yaml:"endpoints"`
+	Timeout     int               `yaml:"timeout"`
+	MaxRetries  int               `yaml:"max_retries"`
+	HostTag     string            `yaml:"host_tag,omitempty"`
+	OmitHostTag bool              `yaml:"omit_host_tag,omitempty"`
+}
+
 // Config holds all configurable options for lazyspeed.
 type Config struct {
 	History     HistoryConfig     `yaml:"history"`
@@ -89,6 +128,7 @@ type Config struct {
 	Diagnostics DiagnosticsConfig `yaml:"diagnostics"`
 	Servers     ServersConfig     `yaml:"servers"`
 	Webhooks    WebhookConfig     `yaml:"webhooks"`
+	Metrics     MetricsConfig     `yaml:"metrics"`
 }
 
 // DefaultConfig returns a Config with all defaults filled in.
@@ -113,6 +153,11 @@ func DefaultConfig() *Config {
 			Endpoints:  []WebhookEndpoint{},
 			Timeout:    defaultWebhookTimeout,
 			MaxRetries: defaultWebhookMaxRetries,
+		},
+		Metrics: MetricsConfig{
+			Endpoints:  []MetricsEndpoint{},
+			Timeout:    defaultMetricsTimeout,
+			MaxRetries: defaultMetricsMaxRetries,
 		},
 	}
 }
@@ -264,10 +309,30 @@ func LoadConfig() (*Config, error) {
 	if partial.Webhooks.MaxRetries > 0 {
 		cfg.Webhooks.MaxRetries = partial.Webhooks.MaxRetries
 	}
+	if len(partial.Metrics.Endpoints) > 0 {
+		cfg.Metrics.Endpoints = partial.Metrics.Endpoints
+	}
+	if partial.Metrics.Timeout > 0 {
+		cfg.Metrics.Timeout = partial.Metrics.Timeout
+	}
+	if partial.Metrics.MaxRetries > 0 {
+		cfg.Metrics.MaxRetries = partial.Metrics.MaxRetries
+	}
+	if partial.Metrics.HostTag != "" {
+		cfg.Metrics.HostTag = partial.Metrics.HostTag
+	}
+	if partial.Metrics.OmitHostTag {
+		cfg.Metrics.OmitHostTag = true
+	}
 
 	if len(cfg.Webhooks.Endpoints) > 0 {
 		if err := ValidateWebhookConfig(cfg.Webhooks); err != nil {
 			return nil, fmt.Errorf("invalid webhook config: %v", err)
+		}
+	}
+	if len(cfg.Metrics.Endpoints) > 0 {
+		if err := ValidateMetricsConfig(cfg.Metrics); err != nil {
+			return nil, fmt.Errorf("invalid metrics config: %v", err)
 		}
 	}
 
@@ -310,6 +375,62 @@ func ValidateWebhookConfig(cfg WebhookConfig) error {
 	}
 	if cfg.Thresholds.MaxJitter != nil && *cfg.Thresholds.MaxJitter < 0 {
 		return fmt.Errorf("webhook threshold max_jitter must be >= 0, got %f", *cfg.Thresholds.MaxJitter)
+	}
+	return nil
+}
+
+// ValidateMetricsConfig checks that a MetricsConfig is self-consistent.
+// Returns an error describing the first violation found.
+// An empty Endpoints slice is always valid (export disabled).
+func ValidateMetricsConfig(cfg MetricsConfig) error {
+	if len(cfg.Endpoints) == 0 {
+		return nil
+	}
+	for i, ep := range cfg.Endpoints {
+		if ep.URL == "" {
+			return fmt.Errorf("metrics endpoint %d has an empty URL", i)
+		}
+		parsed, err := url.Parse(ep.URL)
+		if err != nil {
+			return fmt.Errorf("metrics endpoint %d has an invalid URL %q: %v", i, ep.URL, err)
+		}
+		if parsed.Scheme != "http" && parsed.Scheme != "https" {
+			return fmt.Errorf("metrics endpoint %d URL %q must use http or https scheme", i, ep.URL)
+		}
+
+		hasV1 := ep.V1 != nil
+		hasV2 := ep.V2 != nil
+		if !hasV1 && !hasV2 {
+			return fmt.Errorf("metrics endpoint %d has no auth block (set v1 or v2)", i)
+		}
+		if hasV1 && hasV2 {
+			return fmt.Errorf("metrics endpoint %d has both v1 and v2 set", i)
+		}
+		if hasV2 {
+			if ep.V2.Token == "" {
+				return fmt.Errorf("metrics endpoint %d v2 token is empty", i)
+			}
+			if ep.V2.Org == "" {
+				return fmt.Errorf("metrics endpoint %d v2 org is empty", i)
+			}
+			if ep.V2.Bucket == "" {
+				return fmt.Errorf("metrics endpoint %d v2 bucket is empty", i)
+			}
+		}
+		if hasV1 {
+			if ep.V1.Database == "" {
+				return fmt.Errorf("metrics endpoint %d v1 database is empty", i)
+			}
+			if ep.V1.Password != "" && ep.V1.Username == "" {
+				return fmt.Errorf("metrics endpoint %d v1 password set without username", i)
+			}
+		}
+	}
+	if cfg.Timeout <= 0 {
+		return fmt.Errorf("metrics timeout must be > 0, got %d", cfg.Timeout)
+	}
+	if cfg.MaxRetries < 1 || cfg.MaxRetries > maxWebhookRetries {
+		return fmt.Errorf("metrics max_retries must be between 1 and %d, got %d", maxWebhookRetries, cfg.MaxRetries)
 	}
 	return nil
 }
