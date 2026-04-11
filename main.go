@@ -16,6 +16,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jkleinne/lazyspeed/diag"
+	"github.com/jkleinne/lazyspeed/metrics"
 	"github.com/jkleinne/lazyspeed/model"
 	"github.com/jkleinne/lazyspeed/notify"
 	"github.com/jkleinne/lazyspeed/ui"
@@ -28,9 +29,12 @@ type exportDoneMsg struct {
 	err  error
 }
 
-// webhookDoneMsg is sent when background webhook delivery completes.
-type webhookDoneMsg struct {
-	errs []notify.DeliveryError
+// resultSinksDoneMsg is sent when background result-sink delivery completes.
+// Carries separate error slices for each sink so the reducer can label
+// failures by source.
+type resultSinksDoneMsg struct {
+	webhookErrs []notify.DeliveryError
+	metricsErrs []metrics.WriteError
 }
 
 const (
@@ -254,13 +258,24 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return s, nil
 
-	case webhookDoneMsg:
-		if len(msg.errs) > 0 {
-			warnings := make([]string, len(msg.errs))
-			for i, e := range msg.errs {
-				warnings[i] = e.Error()
+	case resultSinksDoneMsg:
+		var warnings []string
+		if len(msg.webhookErrs) > 0 {
+			webhookMessages := make([]string, len(msg.webhookErrs))
+			for i, e := range msg.webhookErrs {
+				webhookMessages[i] = e.Error()
 			}
-			s.model.Warning = fmt.Sprintf("Webhook: %s", strings.Join(warnings, "; "))
+			warnings = append(warnings, fmt.Sprintf("Webhook: %s", strings.Join(webhookMessages, "; ")))
+		}
+		if len(msg.metricsErrs) > 0 {
+			metricsMessages := make([]string, len(msg.metricsErrs))
+			for i, e := range msg.metricsErrs {
+				metricsMessages[i] = e.Error()
+			}
+			warnings = append(warnings, fmt.Sprintf("Metrics: %s", strings.Join(metricsMessages, "; ")))
+		}
+		if len(warnings) > 0 {
+			s.model.Warning = strings.Join(warnings, " | ")
 		}
 		return s, nil
 
@@ -351,8 +366,8 @@ func (s *speedTest) handleTestComplete(msg testComplete) (tea.Model, tea.Cmd) {
 		s.model.History.Results = nil
 		return s, nil
 	}
-	if s.model.History.Results != nil && len(s.model.Config.Webhooks.Endpoints) > 0 {
-		return s, webhookCmd(s.model.Config.Webhooks, s.model.History.Results)
+	if s.model.History.Results != nil && sinksConfigured(s.model.Config) {
+		return s, resultSinksCmd(s.model.Config, s.model.History.Results)
 	}
 	return s, nil
 }
@@ -851,10 +866,10 @@ func (s *speedTest) handleMultiServerComplete(msg multiServerCompleteMsg) (tea.M
 	s.selectedServers = nil
 	s.viewState = ViewComparison
 
-	if len(s.model.Config.Webhooks.Endpoints) > 0 && len(msg.results) > 0 {
+	if sinksConfigured(s.model.Config) && len(msg.results) > 0 {
 		cmds := make([]tea.Cmd, len(msg.results))
 		for i, res := range msg.results {
-			cmds[i] = webhookCmd(s.model.Config.Webhooks, res)
+			cmds[i] = resultSinksCmd(s.model.Config, res)
 		}
 		return s, tea.Batch(cmds...)
 	}
@@ -905,13 +920,23 @@ func exportCmd(result *model.SpeedTestResult, format string, m *model.Model) tea
 	}
 }
 
-// webhookCmd dispatches webhook notifications in a goroutine and returns the result as a tea.Cmd.
-func webhookCmd(cfg model.WebhookConfig, result *model.SpeedTestResult) tea.Cmd {
+// resultSinksCmd dispatches webhooks and metrics writes in a goroutine and
+// returns the combined result as a tea.Cmd. Both sinks run sequentially
+// inside the goroutine; neither blocks the TUI thread.
+func resultSinksCmd(cfg *model.Config, result *model.SpeedTestResult) tea.Cmd {
 	return func() tea.Msg {
 		client := &http.Client{}
-		errs := notify.Dispatch(context.Background(), client, cfg, result, version)
-		return webhookDoneMsg{errs: errs}
+		webhookErrs := notify.Dispatch(context.Background(), client, cfg.Webhooks, result, version)
+		metricsErrs := metrics.Dispatch(context.Background(), client, cfg.Metrics, result)
+		return resultSinksDoneMsg{webhookErrs: webhookErrs, metricsErrs: metricsErrs}
 	}
+}
+
+// sinksConfigured reports whether at least one result sink (webhook or
+// metrics) has endpoints configured. Used by the TUI post-test branches
+// to decide whether to fire resultSinksCmd at all.
+func sinksConfigured(cfg *model.Config) bool {
+	return len(cfg.Webhooks.Endpoints) > 0 || len(cfg.Metrics.Endpoints) > 0
 }
 
 func migrateHistoryIfNeeded() {
