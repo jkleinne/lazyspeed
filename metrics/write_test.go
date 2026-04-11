@@ -233,6 +233,20 @@ func TestWriteOne_V1NoAuthWhenUsernameEmpty(t *testing.T) {
 	}
 }
 
+func TestWriteOne_ZeroMaxRetriesRejected(t *testing.T) {
+	sender := &mockSender{DoFn: func(*http.Request) (*http.Response, error) {
+		t.Fatal("sender should not be called when maxRetries < 1")
+		return nil, nil
+	}}
+	err := writeOne(context.Background(), sender, v2Endpoint(), []byte("line\n"), time.Second, 0)
+	if err == nil {
+		t.Fatal("expected error for maxRetries=0, got nil")
+	}
+	if !strings.Contains(err.Error(), "maxRetries") {
+		t.Errorf("expected maxRetries in error, got %q", err.Error())
+	}
+}
+
 // recordingBody tracks whether Read and Close were called. Used to verify
 // writeOne drains the response body before closing it.
 type recordingBody struct {

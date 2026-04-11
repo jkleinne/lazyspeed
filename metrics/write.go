@@ -52,6 +52,9 @@ func (e WriteError) Error() string {
 // failure. Network errors and 5xx are retried up to maxRetries times with
 // exponential backoff; 4xx fails permanently on the first attempt.
 func writeOne(ctx context.Context, sender Sender, ep model.MetricsEndpoint, body []byte, timeout time.Duration, maxRetries int) error {
+	if maxRetries < 1 {
+		return fmt.Errorf("maxRetries must be >= 1, got %d", maxRetries)
+	}
 	writeURL, err := buildWriteURL(ep)
 	if err != nil {
 		return fmt.Errorf("failed to build write URL: %v", err)

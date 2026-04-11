@@ -5,6 +5,7 @@ package metrics
 
 import (
 	"bytes"
+	"math"
 	"strconv"
 	"strings"
 
@@ -61,33 +62,44 @@ func writeTag(buf *bytes.Buffer, key, value string) {
 
 // writeField appends "key=value" (or ",key=value" if not first) to buf.
 // Float values are formatted with 'f' and precision -1 to preserve all
-// significant digits while avoiding scientific notation.
+// significant digits while avoiding scientific notation. Non-finite values
+// (NaN, +Inf, -Inf) are substituted with 0 because InfluxDB line protocol
+// only accepts numeric literals for float fields.
 func writeField(buf *bytes.Buffer, key string, value float64, first bool) {
 	if !first {
 		buf.WriteByte(',')
 	}
 	buf.WriteString(key)
 	buf.WriteByte('=')
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		value = 0
+	}
 	buf.WriteString(strconv.FormatFloat(value, 'f', -1, 64))
 }
 
-// escapeTagValue escapes comma, equals, and space in a tag value per the
-// InfluxDB line protocol spec. These are the only characters that require
-// escaping in tag keys, tag values, and field keys. Field keys and the
-// measurement name in this encoder are hard-coded safe constants, so this
-// helper is only called on tag values in practice.
+// escapeTagValue escapes comma, equals, space, and backslash in a tag value
+// per the InfluxDB line protocol spec, and substitutes carriage return or
+// newline with a single space because those characters cannot be escaped in
+// tag context and would otherwise split the point into multiple lines. This
+// helper is called only on tag values in practice; field keys and the
+// measurement name are hard-coded safe constants.
 func escapeTagValue(s string) string {
-	if !strings.ContainsAny(s, ",= ") {
+	if !strings.ContainsAny(s, ",= \\\n\r") {
 		return s
 	}
-	var sb bytes.Buffer
+	var sb strings.Builder
 	sb.Grow(len(s) + 4)
 	for i := 0; i < len(s); i++ {
 		c := s[i]
-		if c == ',' || c == '=' || c == ' ' {
+		switch c {
+		case '\n', '\r':
+			sb.WriteByte(' ')
+		case ',', '=', ' ', '\\':
 			sb.WriteByte('\\')
+			sb.WriteByte(c)
+		default:
+			sb.WriteByte(c)
 		}
-		sb.WriteByte(c)
 	}
 	return sb.String()
 }

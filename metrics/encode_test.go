@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"bytes"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -115,12 +116,77 @@ func TestEscapeTagValue(t *testing.T) {
 		{"with=equals", "with\\=equals"},
 		{"all three, =x", "all\\ three\\,\\ \\=x"},
 		{"", ""},
+		// Backslash escaping: input "with\backslash" → output "with\\backslash"
+		{"with\\backslash", "with\\\\backslash"},
+		// Trailing backslash: input "value\" → output "value\\"
+		{"value\\", "value\\\\"},
+		// Newline becomes space: input "line1\nline2" → output "line1 line2"
+		{"line1\nline2", "line1 line2"},
+		// CR becomes space: input "line1\rline2" → output "line1 line2"
+		{"line1\rline2", "line1 line2"},
+		// CRLF becomes two spaces: input "a\r\nb" → output "a  b"
+		{"a\r\nb", "a  b"},
+		// Mixed: input "a b\c,d=e" → output "a\ b\\c\,d\=e"
+		{"a b\\c,d=e", "a\\ b\\\\c\\,d\\=e"},
 	}
 	for _, tt := range tests {
 		got := escapeTagValue(tt.in)
 		if got != tt.want {
 			t.Errorf("escapeTagValue(%q) = %q, want %q", tt.in, got, tt.want)
 		}
+	}
+}
+
+func TestEncodePoint_SanitizesControlChars(t *testing.T) {
+	result := &model.SpeedTestResult{
+		DownloadSpeed: 100,
+		ServerName:    "line1\nline2",
+		Timestamp:     time.Unix(1, 0),
+	}
+	out := EncodePoint(result, "host")
+
+	// Count newlines: only the trailing one should exist.
+	nlCount := strings.Count(string(out), "\n")
+	if nlCount != 1 {
+		t.Errorf("expected exactly 1 newline (trailing), got %d in %q", nlCount, out)
+	}
+	// Trailing newline must be present.
+	if !strings.HasSuffix(string(out), "\n") {
+		t.Errorf("missing trailing newline: %q", out)
+	}
+	// The control char must have been substituted — verify no literal \n in the tag section.
+	tagSection := strings.TrimSuffix(string(out), "\n")
+	if strings.Contains(tagSection, "\n") {
+		t.Errorf("control char leaked into tag section: %q", out)
+	}
+}
+
+func TestEncodePoint_SubstitutesNonFiniteFloats(t *testing.T) {
+	result := &model.SpeedTestResult{
+		DownloadSpeed: math.NaN(),
+		UploadSpeed:   math.Inf(1),
+		Ping:          math.Inf(-1),
+		Jitter:        5.0,
+		Distance:      10.0,
+		Timestamp:     time.Unix(1, 0),
+	}
+	out := string(EncodePoint(result, "host"))
+
+	// None of the non-finite literals should appear.
+	for _, bad := range []string{"NaN", "+Inf", "-Inf", "Inf"} {
+		if strings.Contains(out, bad) {
+			t.Errorf("non-finite literal %q leaked into output: %q", bad, out)
+		}
+	}
+	// The substituted zeros should appear for download, upload, ping.
+	for _, want := range []string{"download_mbps=0", "upload_mbps=0", "ping_ms=0"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q in output, got %q", want, out)
+		}
+	}
+	// Finite fields should still render normally.
+	if !strings.Contains(out, "jitter_ms=5") {
+		t.Errorf("expected jitter_ms=5 in output, got %q", out)
 	}
 }
 
