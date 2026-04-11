@@ -25,7 +25,7 @@ const (
 	defaultWebhookMaxRetries = 1
 	maxWebhookRetries        = 5
 
-	defaultMetricsTimeout    = 10
+	defaultMetricsTimeout    = 10 // seconds
 	defaultMetricsMaxRetries = 1
 )
 

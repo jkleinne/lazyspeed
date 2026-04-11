@@ -3,6 +3,7 @@ package model
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -510,6 +511,9 @@ func TestMetricsConfigDefaults(t *testing.T) {
 	if len(cfg.Metrics.Endpoints) != 0 {
 		t.Errorf("expected empty endpoints, got %d", len(cfg.Metrics.Endpoints))
 	}
+	if cfg.Metrics.Endpoints == nil {
+		t.Error("expected non-nil empty endpoints slice (so YAML emits an empty list, not null)")
+	}
 	if cfg.Metrics.Timeout != defaultMetricsTimeout {
 		t.Errorf("expected timeout %d, got %d", defaultMetricsTimeout, cfg.Metrics.Timeout)
 	}
@@ -529,14 +533,16 @@ func TestValidateMetricsConfig(t *testing.T) {
 	v1ok := &InfluxV1{Database: "db"}
 
 	tests := []struct {
-		name    string
-		cfg     MetricsConfig
-		wantErr bool
+		name             string
+		cfg              MetricsConfig
+		wantErr          bool
+		wantErrSubstring string
 	}{
 		{
-			name:    "empty config is valid",
-			cfg:     MetricsConfig{},
-			wantErr: false,
+			name:             "empty config is valid",
+			cfg:              MetricsConfig{},
+			wantErr:          false,
+			wantErrSubstring: "",
 		},
 		{
 			name: "valid v2 endpoint",
@@ -545,7 +551,8 @@ func TestValidateMetricsConfig(t *testing.T) {
 				Timeout:    10,
 				MaxRetries: 1,
 			},
-			wantErr: false,
+			wantErr:          false,
+			wantErrSubstring: "",
 		},
 		{
 			name: "valid v1 endpoint",
@@ -554,7 +561,8 @@ func TestValidateMetricsConfig(t *testing.T) {
 				Timeout:    10,
 				MaxRetries: 1,
 			},
-			wantErr: false,
+			wantErr:          false,
+			wantErrSubstring: "",
 		},
 		{
 			name: "empty URL rejected",
@@ -563,7 +571,8 @@ func TestValidateMetricsConfig(t *testing.T) {
 				Timeout:    10,
 				MaxRetries: 1,
 			},
-			wantErr: true,
+			wantErr:          true,
+			wantErrSubstring: "empty URL",
 		},
 		{
 			name: "non-http scheme rejected",
@@ -572,7 +581,8 @@ func TestValidateMetricsConfig(t *testing.T) {
 				Timeout:    10,
 				MaxRetries: 1,
 			},
-			wantErr: true,
+			wantErr:          true,
+			wantErrSubstring: "must use http or https scheme",
 		},
 		{
 			name: "missing scheme rejected",
@@ -581,7 +591,8 @@ func TestValidateMetricsConfig(t *testing.T) {
 				Timeout:    10,
 				MaxRetries: 1,
 			},
-			wantErr: true,
+			wantErr:          true,
+			wantErrSubstring: "must use http or https scheme",
 		},
 		{
 			name: "neither v1 nor v2 rejected",
@@ -590,7 +601,8 @@ func TestValidateMetricsConfig(t *testing.T) {
 				Timeout:    10,
 				MaxRetries: 1,
 			},
-			wantErr: true,
+			wantErr:          true,
+			wantErrSubstring: "no auth block",
 		},
 		{
 			name: "both v1 and v2 rejected",
@@ -599,7 +611,8 @@ func TestValidateMetricsConfig(t *testing.T) {
 				Timeout:    10,
 				MaxRetries: 1,
 			},
-			wantErr: true,
+			wantErr:          true,
+			wantErrSubstring: "both v1 and v2 set",
 		},
 		{
 			name: "v2 missing token rejected",
@@ -608,7 +621,8 @@ func TestValidateMetricsConfig(t *testing.T) {
 				Timeout:    10,
 				MaxRetries: 1,
 			},
-			wantErr: true,
+			wantErr:          true,
+			wantErrSubstring: "v2 token is empty",
 		},
 		{
 			name: "v2 missing org rejected",
@@ -617,7 +631,8 @@ func TestValidateMetricsConfig(t *testing.T) {
 				Timeout:    10,
 				MaxRetries: 1,
 			},
-			wantErr: true,
+			wantErr:          true,
+			wantErrSubstring: "v2 org is empty",
 		},
 		{
 			name: "v2 missing bucket rejected",
@@ -626,7 +641,8 @@ func TestValidateMetricsConfig(t *testing.T) {
 				Timeout:    10,
 				MaxRetries: 1,
 			},
-			wantErr: true,
+			wantErr:          true,
+			wantErrSubstring: "v2 bucket is empty",
 		},
 		{
 			name: "v1 missing database rejected",
@@ -635,7 +651,8 @@ func TestValidateMetricsConfig(t *testing.T) {
 				Timeout:    10,
 				MaxRetries: 1,
 			},
-			wantErr: true,
+			wantErr:          true,
+			wantErrSubstring: "v1 database is empty",
 		},
 		{
 			name: "v1 password without username rejected",
@@ -644,7 +661,8 @@ func TestValidateMetricsConfig(t *testing.T) {
 				Timeout:    10,
 				MaxRetries: 1,
 			},
-			wantErr: true,
+			wantErr:          true,
+			wantErrSubstring: "v1 password set without username",
 		},
 		{
 			name: "timeout zero rejected",
@@ -653,7 +671,8 @@ func TestValidateMetricsConfig(t *testing.T) {
 				Timeout:    0,
 				MaxRetries: 1,
 			},
-			wantErr: true,
+			wantErr:          true,
+			wantErrSubstring: "timeout must be > 0",
 		},
 		{
 			name: "max_retries zero rejected",
@@ -662,7 +681,8 @@ func TestValidateMetricsConfig(t *testing.T) {
 				Timeout:    10,
 				MaxRetries: 0,
 			},
-			wantErr: true,
+			wantErr:          true,
+			wantErrSubstring: "max_retries must be between",
 		},
 		{
 			name: "max_retries above cap rejected",
@@ -671,7 +691,8 @@ func TestValidateMetricsConfig(t *testing.T) {
 				Timeout:    10,
 				MaxRetries: maxWebhookRetries + 1,
 			},
-			wantErr: true,
+			wantErr:          true,
+			wantErrSubstring: "max_retries must be between",
 		},
 	}
 
@@ -684,6 +705,11 @@ func TestValidateMetricsConfig(t *testing.T) {
 			if !tt.wantErr && err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
+			if tt.wantErr && tt.wantErrSubstring != "" && err != nil {
+				if !strings.Contains(err.Error(), tt.wantErrSubstring) {
+					t.Errorf("error %q does not contain expected substring %q", err.Error(), tt.wantErrSubstring)
+				}
+			}
 		})
 	}
 }
@@ -694,9 +720,10 @@ func TestSaveConfigWithMetrics(t *testing.T) {
 
 	cfg := DefaultConfig()
 	cfg.Metrics = MetricsConfig{
-		Timeout:    20,
-		MaxRetries: 3,
-		HostTag:    "custom-host",
+		Timeout:     20,
+		MaxRetries:  3,
+		HostTag:     "custom-host",
+		OmitHostTag: true,
 		Endpoints: []MetricsEndpoint{
 			{
 				URL: "https://influx.example.com:8086",
@@ -761,6 +788,9 @@ func TestSaveConfigWithMetrics(t *testing.T) {
 	}
 	if loaded.Metrics.HostTag != "custom-host" {
 		t.Errorf("host_tag mismatch: got %q", loaded.Metrics.HostTag)
+	}
+	if !loaded.Metrics.OmitHostTag {
+		t.Error("expected omit_host_tag to round-trip as true")
 	}
 }
 
