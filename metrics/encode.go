@@ -6,6 +6,7 @@ package metrics
 import (
 	"bytes"
 	"strconv"
+	"strings"
 
 	"github.com/jkleinne/lazyspeed/model"
 )
@@ -72,19 +73,11 @@ func writeField(buf *bytes.Buffer, key string, value float64, first bool) {
 
 // escapeTagValue escapes comma, equals, and space in a tag value per the
 // InfluxDB line protocol spec. These are the only characters that require
-// escaping in tag keys, tag values, and field keys.
+// escaping in tag keys, tag values, and field keys. Field keys and the
+// measurement name in this encoder are hard-coded safe constants, so this
+// helper is only called on tag values in practice.
 func escapeTagValue(s string) string {
-	needsEscape := false
-	for i := 0; i < len(s); i++ {
-		switch s[i] {
-		case ',', '=', ' ':
-			needsEscape = true
-		}
-		if needsEscape {
-			break
-		}
-	}
-	if !needsEscape {
+	if !strings.ContainsAny(s, ",= ") {
 		return s
 	}
 	var sb bytes.Buffer
