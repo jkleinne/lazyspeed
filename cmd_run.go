@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jkleinne/lazyspeed/metrics"
 	"github.com/jkleinne/lazyspeed/model"
 	"github.com/jkleinne/lazyspeed/notify"
 	"github.com/jkleinne/lazyspeed/ui"
@@ -64,6 +65,11 @@ var runF runFlags
 // combining config-file endpoints with any --webhook-url flag value.
 // Initialized by runHeadlessTest before any sub-function reads it.
 var webhookCfg model.WebhookConfig
+
+// metricsCfg holds the merged metrics export configuration for the current
+// headless run. Read by dispatchResultSinks in place of threading Config
+// through every call site. Mirrors webhookCfg.
+var metricsCfg model.MetricsConfig
 
 var runCmd = &cobra.Command{
 	Use:   "run",
@@ -318,7 +324,7 @@ func runMultiServerHeadless(m *model.Model, interactive bool) {
 	})
 
 	for _, res := range results {
-		dispatchWebhooks(context.Background(), webhookCfg, res)
+		dispatchResultSinks(context.Background(), res)
 	}
 }
 
@@ -388,6 +394,7 @@ func runHeadlessTest() {
 			model.WebhookEndpoint{URL: runF.webhookURL},
 		)
 	}
+	metricsCfg = m.Config.Metrics
 
 	if runF.best > 0 || runF.serverIDs != "" || runF.favorites {
 		runMultiServerHeadless(m, interactive)
@@ -430,16 +437,25 @@ func recordResult(m *model.Model, res *model.SpeedTestResult) {
 	}
 }
 
-// dispatchWebhooks sends the result to configured webhook endpoints.
-// Errors are printed as warnings to stderr and do not affect the test result.
-func dispatchWebhooks(ctx context.Context, cfg model.WebhookConfig, result *model.SpeedTestResult) {
-	if len(cfg.Endpoints) == 0 {
-		return
-	}
+// dispatchResultSinks fans the result out to all configured result sinks
+// (webhooks and InfluxDB metrics). Each sink runs independently; errors
+// from either are printed as warnings to stderr and do not affect the
+// test result.
+func dispatchResultSinks(ctx context.Context, result *model.SpeedTestResult) {
 	client := &http.Client{}
-	errs := notify.Dispatch(ctx, client, cfg, result, version)
-	for _, e := range errs {
-		fmt.Fprintf(os.Stderr, "Warning: webhook delivery to %s failed: %v\n", e.URL, e.Err)
+
+	if len(webhookCfg.Endpoints) > 0 {
+		errs := notify.Dispatch(ctx, client, webhookCfg, result, version)
+		for _, e := range errs {
+			fmt.Fprintf(os.Stderr, "Warning: webhook delivery to %s failed: %v\n", e.URL, e.Err)
+		}
+	}
+
+	if len(metricsCfg.Endpoints) > 0 {
+		errs := metrics.Dispatch(ctx, client, metricsCfg, result)
+		for _, e := range errs {
+			fmt.Fprintf(os.Stderr, "Warning: metrics write to %s failed: %v\n", e.URL, e.Err)
+		}
 	}
 }
 
@@ -494,7 +510,7 @@ func runCountLoop(m *model.Model, server *speedtest.Server, opts model.RunOption
 			exitWithError("running test: %v", err)
 		}
 
-		dispatchWebhooks(context.Background(), webhookCfg, res)
+		dispatchResultSinks(context.Background(), res)
 
 		switch {
 		case runF.json:
@@ -546,7 +562,7 @@ func runWatchLoop(m *model.Model, server *speedtest.Server, opts model.RunOption
 			fmt.Fprintf(os.Stderr, "Error: running test: %v\n", err)
 		} else {
 			recordResult(m, res)
-			dispatchWebhooks(context.Background(), webhookCfg, res)
+			dispatchResultSinks(context.Background(), res)
 			emitWatchResult(res)
 		}
 
