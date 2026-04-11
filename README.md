@@ -146,6 +146,26 @@ export:
 
 All settings are optional: sensible defaults are used when omitted.
 
+### InfluxDB export
+
+Push speed test results to InfluxDB (v1 or v2) for graphing in Grafana. Configure one or more endpoints in `~/.config/lazyspeed/config.yaml`:
+
+```yaml
+metrics:
+  endpoints:
+    - url: "https://influx.example.com:8086"
+      v2:
+        token: "your-influx-token"
+        org: "my-org"
+        bucket: "speedtest"
+  timeout: 10
+  max_retries: 1
+```
+
+For InfluxDB v1, use a `v1:` block with `database`, optional `username`, and optional `password` instead. Exactly one of `v1:` or `v2:` must be set per endpoint.
+
+Metrics writes fire after every successful speed test in both headless (`lazyspeed run`) and interactive (TUI) modes. Failures are logged as warnings and do not fail the test itself.
+
 ## Comparison
 
 | Feature | LazySpeed | Ookla CLI | fast-cli | speedtest-go CLI |
