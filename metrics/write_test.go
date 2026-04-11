@@ -240,7 +240,7 @@ type recordingBody struct {
 	closed bool
 }
 
-func (r *recordingBody) Read(p []byte) (int, error) {
+func (r *recordingBody) Read(_ []byte) (int, error) {
 	r.read = true
 	return 0, io.EOF
 }

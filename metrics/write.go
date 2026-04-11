@@ -35,6 +35,9 @@ type Sender interface {
 }
 
 // WriteError records a write failure for a specific endpoint.
+// URL holds the configured base URL (not the constructed write URL with
+// query parameters), so error messages name the endpoint the user
+// configured rather than leaking internal path details.
 type WriteError struct {
 	URL string
 	Err error
