@@ -13,7 +13,9 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jkleinne/lazyspeed/diag"
+	"github.com/jkleinne/lazyspeed/metrics"
 	"github.com/jkleinne/lazyspeed/model"
+	"github.com/jkleinne/lazyspeed/notify"
 	"github.com/jkleinne/lazyspeed/ui"
 	"github.com/showwin/speedtest-go/speedtest"
 )
@@ -251,6 +253,97 @@ func TestUpdateExportDoneMsgError(t *testing.T) {
 
 	if !strings.Contains(newS.model.ExportMessage, "write failed") {
 		t.Errorf("Expected error text in ExportMessage, got %q", newS.model.ExportMessage)
+	}
+}
+
+func TestUpdateResultSinksDoneMsg_BothEmpty(t *testing.T) {
+	m := model.NewDefaultModel()
+	m.Warning = "preexisting"
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	newModel, _ := s.Update(resultSinksDoneMsg{})
+	newS := newModel.(*speedTest)
+
+	if newS.model.Warning != "preexisting" {
+		t.Errorf("Expected Warning to be preserved when no sink errored, got %q", newS.model.Warning)
+	}
+}
+
+func TestUpdateResultSinksDoneMsg_WebhookErrorsOnly(t *testing.T) {
+	m := model.NewDefaultModel()
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	msg := resultSinksDoneMsg{
+		webhookErrs: []notify.DeliveryError{
+			{URL: "https://hooks.example.com", Err: errors.New("connection refused")},
+		},
+	}
+	newModel, _ := s.Update(msg)
+	newS := newModel.(*speedTest)
+
+	if !strings.HasPrefix(newS.model.Warning, "Webhook: ") {
+		t.Errorf("Expected Warning to start with \"Webhook: \", got %q", newS.model.Warning)
+	}
+	if !strings.Contains(newS.model.Warning, "connection refused") {
+		t.Errorf("Expected error text in Warning, got %q", newS.model.Warning)
+	}
+	if strings.Contains(newS.model.Warning, "Metrics:") {
+		t.Errorf("Did not expect Metrics prefix when only webhook errored, got %q", newS.model.Warning)
+	}
+}
+
+func TestUpdateResultSinksDoneMsg_MetricsErrorsOnly(t *testing.T) {
+	m := model.NewDefaultModel()
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	msg := resultSinksDoneMsg{
+		metricsErrs: []metrics.WriteError{
+			{URL: "https://influx.example.com", Err: errors.New("status 500")},
+		},
+	}
+	newModel, _ := s.Update(msg)
+	newS := newModel.(*speedTest)
+
+	if !strings.HasPrefix(newS.model.Warning, "Metrics: ") {
+		t.Errorf("Expected Warning to start with \"Metrics: \", got %q", newS.model.Warning)
+	}
+	if !strings.Contains(newS.model.Warning, "status 500") {
+		t.Errorf("Expected error text in Warning, got %q", newS.model.Warning)
+	}
+	if strings.Contains(newS.model.Warning, "Webhook:") {
+		t.Errorf("Did not expect Webhook prefix when only metrics errored, got %q", newS.model.Warning)
+	}
+}
+
+func TestUpdateResultSinksDoneMsg_BothHaveErrors(t *testing.T) {
+	m := model.NewDefaultModel()
+	s := speedTest{model: m, spinner: ui.DefaultSpinner}
+
+	msg := resultSinksDoneMsg{
+		webhookErrs: []notify.DeliveryError{
+			{URL: "https://hooks.example.com", Err: errors.New("timeout")},
+		},
+		metricsErrs: []metrics.WriteError{
+			{URL: "https://influx.example.com", Err: errors.New("unauthorized")},
+		},
+	}
+	newModel, _ := s.Update(msg)
+	newS := newModel.(*speedTest)
+
+	if !strings.Contains(newS.model.Warning, "Webhook: ") {
+		t.Errorf("Expected Webhook prefix in Warning, got %q", newS.model.Warning)
+	}
+	if !strings.Contains(newS.model.Warning, "Metrics: ") {
+		t.Errorf("Expected Metrics prefix in Warning, got %q", newS.model.Warning)
+	}
+	if !strings.Contains(newS.model.Warning, " | ") {
+		t.Errorf("Expected cross-sink separator \" | \" in Warning, got %q", newS.model.Warning)
+	}
+	if !strings.Contains(newS.model.Warning, "timeout") {
+		t.Errorf("Expected webhook error text in Warning, got %q", newS.model.Warning)
+	}
+	if !strings.Contains(newS.model.Warning, "unauthorized") {
+		t.Errorf("Expected metrics error text in Warning, got %q", newS.model.Warning)
 	}
 }
 
