@@ -10,7 +10,7 @@ require (
 	github.com/muesli/termenv v0.16.0
 	github.com/showwin/speedtest-go v1.7.10
 	github.com/spf13/cobra v1.10.2
-	golang.org/x/net v0.52.0
+	golang.org/x/net v0.53.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -38,6 +38,6 @@ require (
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/sys v0.42.0 // indirect
-	golang.org/x/text v0.35.0 // indirect
+	golang.org/x/sys v0.43.0 // indirect
+	golang.org/x/text v0.36.0 // indirect
 )
