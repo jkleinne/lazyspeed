@@ -234,6 +234,103 @@ func (c *Config) ExportDir() (string, error) {
 	return dir, nil
 }
 
+// overlayHistory applies non-zero history fields from partial onto cfg.
+func overlayHistory(cfg, partial *Config) {
+	if partial.History.MaxEntries > 0 {
+		cfg.History.MaxEntries = partial.History.MaxEntries
+	}
+	if partial.History.Path != "" {
+		cfg.History.Path = partial.History.Path
+	}
+}
+
+// overlayTest applies non-zero test fields from partial onto cfg.
+func overlayTest(cfg, partial *Config) {
+	if partial.Test.PingCount > 0 {
+		cfg.Test.PingCount = partial.Test.PingCount
+	}
+	if partial.Test.FetchTimeout > 0 {
+		cfg.Test.FetchTimeout = partial.Test.FetchTimeout
+	}
+	if partial.Test.TestTimeout > 0 {
+		cfg.Test.TestTimeout = partial.Test.TestTimeout
+	}
+}
+
+// overlayExport applies non-zero export fields from partial onto cfg.
+func overlayExport(cfg, partial *Config) {
+	if partial.Export.Directory != "" {
+		cfg.Export.Directory = partial.Export.Directory
+	}
+}
+
+// overlayDiagnostics applies non-zero diagnostics fields from partial onto cfg.
+func overlayDiagnostics(cfg, partial *Config) {
+	if partial.Diagnostics.MaxHops > 0 {
+		cfg.Diagnostics.MaxHops = partial.Diagnostics.MaxHops
+	}
+	if partial.Diagnostics.Timeout > 0 {
+		cfg.Diagnostics.Timeout = partial.Diagnostics.Timeout
+	}
+	if partial.Diagnostics.MaxEntries > 0 {
+		cfg.Diagnostics.MaxEntries = partial.Diagnostics.MaxEntries
+	}
+	if partial.Diagnostics.Path != "" {
+		cfg.Diagnostics.Path = partial.Diagnostics.Path
+	}
+}
+
+// overlayServers applies non-zero server fields from partial onto cfg.
+func overlayServers(cfg, partial *Config) {
+	if len(partial.Servers.FavoriteIDs) > 0 {
+		cfg.Servers.FavoriteIDs = deduplicateStrings(partial.Servers.FavoriteIDs)
+	}
+}
+
+// overlayWebhooks applies non-zero webhook fields from partial onto cfg.
+func overlayWebhooks(cfg, partial *Config) {
+	if len(partial.Webhooks.Endpoints) > 0 {
+		cfg.Webhooks.Endpoints = partial.Webhooks.Endpoints
+	}
+	if partial.Webhooks.Thresholds.MinDownload != nil {
+		cfg.Webhooks.Thresholds.MinDownload = partial.Webhooks.Thresholds.MinDownload
+	}
+	if partial.Webhooks.Thresholds.MinUpload != nil {
+		cfg.Webhooks.Thresholds.MinUpload = partial.Webhooks.Thresholds.MinUpload
+	}
+	if partial.Webhooks.Thresholds.MaxPing != nil {
+		cfg.Webhooks.Thresholds.MaxPing = partial.Webhooks.Thresholds.MaxPing
+	}
+	if partial.Webhooks.Thresholds.MaxJitter != nil {
+		cfg.Webhooks.Thresholds.MaxJitter = partial.Webhooks.Thresholds.MaxJitter
+	}
+	if partial.Webhooks.Timeout > 0 {
+		cfg.Webhooks.Timeout = partial.Webhooks.Timeout
+	}
+	if partial.Webhooks.MaxRetries > 0 {
+		cfg.Webhooks.MaxRetries = partial.Webhooks.MaxRetries
+	}
+}
+
+// overlayMetrics applies non-zero metrics fields from partial onto cfg.
+func overlayMetrics(cfg, partial *Config) {
+	if len(partial.Metrics.Endpoints) > 0 {
+		cfg.Metrics.Endpoints = partial.Metrics.Endpoints
+	}
+	if partial.Metrics.Timeout > 0 {
+		cfg.Metrics.Timeout = partial.Metrics.Timeout
+	}
+	if partial.Metrics.MaxRetries > 0 {
+		cfg.Metrics.MaxRetries = partial.Metrics.MaxRetries
+	}
+	if partial.Metrics.HostTag != "" {
+		cfg.Metrics.HostTag = partial.Metrics.HostTag
+	}
+	if partial.Metrics.OmitHostTag {
+		cfg.Metrics.OmitHostTag = true
+	}
+}
+
 // LoadConfig reads ~/.config/lazyspeed/config.yaml, returning defaults for any
 // missing file or unspecified fields. Returns an error only on YAML parse failures.
 func LoadConfig() (*Config, error) {
@@ -259,80 +356,16 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config file: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
-	// Overlay non-zero partial values onto defaults. Each field must be checked
-	// individually — adding a new config field requires adding a corresponding
-	// overlay line here. This is a maintenance hazard: if a new field is added
-	// to the Config struct but not to this overlay, it will silently use its
-	// zero value instead of the default.
-	if partial.History.MaxEntries > 0 {
-		cfg.History.MaxEntries = partial.History.MaxEntries
-	}
-	if partial.History.Path != "" {
-		cfg.History.Path = partial.History.Path
-	}
-	if partial.Test.PingCount > 0 {
-		cfg.Test.PingCount = partial.Test.PingCount
-	}
-	if partial.Test.FetchTimeout > 0 {
-		cfg.Test.FetchTimeout = partial.Test.FetchTimeout
-	}
-	if partial.Test.TestTimeout > 0 {
-		cfg.Test.TestTimeout = partial.Test.TestTimeout
-	}
-	if partial.Export.Directory != "" {
-		cfg.Export.Directory = partial.Export.Directory
-	}
-	if partial.Diagnostics.MaxHops > 0 {
-		cfg.Diagnostics.MaxHops = partial.Diagnostics.MaxHops
-	}
-	if partial.Diagnostics.Timeout > 0 {
-		cfg.Diagnostics.Timeout = partial.Diagnostics.Timeout
-	}
-	if partial.Diagnostics.MaxEntries > 0 {
-		cfg.Diagnostics.MaxEntries = partial.Diagnostics.MaxEntries
-	}
-	if partial.Diagnostics.Path != "" {
-		cfg.Diagnostics.Path = partial.Diagnostics.Path
-	}
-	if len(partial.Servers.FavoriteIDs) > 0 {
-		cfg.Servers.FavoriteIDs = deduplicateStrings(partial.Servers.FavoriteIDs)
-	}
-	if len(partial.Webhooks.Endpoints) > 0 {
-		cfg.Webhooks.Endpoints = partial.Webhooks.Endpoints
-	}
-	if partial.Webhooks.Thresholds.MinDownload != nil {
-		cfg.Webhooks.Thresholds.MinDownload = partial.Webhooks.Thresholds.MinDownload
-	}
-	if partial.Webhooks.Thresholds.MinUpload != nil {
-		cfg.Webhooks.Thresholds.MinUpload = partial.Webhooks.Thresholds.MinUpload
-	}
-	if partial.Webhooks.Thresholds.MaxPing != nil {
-		cfg.Webhooks.Thresholds.MaxPing = partial.Webhooks.Thresholds.MaxPing
-	}
-	if partial.Webhooks.Thresholds.MaxJitter != nil {
-		cfg.Webhooks.Thresholds.MaxJitter = partial.Webhooks.Thresholds.MaxJitter
-	}
-	if partial.Webhooks.Timeout > 0 {
-		cfg.Webhooks.Timeout = partial.Webhooks.Timeout
-	}
-	if partial.Webhooks.MaxRetries > 0 {
-		cfg.Webhooks.MaxRetries = partial.Webhooks.MaxRetries
-	}
-	if len(partial.Metrics.Endpoints) > 0 {
-		cfg.Metrics.Endpoints = partial.Metrics.Endpoints
-	}
-	if partial.Metrics.Timeout > 0 {
-		cfg.Metrics.Timeout = partial.Metrics.Timeout
-	}
-	if partial.Metrics.MaxRetries > 0 {
-		cfg.Metrics.MaxRetries = partial.Metrics.MaxRetries
-	}
-	if partial.Metrics.HostTag != "" {
-		cfg.Metrics.HostTag = partial.Metrics.HostTag
-	}
-	if partial.Metrics.OmitHostTag {
-		cfg.Metrics.OmitHostTag = true
-	}
+	// Overlay non-zero partial values onto defaults. Each section is handled by
+	// a dedicated helper so that adding a new config field only requires updating
+	// the relevant overlay function.
+	overlayHistory(cfg, &partial)
+	overlayTest(cfg, &partial)
+	overlayExport(cfg, &partial)
+	overlayDiagnostics(cfg, &partial)
+	overlayServers(cfg, &partial)
+	overlayWebhooks(cfg, &partial)
+	overlayMetrics(cfg, &partial)
 
 	if len(cfg.Webhooks.Endpoints) > 0 {
 		if err := ValidateWebhookConfig(cfg.Webhooks); err != nil {
@@ -348,14 +381,10 @@ func LoadConfig() (*Config, error) {
 	return cfg, nil
 }
 
-// ValidateWebhookConfig checks that a WebhookConfig is self-consistent.
-// Returns an error describing the first violation found.
-// An empty Endpoints slice is always valid (webhooks disabled).
-func ValidateWebhookConfig(cfg WebhookConfig) error {
-	if len(cfg.Endpoints) == 0 {
-		return nil
-	}
-	for i, ep := range cfg.Endpoints {
+// validateWebhookEndpoints checks that each webhook endpoint has a valid URL
+// with an http or https scheme.
+func validateWebhookEndpoints(endpoints []WebhookEndpoint) error {
+	for i, ep := range endpoints {
 		if ep.URL == "" {
 			return fmt.Errorf("endpoint %d has an empty URL", i)
 		}
@@ -366,6 +395,19 @@ func ValidateWebhookConfig(cfg WebhookConfig) error {
 		if parsed.Scheme != "http" && parsed.Scheme != "https" {
 			return fmt.Errorf("endpoint %d URL %q must use http or https scheme", i, ep.URL)
 		}
+	}
+	return nil
+}
+
+// ValidateWebhookConfig checks that a WebhookConfig is self-consistent.
+// Returns an error describing the first violation found.
+// An empty Endpoints slice is always valid (webhooks disabled).
+func ValidateWebhookConfig(cfg WebhookConfig) error {
+	if len(cfg.Endpoints) == 0 {
+		return nil
+	}
+	if err := validateWebhookEndpoints(cfg.Endpoints); err != nil {
+		return err
 	}
 	if cfg.Timeout <= 0 {
 		return fmt.Errorf("webhook timeout must be > 0, got %d", cfg.Timeout)
@@ -388,14 +430,43 @@ func ValidateWebhookConfig(cfg WebhookConfig) error {
 	return nil
 }
 
-// ValidateMetricsConfig checks that a MetricsConfig is self-consistent.
-// Returns an error describing the first violation found.
-// An empty Endpoints slice is always valid (export disabled).
-func ValidateMetricsConfig(cfg MetricsConfig) error {
-	if len(cfg.Endpoints) == 0 {
-		return nil
+// validateMetricsEndpointAuth checks that exactly one auth block (V1 or V2) is
+// present and that its required fields are populated.
+func validateMetricsEndpointAuth(i int, ep MetricsEndpoint) error {
+	hasV1 := ep.V1 != nil
+	hasV2 := ep.V2 != nil
+	if !hasV1 && !hasV2 {
+		return fmt.Errorf("metrics endpoint %d has no auth block (set v1 or v2)", i)
 	}
-	for i, ep := range cfg.Endpoints {
+	if hasV1 && hasV2 {
+		return fmt.Errorf("metrics endpoint %d has both v1 and v2 set", i)
+	}
+	if hasV2 {
+		if ep.V2.Token == "" {
+			return fmt.Errorf("metrics endpoint %d v2 token is empty", i)
+		}
+		if ep.V2.Org == "" {
+			return fmt.Errorf("metrics endpoint %d v2 org is empty", i)
+		}
+		if ep.V2.Bucket == "" {
+			return fmt.Errorf("metrics endpoint %d v2 bucket is empty", i)
+		}
+	}
+	if hasV1 {
+		if ep.V1.Database == "" {
+			return fmt.Errorf("metrics endpoint %d v1 database is empty", i)
+		}
+		if ep.V1.Password != "" && ep.V1.Username == "" {
+			return fmt.Errorf("metrics endpoint %d v1 password set without username", i)
+		}
+	}
+	return nil
+}
+
+// validateMetricsEndpoints checks that each metrics endpoint has a valid URL
+// and exactly one auth block (V1 or V2) with required fields populated.
+func validateMetricsEndpoints(endpoints []MetricsEndpoint) error {
+	for i, ep := range endpoints {
 		if ep.URL == "" {
 			return fmt.Errorf("metrics endpoint %d has an empty URL", i)
 		}
@@ -406,34 +477,22 @@ func ValidateMetricsConfig(cfg MetricsConfig) error {
 		if parsed.Scheme != "http" && parsed.Scheme != "https" {
 			return fmt.Errorf("metrics endpoint %d URL %q must use http or https scheme", i, ep.URL)
 		}
+		if err := validateMetricsEndpointAuth(i, ep); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
-		hasV1 := ep.V1 != nil
-		hasV2 := ep.V2 != nil
-		if !hasV1 && !hasV2 {
-			return fmt.Errorf("metrics endpoint %d has no auth block (set v1 or v2)", i)
-		}
-		if hasV1 && hasV2 {
-			return fmt.Errorf("metrics endpoint %d has both v1 and v2 set", i)
-		}
-		if hasV2 {
-			if ep.V2.Token == "" {
-				return fmt.Errorf("metrics endpoint %d v2 token is empty", i)
-			}
-			if ep.V2.Org == "" {
-				return fmt.Errorf("metrics endpoint %d v2 org is empty", i)
-			}
-			if ep.V2.Bucket == "" {
-				return fmt.Errorf("metrics endpoint %d v2 bucket is empty", i)
-			}
-		}
-		if hasV1 {
-			if ep.V1.Database == "" {
-				return fmt.Errorf("metrics endpoint %d v1 database is empty", i)
-			}
-			if ep.V1.Password != "" && ep.V1.Username == "" {
-				return fmt.Errorf("metrics endpoint %d v1 password set without username", i)
-			}
-		}
+// ValidateMetricsConfig checks that a MetricsConfig is self-consistent.
+// Returns an error describing the first violation found.
+// An empty Endpoints slice is always valid (export disabled).
+func ValidateMetricsConfig(cfg MetricsConfig) error {
+	if len(cfg.Endpoints) == 0 {
+		return nil
+	}
+	if err := validateMetricsEndpoints(cfg.Endpoints); err != nil {
+		return err
 	}
 	if cfg.Timeout <= 0 {
 		return fmt.Errorf("metrics timeout must be > 0, got %d", cfg.Timeout)
