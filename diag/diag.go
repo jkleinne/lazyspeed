@@ -51,7 +51,7 @@ func (h *Hop) UnmarshalJSON(data []byte) error {
 		Latency float64 `json:"latency"`
 	}{Alias: (*Alias)(h)}
 	if err := json.Unmarshal(data, aux); err != nil {
-		return fmt.Errorf("failed to unmarshal hop: %v", err)
+		return fmt.Errorf("failed to unmarshal hop: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 	h.Latency = unmarshalMsAsDuration(aux.Latency)
 	return nil
@@ -83,7 +83,7 @@ func (d *DNSResult) UnmarshalJSON(data []byte) error {
 		Latency float64 `json:"latency"`
 	}{Alias: (*Alias)(d)}
 	if err := json.Unmarshal(data, aux); err != nil {
-		return fmt.Errorf("failed to unmarshal DNS result: %v", err)
+		return fmt.Errorf("failed to unmarshal DNS result: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 	d.Latency = unmarshalMsAsDuration(aux.Latency)
 	return nil
@@ -191,7 +191,7 @@ func Run(ctx context.Context, backend Backend, target string, cfg *Config) (*Res
 	}
 	hops, method, err := backend.Traceroute(ctx, target, cfg.MaxHops, resolvedIP)
 	if err != nil {
-		return nil, fmt.Errorf("failed to run traceroute: %v", err)
+		return nil, fmt.Errorf("failed to run traceroute: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 	result.Hops = hops
 	result.Method = method

@@ -20,14 +20,14 @@ var manCmd = &cobra.Command{
 			return errors.New("--dir is required")
 		}
 		if err := os.MkdirAll(manDir, 0755); err != nil {
-			return fmt.Errorf("failed to create output directory: %v", err)
+			return fmt.Errorf("failed to create output directory: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
 		header := &doc.GenManHeader{
 			Title:   "LAZYSPEED",
 			Section: "1",
 		}
 		if err := doc.GenManTree(rootCmd, header, manDir); err != nil {
-			return fmt.Errorf("failed to generate man pages: %v", err)
+			return fmt.Errorf("failed to generate man pages: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
 		fmt.Printf("Man pages written to %s\n", manDir)
 		return nil

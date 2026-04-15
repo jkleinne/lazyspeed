@@ -81,7 +81,7 @@ func (r *SpeedTestResult) UnmarshalJSON(data []byte) error {
 		Alias: (*Alias)(r),
 	}
 	if err := json.Unmarshal(data, aux); err != nil {
-		return fmt.Errorf("failed to unmarshal speed test result: %v", err)
+		return fmt.Errorf("failed to unmarshal speed test result: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 	// Prefer the canonical key; fall back to the legacy key.
 	if r.Country == "" && aux.ServerLoc != "" {
@@ -315,7 +315,7 @@ func runHeadlessDirection(ctx context.Context, htc headlessTestContext, prefix s
 	}
 	callProgressFn(htc.Opts.ProgressFn, prefix+"Testing "+dir.label+"...")
 	if err := runHeadlessTransfer(ctx, dir.label, prefix, htc.Opts.ProgressFn, dir.rateFn, dir.testFn); err != nil {
-		return 0, fmt.Errorf("failed to measure %s speed: %v", dir.label, err)
+		return 0, fmt.Errorf("failed to measure %s speed: %v", dir.label, err) //nolint:errorlint // project convention: %v not %w
 	}
 	speed := dir.rawSpeedFn() / bytesPerMbit
 	doneLabel := strings.ToUpper(dir.label[:1]) + dir.label[1:]
@@ -417,7 +417,7 @@ func runTransferPhase(
 		return 0, ctx.Err()
 	}
 	if err != nil {
-		return 0, fmt.Errorf("%s test failed: %v", phase.label, err)
+		return 0, fmt.Errorf("%s test failed: %v", phase.label, err) //nolint:errorlint // project convention: %v not %w
 	}
 	return rawSpeed() / bytesPerMbit, nil
 }
@@ -558,7 +558,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 
 	pr, err := runPingPhase(ctx, m.backend, server, m.Config.PingCount(), updateChan)
 	if err != nil {
-		return fmt.Errorf("failed to measure ping: %v", err)
+		return fmt.Errorf("failed to measure ping: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 	if len(pr.pings) == 0 {
 		msg := "all ping measurements failed; ping and jitter are reported as 0"
@@ -663,7 +663,7 @@ func (m *Model) testSingleServerHeadless(ctx context.Context, htc headlessTestCo
 		callProgressFn(htc.Opts.ProgressFn, fmt.Sprintf("%sMeasuring ping (%d): %.1f ms", prefix, pingNum, ping))
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to measure ping: %v", err)
+		return nil, fmt.Errorf("failed to measure ping: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 	if msg := pingFailureMessage(pr); msg != "" {
 		return nil, fmt.Errorf("failed to measure ping: %s", msg)
@@ -745,7 +745,7 @@ func (m *Model) testSingleServer(
 		}
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to measure ping: %v", err)
+		return nil, fmt.Errorf("failed to measure ping: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 	if msg := pingFailureMessage(pr); msg != "" {
 		return nil, fmt.Errorf("failed to measure ping: %s", msg)

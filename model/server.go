@@ -34,7 +34,7 @@ func (s *ServerStore) Fetch(ctx context.Context, backend Backend) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		return fmt.Errorf("failed to fetch servers: %v", err)
+		return fmt.Errorf("failed to fetch servers: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 	slices.SortFunc(serverList, func(a, b *speedtest.Server) int {
 		return cmp.Compare(a.Latency, b.Latency)

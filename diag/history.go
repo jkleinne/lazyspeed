@@ -21,7 +21,7 @@ func AppendHistory(path string, result *Result, maxEntries int) error {
 	s := jsonstore.New[Result](path, maxEntries, historyFilePerm)
 	history, err := s.Load()
 	if err != nil {
-		return fmt.Errorf("failed to load history for append: %v", err)
+		return fmt.Errorf("failed to load history for append: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 	history = append(history, result)
 	return s.Save(history)

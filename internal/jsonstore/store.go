@@ -39,17 +39,17 @@ func (s *Store[T]) Load() ([]*T, error) {
 		if os.IsNotExist(err) {
 			return []*T{}, nil
 		}
-		return nil, fmt.Errorf("failed to read data file: %v", err)
+		return nil, fmt.Errorf("failed to read data file: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
 	var entries []*T
 	if err := json.Unmarshal(data, &entries); err != nil {
 		bakData, bakErr := os.ReadFile(s.path + backupSuffix)
 		if bakErr != nil {
-			return nil, fmt.Errorf("failed to parse data file (backup unreadable): %v", err)
+			return nil, fmt.Errorf("failed to parse data file (backup unreadable): %v", err) //nolint:errorlint // project convention: %v not %w
 		}
 		if bakUnmarshalErr := json.Unmarshal(bakData, &entries); bakUnmarshalErr != nil {
-			return nil, fmt.Errorf("failed to parse data file (backup also corrupt): main: %v, backup: %v", err, bakUnmarshalErr)
+			return nil, fmt.Errorf("failed to parse data file (backup also corrupt): main: %v, backup: %v", err, bakUnmarshalErr) //nolint:errorlint // project convention: %v not %w
 		}
 	}
 	if entries == nil {
@@ -63,7 +63,7 @@ func (s *Store[T]) Load() ([]*T, error) {
 // Skips backup if the current file contains invalid JSON.
 func (s *Store[T]) Save(entries []*T) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), dirPerm); err != nil {
-		return fmt.Errorf("failed to create directory: %v", err)
+		return fmt.Errorf("failed to create directory: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
 	if s.maxEntries > 0 && len(entries) > s.maxEntries {
@@ -72,12 +72,12 @@ func (s *Store[T]) Save(entries []*T) error {
 
 	data, err := json.MarshalIndent(entries, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to serialize data: %v", err)
+		return fmt.Errorf("failed to serialize data: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
 	tmpPath := s.path + tmpSuffix
 	if err := os.WriteFile(tmpPath, data, s.filePerm); err != nil {
-		return fmt.Errorf("failed to write data file: %v", err)
+		return fmt.Errorf("failed to write data file: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
 	// Back up current file before overwriting (best-effort, only if valid JSON)
@@ -89,7 +89,7 @@ func (s *Store[T]) Save(entries []*T) error {
 
 	if err := os.Rename(tmpPath, s.path); err != nil {
 		_ = os.Remove(tmpPath)
-		return fmt.Errorf("failed to commit data file: %v", err)
+		return fmt.Errorf("failed to commit data file: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
 	return nil

@@ -205,7 +205,7 @@ func (c *Config) ExportDir() (string, error) {
 		if dir == "~" || strings.HasPrefix(dir, "~/") {
 			home, err := os.UserHomeDir()
 			if err != nil {
-				return "", fmt.Errorf("failed to expand home directory: %v", err)
+				return "", fmt.Errorf("failed to expand home directory: %v", err) //nolint:errorlint // project convention: %v not %w
 			}
 			if dir == "~" {
 				dir = home
@@ -214,13 +214,13 @@ func (c *Config) ExportDir() (string, error) {
 			}
 		}
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			return "", fmt.Errorf("failed to create export directory: %v", err)
+			return "", fmt.Errorf("failed to create export directory: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
 		return dir, nil
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
-		return "", fmt.Errorf("could not determine working directory: %v", err)
+		return "", fmt.Errorf("could not determine working directory: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 	return cwd, nil
 }
@@ -232,7 +232,7 @@ func LoadConfig() (*Config, error) {
 
 	configPath, err := defaultConfigPath()
 	if err != nil {
-		return cfg, fmt.Errorf("failed to resolve config path: %v", err)
+		return cfg, fmt.Errorf("failed to resolve config path: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
 	data, err := os.ReadFile(configPath)
@@ -240,14 +240,14 @@ func LoadConfig() (*Config, error) {
 		if os.IsNotExist(err) {
 			return cfg, nil // No config file yet — use defaults
 		}
-		return nil, fmt.Errorf("failed to read config file: %v", err)
+		return nil, fmt.Errorf("failed to read config file: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
 	// Unmarshal into a partial struct and overlay onto defaults so unspecified
 	// fields retain their default values.
 	var partial Config
 	if err := yaml.Unmarshal(data, &partial); err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %v", err)
+		return nil, fmt.Errorf("failed to parse config file: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
 	// Overlay non-zero partial values onto defaults. Each field must be checked
@@ -327,12 +327,12 @@ func LoadConfig() (*Config, error) {
 
 	if len(cfg.Webhooks.Endpoints) > 0 {
 		if err := ValidateWebhookConfig(cfg.Webhooks); err != nil {
-			return nil, fmt.Errorf("invalid webhook config: %v", err)
+			return nil, fmt.Errorf("invalid webhook config: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
 	}
 	if len(cfg.Metrics.Endpoints) > 0 {
 		if err := ValidateMetricsConfig(cfg.Metrics); err != nil {
-			return nil, fmt.Errorf("invalid metrics config: %v", err)
+			return nil, fmt.Errorf("invalid metrics config: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
 	}
 
@@ -352,7 +352,7 @@ func ValidateWebhookConfig(cfg WebhookConfig) error {
 		}
 		parsed, err := url.Parse(ep.URL)
 		if err != nil {
-			return fmt.Errorf("endpoint %d has an invalid URL %q: %v", i, ep.URL, err)
+			return fmt.Errorf("endpoint %d has an invalid URL %q: %v", i, ep.URL, err) //nolint:errorlint // project convention: %v not %w
 		}
 		if parsed.Scheme != "http" && parsed.Scheme != "https" {
 			return fmt.Errorf("endpoint %d URL %q must use http or https scheme", i, ep.URL)
@@ -392,7 +392,7 @@ func ValidateMetricsConfig(cfg MetricsConfig) error {
 		}
 		parsed, err := url.Parse(ep.URL)
 		if err != nil {
-			return fmt.Errorf("metrics endpoint %d has an invalid URL %q: %v", i, ep.URL, err)
+			return fmt.Errorf("metrics endpoint %d has an invalid URL %q: %v", i, ep.URL, err) //nolint:errorlint // project convention: %v not %w
 		}
 		if parsed.Scheme != "http" && parsed.Scheme != "https" {
 			return fmt.Errorf("metrics endpoint %d URL %q must use http or https scheme", i, ep.URL)
@@ -468,7 +468,7 @@ func defaultConfigPath() (string, error) {
 	}
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to resolve home directory: %v", err)
+		return "", fmt.Errorf("failed to resolve home directory: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 	return filepath.Join(homeDir, ".config", "lazyspeed", "config.yaml"), nil
 }
@@ -478,7 +478,7 @@ func defaultConfigPath() (string, error) {
 func LegacyHistoryPath() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to resolve legacy history path: %v", err)
+		return "", fmt.Errorf("failed to resolve legacy history path: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 	return filepath.Join(homeDir, ".lazyspeed_history.json"), nil
 }
@@ -490,26 +490,26 @@ const configFilePerm = 0644
 func SaveConfig(cfg *Config) error {
 	configPath, err := defaultConfigPath()
 	if err != nil {
-		return fmt.Errorf("failed to resolve config path: %v", err)
+		return fmt.Errorf("failed to resolve config path: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
 	if err := os.MkdirAll(filepath.Dir(configPath), 0700); err != nil {
-		return fmt.Errorf("failed to create config directory: %v", err)
+		return fmt.Errorf("failed to create config directory: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to serialize config: %v", err)
+		return fmt.Errorf("failed to serialize config: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
 	tmpPath := configPath + ".tmp"
 	if err := os.WriteFile(tmpPath, data, configFilePerm); err != nil {
-		return fmt.Errorf("failed to write config file: %v", err)
+		return fmt.Errorf("failed to write config file: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
 	if err := os.Rename(tmpPath, configPath); err != nil {
 		_ = os.Remove(tmpPath)
-		return fmt.Errorf("failed to commit config file: %v", err)
+		return fmt.Errorf("failed to commit config file: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
 	return nil

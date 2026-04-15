@@ -57,7 +57,7 @@ func writeOne(ctx context.Context, sender Sender, ep model.MetricsEndpoint, body
 	}
 	writeURL, err := buildWriteURL(ep)
 	if err != nil {
-		return fmt.Errorf("failed to build write URL: %v", err)
+		return fmt.Errorf("failed to build write URL: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
 	var lastErr error
@@ -65,13 +65,13 @@ func writeOne(ctx context.Context, sender Sender, ep model.MetricsEndpoint, body
 
 	for attempt := range maxRetries {
 		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("cancelled: %v", err)
+			return fmt.Errorf("cancelled: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
 
 		if attempt > 0 {
 			select {
 			case <-ctx.Done():
-				return fmt.Errorf("cancelled during backoff: %v", ctx.Err())
+				return fmt.Errorf("cancelled during backoff: %v", ctx.Err()) //nolint:errorlint // project convention: %v not %w
 			case <-time.After(backoff):
 				backoff *= backoffFactor
 				if backoff > maxBackoff {
@@ -84,7 +84,7 @@ func writeOne(ctx context.Context, sender Sender, ep model.MetricsEndpoint, body
 		req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, writeURL, bytes.NewReader(body))
 		if err != nil {
 			reqCancel()
-			return fmt.Errorf("failed to create request: %v", err)
+			return fmt.Errorf("failed to create request: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
 		req.Header.Set("Content-Type", contentTypeLine)
 		applyAuth(req, ep)
@@ -92,7 +92,7 @@ func writeOne(ctx context.Context, sender Sender, ep model.MetricsEndpoint, body
 		resp, err := sender.Do(req)
 		if err != nil {
 			reqCancel()
-			lastErr = fmt.Errorf("request failed: %v", err)
+			lastErr = fmt.Errorf("request failed: %v", err) //nolint:errorlint // project convention: %v not %w
 			continue
 		}
 
@@ -122,7 +122,7 @@ func writeOne(ctx context.Context, sender Sender, ep model.MetricsEndpoint, body
 func buildWriteURL(ep model.MetricsEndpoint) (string, error) {
 	base, err := url.Parse(ep.URL)
 	if err != nil {
-		return "", fmt.Errorf("parsing base URL %q: %v", ep.URL, err)
+		return "", fmt.Errorf("parsing base URL %q: %v", ep.URL, err) //nolint:errorlint // project convention: %v not %w
 	}
 	q := url.Values{}
 	var suffix string

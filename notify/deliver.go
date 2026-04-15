@@ -40,7 +40,7 @@ func (e DeliveryError) Error() string {
 func Deliver(ctx context.Context, sender Sender, endpoints []model.WebhookEndpoint, payload Payload, timeout time.Duration, maxRetries int) []DeliveryError {
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return []DeliveryError{{URL: "(marshal)", Err: fmt.Errorf("failed to marshal payload: %v", err)}}
+		return []DeliveryError{{URL: "(marshal)", Err: fmt.Errorf("failed to marshal payload: %v", err)}} //nolint:errorlint // project convention: %v not %w
 	}
 
 	var errs []DeliveryError
@@ -60,13 +60,13 @@ func deliverOne(ctx context.Context, sender Sender, ep model.WebhookEndpoint, bo
 
 	for attempt := range maxRetries {
 		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("cancelled: %v", err)
+			return fmt.Errorf("cancelled: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
 
 		if attempt > 0 {
 			select {
 			case <-ctx.Done():
-				return fmt.Errorf("cancelled during backoff: %v", ctx.Err())
+				return fmt.Errorf("cancelled during backoff: %v", ctx.Err()) //nolint:errorlint // project convention: %v not %w
 			case <-time.After(backoff):
 				backoff *= backoffFactor
 				if backoff > maxBackoff {
@@ -79,7 +79,7 @@ func deliverOne(ctx context.Context, sender Sender, ep model.WebhookEndpoint, bo
 		req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, ep.URL, bytes.NewReader(body))
 		if err != nil {
 			reqCancel()
-			return fmt.Errorf("failed to create request: %v", err)
+			return fmt.Errorf("failed to create request: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
 		req.Header.Set("Content-Type", contentTypeJSON)
 		for k, v := range ep.Headers {
@@ -89,7 +89,7 @@ func deliverOne(ctx context.Context, sender Sender, ep model.WebhookEndpoint, bo
 		resp, err := sender.Do(req)
 		if err != nil {
 			reqCancel()
-			lastErr = fmt.Errorf("request failed: %v", err)
+			lastErr = fmt.Errorf("request failed: %v", err) //nolint:errorlint // project convention: %v not %w
 			continue
 		}
 
