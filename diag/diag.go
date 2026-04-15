@@ -3,6 +3,7 @@ package diag
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -144,7 +145,7 @@ func Run(ctx context.Context, backend Backend, target string, cfg *Config) (*Res
 
 	target = strings.TrimSpace(target)
 	if target == "" {
-		return nil, fmt.Errorf("target must not be empty")
+		return nil, errors.New("target must not be empty")
 	}
 
 	result := &Result{

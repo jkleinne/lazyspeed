@@ -23,7 +23,7 @@ func TestDispatch_SingleSuccess(t *testing.T) {
 	var capturedBody []byte
 	sender := &mockSender{DoFn: func(req *http.Request) (*http.Response, error) {
 		capturedBody, _ = io.ReadAll(req.Body)
-		return &http.Response{StatusCode: 204, Body: io.NopCloser(strings.NewReader(""))}, nil
+		return &http.Response{StatusCode: http.StatusNoContent, Body: io.NopCloser(strings.NewReader(""))}, nil
 	}}
 	cfg := model.MetricsConfig{
 		Endpoints: []model.MetricsEndpoint{
@@ -55,7 +55,7 @@ func TestDispatch_OneSucceedsOneFails(t *testing.T) {
 	sender := &mockSender{DoFn: func(req *http.Request) (*http.Response, error) {
 		call++
 		if call == 1 {
-			return &http.Response{StatusCode: 204, Body: io.NopCloser(strings.NewReader(""))}, nil
+			return &http.Response{StatusCode: http.StatusNoContent, Body: io.NopCloser(strings.NewReader(""))}, nil
 		}
 		return nil, errors.New("boom")
 	}}
@@ -80,7 +80,7 @@ func TestDispatch_OmitHostTag(t *testing.T) {
 	var body []byte
 	sender := &mockSender{DoFn: func(req *http.Request) (*http.Response, error) {
 		body, _ = io.ReadAll(req.Body)
-		return &http.Response{StatusCode: 204, Body: io.NopCloser(strings.NewReader(""))}, nil
+		return &http.Response{StatusCode: http.StatusNoContent, Body: io.NopCloser(strings.NewReader(""))}, nil
 	}}
 	cfg := model.MetricsConfig{
 		Endpoints: []model.MetricsEndpoint{

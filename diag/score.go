@@ -28,6 +28,9 @@ const (
 	gradeScoreB = 75
 	gradeScoreC = 50
 	gradeScoreD = 25
+
+	maxScore          = 100
+	percentMultiplier = 100.0
 )
 
 // grade is the letter-grade component of a QualityScore.
@@ -70,7 +73,7 @@ func ComputeScore(result *Result) QualityScore {
 			packetLossScore*(weightPacketLoss/total)
 	}
 
-	score := max(0, min(100, int(math.Round(composite*100))))
+	score := max(0, min(maxScore, int(math.Round(composite*percentMultiplier))))
 
 	grade := gradeFromScore(score)
 	return QualityScore{
@@ -136,7 +139,7 @@ func HopPacketLoss(hops []Hop) float64 {
 			timeouts++
 		}
 	}
-	return float64(timeouts) / float64(len(hops)) * 100
+	return float64(timeouts) / float64(len(hops)) * percentMultiplier
 }
 
 func gradeFromScore(score int) grade {

@@ -22,7 +22,7 @@ const shortHashLen = 7
 func GetVersionInfo() string {
 	// Prefer values injected by GoReleaser via ldflags
 	if version != "" {
-		versionLine := fmt.Sprintf("lazyspeed version %s", version)
+		versionLine := "lazyspeed version " + version
 		if date != "" {
 			versionLine += fmt.Sprintf(" (built: %s)", date)
 		}
@@ -60,7 +60,7 @@ func GetVersionInfo() string {
 		}
 	}
 
-	versionLine := fmt.Sprintf("lazyspeed version %s", fallbackVersion)
+	versionLine := "lazyspeed version " + fallbackVersion
 
 	if buildDate != "" {
 		versionLine += fmt.Sprintf(" (built: %s)", buildDate)

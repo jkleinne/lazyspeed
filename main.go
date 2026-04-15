@@ -254,7 +254,7 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			s.model.ExportMessage = fmt.Sprintf("Export failed: %v", msg.err)
 		} else {
-			s.model.ExportMessage = fmt.Sprintf("Saved to %s", msg.path)
+			s.model.ExportMessage = "Saved to " + msg.path
 		}
 		return s, nil
 
@@ -265,14 +265,14 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			for i, e := range msg.webhookErrs {
 				webhookMessages[i] = e.Error()
 			}
-			warnings = append(warnings, fmt.Sprintf("Webhook: %s", strings.Join(webhookMessages, "; ")))
+			warnings = append(warnings, "Webhook: "+strings.Join(webhookMessages, "; "))
 		}
 		if len(msg.metricsErrs) > 0 {
 			metricsMessages := make([]string, len(msg.metricsErrs))
 			for i, e := range msg.metricsErrs {
 				metricsMessages[i] = e.Error()
 			}
-			warnings = append(warnings, fmt.Sprintf("Metrics: %s", strings.Join(metricsMessages, "; ")))
+			warnings = append(warnings, "Metrics: "+strings.Join(metricsMessages, "; "))
 		}
 		if len(warnings) > 0 {
 			s.model.Warning = strings.Join(warnings, " | ")
@@ -711,7 +711,7 @@ func (s *speedTest) View() string {
 func (s *speedTest) startSpeedTest() (tea.Model, tea.Cmd) {
 	rawIdx := s.rawIndex(s.cursor)
 	if rawIdx < 0 || rawIdx >= s.model.Servers.Len() {
-		s.model.Error = fmt.Errorf("invalid server selection")
+		s.model.Error = errors.New("invalid server selection")
 		s.model.State = model.StateIdle
 		s.showHelp = false
 		return s, nil

@@ -17,6 +17,10 @@ import (
 // dashboards. Future additional measurements would be separate functions.
 const measurement = "lazyspeed_speedtest"
 
+// escapeGrowHint is the extra capacity allocated when building an escaped
+// tag value. Accounts for a small number of backslash-escape sequences.
+const escapeGrowHint = 4
+
 // EncodePoint serializes one speed test result as a single line of InfluxDB
 // line protocol, terminated with a newline. The host parameter is the
 // already-resolved host tag value; passing an empty string omits the host
@@ -88,7 +92,7 @@ func escapeTagValue(s string) string {
 		return s
 	}
 	var sb strings.Builder
-	sb.Grow(len(s) + 4)
+	sb.Grow(len(s) + escapeGrowHint)
 	for i := 0; i < len(s); i++ {
 		c := s[i]
 		switch c {

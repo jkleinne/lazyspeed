@@ -2297,7 +2297,7 @@ func TestNewDefaultModelConfigWarning(t *testing.T) {
 }
 
 func TestMeasurePingAllFailPreservesError(t *testing.T) {
-	pingErr := fmt.Errorf("connection refused")
+	pingErr := errors.New("connection refused")
 	backend := &mockBackend{
 		pingTestFn: func(_ *speedtest.Server, _ func(latency time.Duration)) error {
 			return pingErr

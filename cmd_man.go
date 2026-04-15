@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -16,7 +17,7 @@ var manCmd = &cobra.Command{
 	Hidden: true,
 	RunE: func(_ *cobra.Command, _ []string) error {
 		if manDir == "" {
-			return fmt.Errorf("--dir is required")
+			return errors.New("--dir is required")
 		}
 		if err := os.MkdirAll(manDir, 0755); err != nil {
 			return fmt.Errorf("failed to create output directory: %v", err)

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -82,16 +83,16 @@ var runCmd = &cobra.Command{
 			return fmt.Errorf("--best must be a positive number, got %d", runF.best)
 		}
 		if runF.best > 0 && runF.serverIDs != "" {
-			return fmt.Errorf("--best and --servers are mutually exclusive")
+			return errors.New("--best and --servers are mutually exclusive")
 		}
 		if runF.best == 1 {
 			return fmt.Errorf("--best must be at least 2, got %d", runF.best)
 		}
 		if runF.count > 1 && runF.best > 0 {
-			return fmt.Errorf("--count and --best are mutually exclusive")
+			return errors.New("--count and --best are mutually exclusive")
 		}
 		if runF.count > 1 && runF.serverIDs != "" {
-			return fmt.Errorf("--count and --servers are mutually exclusive")
+			return errors.New("--count and --servers are mutually exclusive")
 		}
 		if runF.serverIDs != "" {
 			ids := splitServerIDs(runF.serverIDs)
@@ -101,16 +102,16 @@ var runCmd = &cobra.Command{
 		}
 		if runF.favorites {
 			if runF.serverID != "" {
-				return fmt.Errorf("--favorites and --server are mutually exclusive")
+				return errors.New("--favorites and --server are mutually exclusive")
 			}
 			if runF.serverIDs != "" {
-				return fmt.Errorf("--favorites and --servers are mutually exclusive")
+				return errors.New("--favorites and --servers are mutually exclusive")
 			}
 			if runF.best > 0 {
-				return fmt.Errorf("--favorites and --best are mutually exclusive")
+				return errors.New("--favorites and --best are mutually exclusive")
 			}
 			if runF.count > 1 {
-				return fmt.Errorf("--favorites and --count are mutually exclusive")
+				return errors.New("--favorites and --count are mutually exclusive")
 			}
 		}
 		if runF.watch > 0 {
@@ -118,19 +119,19 @@ var runCmd = &cobra.Command{
 				return fmt.Errorf("--watch interval must be at least 1m, got %s", runF.watch)
 			}
 			if runF.best > 0 {
-				return fmt.Errorf("--watch and --best are mutually exclusive")
+				return errors.New("--watch and --best are mutually exclusive")
 			}
 			if runF.serverIDs != "" {
-				return fmt.Errorf("--watch and --servers are mutually exclusive")
+				return errors.New("--watch and --servers are mutually exclusive")
 			}
 			if runF.favorites {
-				return fmt.Errorf("--watch and --favorites are mutually exclusive")
+				return errors.New("--watch and --favorites are mutually exclusive")
 			}
 		}
 		if runF.webhookURL != "" {
 			parsed, err := url.Parse(runF.webhookURL)
 			if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-				return fmt.Errorf("--webhook-url must be a valid http:// or https:// URL")
+				return errors.New("--webhook-url must be a valid http:// or https:// URL")
 			}
 		}
 		return nil

@@ -26,11 +26,11 @@ func (m *mockSender) Do(req *http.Request) (*http.Response, error) {
 	if m.DoFn != nil {
 		return m.DoFn(req)
 	}
-	return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(""))}, nil
+	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))}, nil
 }
 
 func okResponse() *http.Response {
-	return &http.Response{StatusCode: 204, Body: io.NopCloser(strings.NewReader(""))}
+	return &http.Response{StatusCode: http.StatusNoContent, Body: io.NopCloser(strings.NewReader(""))}
 }
 
 func v2Endpoint() model.MetricsEndpoint {
@@ -55,7 +55,7 @@ func TestWriteOne_Success2xx(t *testing.T) {
 
 func TestWriteOne_4xxPermanent(t *testing.T) {
 	sender := &mockSender{DoFn: func(*http.Request) (*http.Response, error) {
-		return &http.Response{StatusCode: 401, Body: io.NopCloser(strings.NewReader(""))}, nil
+		return &http.Response{StatusCode: http.StatusUnauthorized, Body: io.NopCloser(strings.NewReader(""))}, nil
 	}}
 	err := writeOne(context.Background(), sender, v2Endpoint(), []byte("line\n"), time.Second, 3)
 	if err == nil {
@@ -68,7 +68,7 @@ func TestWriteOne_4xxPermanent(t *testing.T) {
 
 func TestWriteOne_5xxRetriedThenFails(t *testing.T) {
 	sender := &mockSender{DoFn: func(*http.Request) (*http.Response, error) {
-		return &http.Response{StatusCode: 500, Body: io.NopCloser(strings.NewReader(""))}, nil
+		return &http.Response{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(strings.NewReader(""))}, nil
 	}}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -98,7 +98,7 @@ func TestWriteOne_NetworkErrorRetried(t *testing.T) {
 
 func TestWriteOne_ContextCancelledDuringBackoff(t *testing.T) {
 	sender := &mockSender{DoFn: func(*http.Request) (*http.Response, error) {
-		return &http.Response{StatusCode: 500, Body: io.NopCloser(strings.NewReader(""))}, nil
+		return &http.Response{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(strings.NewReader(""))}, nil
 	}}
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -267,7 +267,7 @@ func (r *recordingBody) Close() error {
 func TestWriteOne_DrainsBodyBeforeClose(t *testing.T) {
 	rb := &recordingBody{}
 	sender := &mockSender{DoFn: func(*http.Request) (*http.Response, error) {
-		return &http.Response{StatusCode: 200, Body: rb}, nil
+		return &http.Response{StatusCode: http.StatusOK, Body: rb}, nil
 	}}
 	if err := writeOne(context.Background(), sender, v2Endpoint(), []byte("line\n"), time.Second, 1); err != nil {
 		t.Fatalf("unexpected error: %v", err)

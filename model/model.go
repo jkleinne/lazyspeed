@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -553,7 +554,7 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		return err
 	}
 
-	sendUpdate(progressServer, fmt.Sprintf("Testing with server: %s", server.Name), updateChan)
+	sendUpdate(progressServer, "Testing with server: "+server.Name, updateChan)
 
 	pr, err := runPingPhase(ctx, m.backend, server, m.Config.PingCount(), updateChan)
 	if err != nil {
@@ -800,7 +801,7 @@ func (m *Model) RunMultiServer(
 
 	if err := m.fetchNetworkInfo(ctx, updateChan); err != nil {
 		m.State = StateIdle
-		m.Error = fmt.Errorf("test cancelled")
+		m.Error = errors.New("test cancelled")
 		return nil, nil
 	}
 

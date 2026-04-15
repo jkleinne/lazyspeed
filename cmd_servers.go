@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"text/tabwriter"
@@ -41,10 +42,10 @@ var serversCmd = &cobra.Command{
 	Short: "List available speed test servers",
 	RunE: func(_ *cobra.Command, _ []string) error {
 		if serversF.pin != "" && serversF.unpin != "" {
-			return fmt.Errorf("--pin and --unpin are mutually exclusive")
+			return errors.New("--pin and --unpin are mutually exclusive")
 		}
 		if (serversF.pin != "" || serversF.unpin != "") && serversF.favorites {
-			return fmt.Errorf("--pin/--unpin and --favorites are mutually exclusive")
+			return errors.New("--pin/--unpin and --favorites are mutually exclusive")
 		}
 
 		if serversF.pin != "" {
@@ -68,7 +69,7 @@ var serversCmd = &cobra.Command{
 func filterFavoriteServers(servers []model.Server, cfg *model.Config) ([]model.Server, error) {
 	favIDs := cfg.Servers.FavoriteIDs
 	if len(favIDs) == 0 {
-		return nil, fmt.Errorf("no favorites configured; use 'lazyspeed servers --pin <id>' to add favorites")
+		return nil, errors.New("no favorites configured; use 'lazyspeed servers --pin <id>' to add favorites")
 	}
 	favSet := cfg.FavoriteIDSet()
 	filtered := make([]model.Server, 0, len(favIDs))
