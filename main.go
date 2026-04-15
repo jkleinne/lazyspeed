@@ -464,10 +464,11 @@ func (s *speedTest) toggleFavorite() (tea.Model, tea.Cmd) {
 	favs := s.model.Config.Servers.FavoriteIDs
 	idx := favoriteIndex(favs, serverID)
 	if idx >= 0 {
-		s.model.Config.Servers.FavoriteIDs = append(favs[:idx], favs[idx+1:]...)
+		favs = append(favs[:idx], favs[idx+1:]...)
 	} else {
-		s.model.Config.Servers.FavoriteIDs = append(favs, serverID)
+		favs = append(favs, serverID)
 	}
+	s.model.Config.Servers.FavoriteIDs = favs
 
 	if err := model.SaveConfig(s.model.Config); err != nil {
 		s.model.Warning = fmt.Sprintf("could not save config: %v", err)

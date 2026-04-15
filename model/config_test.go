@@ -91,10 +91,8 @@ func TestExportDir(t *testing.T) {
 				if dir != cwd {
 					t.Errorf("Expected CWD %q, got %q", cwd, dir)
 				}
-			} else {
-				if dir != cfg.Export.Directory {
-					t.Errorf("Expected %q, got %q", cfg.Export.Directory, dir)
-				}
+			} else if dir != cfg.Export.Directory {
+				t.Errorf("Expected %q, got %q", cfg.Export.Directory, dir)
 			}
 		})
 	}

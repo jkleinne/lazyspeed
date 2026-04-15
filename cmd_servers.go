@@ -191,7 +191,8 @@ func runUnpinServer(id string) error {
 		fmt.Printf("Server %s is not in favorites.\n", id)
 		return nil
 	}
-	m.Config.Servers.FavoriteIDs = append(favs[:idx], favs[idx+1:]...)
+	favs = append(favs[:idx], favs[idx+1:]...)
+	m.Config.Servers.FavoriteIDs = favs
 
 	if err := model.SaveConfig(m.Config); err != nil {
 		exitWithError("saving config: %v", err)
