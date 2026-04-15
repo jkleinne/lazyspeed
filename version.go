@@ -34,30 +34,37 @@ func GetVersionInfo() string {
 	buildDate := ""
 	commitHash := ""
 
-	if info, ok := debug.ReadBuildInfo(); ok {
-		if info.Main.Version != "" && info.Main.Version != "(devel)" {
-			fallbackVersion = info.Main.Version
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		versionLine := "lazyspeed version " + fallbackVersion
+		if buildDate != "" {
+			versionLine += fmt.Sprintf(" (built: %s)", buildDate)
 		}
+		return versionLine
+	}
 
-		for _, setting := range info.Settings {
-			switch setting.Key {
-			case "vcs.time":
-				t, err := time.Parse(time.RFC3339, setting.Value)
-				if err == nil {
-					buildDate = t.Format("2006-01-02")
-				}
-			case "vcs.revision":
-				if len(setting.Value) > shortHashLen {
-					commitHash = setting.Value[:shortHashLen]
-				} else {
-					commitHash = setting.Value
-				}
+	if info.Main.Version != "" && info.Main.Version != "(devel)" {
+		fallbackVersion = info.Main.Version
+	}
+
+	for _, setting := range info.Settings {
+		switch setting.Key {
+		case "vcs.time":
+			t, err := time.Parse(time.RFC3339, setting.Value)
+			if err == nil {
+				buildDate = t.Format("2006-01-02")
+			}
+		case "vcs.revision":
+			if len(setting.Value) > shortHashLen {
+				commitHash = setting.Value[:shortHashLen]
+			} else {
+				commitHash = setting.Value
 			}
 		}
+	}
 
-		if fallbackVersion == "dev" && commitHash != "" {
-			fallbackVersion = fmt.Sprintf("dev (%s)", commitHash)
-		}
+	if fallbackVersion == "dev" && commitHash != "" {
+		fallbackVersion = fmt.Sprintf("dev (%s)", commitHash)
 	}
 
 	versionLine := "lazyspeed version " + fallbackVersion

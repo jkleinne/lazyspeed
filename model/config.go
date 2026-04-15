@@ -197,32 +197,41 @@ func (c *Config) PingCount() int {
 	return defaultPingCount
 }
 
+// expandTilde replaces a leading "~" or "~/" in dir with the user's home
+// directory. Returns dir unchanged if it does not start with "~".
+func expandTilde(dir string) (string, error) {
+	if dir != "~" && !strings.HasPrefix(dir, "~/") {
+		return dir, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to expand home directory: %v", err) //nolint:errorlint // project convention: %v not %w
+	}
+	if dir == "~" {
+		return home, nil
+	}
+	return filepath.Join(home, dir[2:]), nil
+}
+
 // ExportDir resolves the configured export directory, creating it if it does
 // not exist. Falls back to the current working directory if none is configured.
 func (c *Config) ExportDir() (string, error) {
-	if c.Export.Directory != "" {
-		dir := c.Export.Directory
-		if dir == "~" || strings.HasPrefix(dir, "~/") {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return "", fmt.Errorf("failed to expand home directory: %v", err) //nolint:errorlint // project convention: %v not %w
-			}
-			if dir == "~" {
-				dir = home
-			} else {
-				dir = filepath.Join(home, dir[2:])
-			}
+	if c.Export.Directory == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("could not determine working directory: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return "", fmt.Errorf("failed to create export directory: %v", err) //nolint:errorlint // project convention: %v not %w
-		}
-		return dir, nil
+		return cwd, nil
 	}
-	cwd, err := os.Getwd()
+
+	dir, err := expandTilde(c.Export.Directory)
 	if err != nil {
-		return "", fmt.Errorf("could not determine working directory: %v", err) //nolint:errorlint // project convention: %v not %w
+		return "", err
 	}
-	return cwd, nil
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create export directory: %v", err) //nolint:errorlint // project convention: %v not %w
+	}
+	return dir, nil
 }
 
 // LoadConfig reads ~/.config/lazyspeed/config.yaml, returning defaults for any

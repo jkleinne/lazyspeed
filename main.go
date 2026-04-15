@@ -377,14 +377,15 @@ func (s *speedTest) handleDiagComplete(msg diagCompleteMsg) (tea.Model, tea.Cmd)
 	if msg.err != nil {
 		s.model.Error = msg.err
 		s.viewState = ViewMain
-	} else {
-		s.diagResult = msg.result
-		s.viewState = ViewDiagCompact
-		cfg := diagConfig(s.model.Config.Diagnostics)
-		if cfg.MaxEntries > 0 {
-			if err := diag.AppendHistory(cfg.Path, msg.result, cfg.MaxEntries); err != nil {
-				s.model.Warning = fmt.Sprintf("failed to persist diagnostics history: %v", err)
-			}
+		return s, nil
+	}
+
+	s.diagResult = msg.result
+	s.viewState = ViewDiagCompact
+	cfg := diagConfig(s.model.Config.Diagnostics)
+	if cfg.MaxEntries > 0 {
+		if err := diag.AppendHistory(cfg.Path, msg.result, cfg.MaxEntries); err != nil {
+			s.model.Warning = fmt.Sprintf("failed to persist diagnostics history: %v", err)
 		}
 	}
 	return s, nil
