@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -19,6 +20,26 @@ import (
 	"github.com/jkleinne/lazyspeed/ui"
 	"github.com/showwin/speedtest-go/speedtest"
 	"github.com/spf13/cobra"
+)
+
+// runMode controls whether the headless runner prints human-readable progress.
+type runMode int
+
+const (
+	// runInteractive prints progress and server info to stderr.
+	runInteractive runMode = iota
+	// runHeadless suppresses interactive progress output.
+	runHeadless
+)
+
+// comparisonMark indicates whether a comparison row holds the best value.
+type comparisonMark int
+
+const (
+	// markNone means the row is not a best-value row.
+	markNone comparisonMark = iota
+	// markBest means the row holds the best value in at least one metric.
+	markBest
 )
 
 const (
@@ -82,16 +103,16 @@ var runCmd = &cobra.Command{
 			return fmt.Errorf("--best must be a positive number, got %d", runF.best)
 		}
 		if runF.best > 0 && runF.serverIDs != "" {
-			return fmt.Errorf("--best and --servers are mutually exclusive")
+			return errors.New("--best and --servers are mutually exclusive")
 		}
 		if runF.best == 1 {
 			return fmt.Errorf("--best must be at least 2, got %d", runF.best)
 		}
 		if runF.count > 1 && runF.best > 0 {
-			return fmt.Errorf("--count and --best are mutually exclusive")
+			return errors.New("--count and --best are mutually exclusive")
 		}
 		if runF.count > 1 && runF.serverIDs != "" {
-			return fmt.Errorf("--count and --servers are mutually exclusive")
+			return errors.New("--count and --servers are mutually exclusive")
 		}
 		if runF.serverIDs != "" {
 			ids := splitServerIDs(runF.serverIDs)
@@ -101,16 +122,16 @@ var runCmd = &cobra.Command{
 		}
 		if runF.favorites {
 			if runF.serverID != "" {
-				return fmt.Errorf("--favorites and --server are mutually exclusive")
+				return errors.New("--favorites and --server are mutually exclusive")
 			}
 			if runF.serverIDs != "" {
-				return fmt.Errorf("--favorites and --servers are mutually exclusive")
+				return errors.New("--favorites and --servers are mutually exclusive")
 			}
 			if runF.best > 0 {
-				return fmt.Errorf("--favorites and --best are mutually exclusive")
+				return errors.New("--favorites and --best are mutually exclusive")
 			}
 			if runF.count > 1 {
-				return fmt.Errorf("--favorites and --count are mutually exclusive")
+				return errors.New("--favorites and --count are mutually exclusive")
 			}
 		}
 		if runF.watch > 0 {
@@ -118,19 +139,19 @@ var runCmd = &cobra.Command{
 				return fmt.Errorf("--watch interval must be at least 1m, got %s", runF.watch)
 			}
 			if runF.best > 0 {
-				return fmt.Errorf("--watch and --best are mutually exclusive")
+				return errors.New("--watch and --best are mutually exclusive")
 			}
 			if runF.serverIDs != "" {
-				return fmt.Errorf("--watch and --servers are mutually exclusive")
+				return errors.New("--watch and --servers are mutually exclusive")
 			}
 			if runF.favorites {
-				return fmt.Errorf("--watch and --favorites are mutually exclusive")
+				return errors.New("--watch and --favorites are mutually exclusive")
 			}
 		}
 		if runF.webhookURL != "" {
 			parsed, err := url.Parse(runF.webhookURL)
 			if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-				return fmt.Errorf("--webhook-url must be a valid http:// or https:// URL")
+				return errors.New("--webhook-url must be a valid http:// or https:// URL")
 			}
 		}
 		return nil
@@ -175,8 +196,8 @@ func splitServerIDs(raw string) []string {
 
 // prepareRunServer fetches the server list and resolves the target server index.
 // It exits the process on failure (no servers found, server ID not found).
-func prepareRunServer(m *model.Model, serverID string, interactive bool) int {
-	if interactive {
+func prepareRunServer(m *model.Model, serverID string, mode runMode) int {
+	if mode == runInteractive {
 		fmt.Println("Fetching server list...")
 	}
 	fetchServersOrExit(m)
@@ -194,7 +215,7 @@ func prepareRunServer(m *model.Model, serverID string, interactive bool) int {
 		serverIdx = idx
 	}
 
-	if interactive {
+	if mode == runInteractive {
 		server := m.Servers.Raw()[serverIdx]
 		fmt.Printf("Selected server: %s (%s)\n", server.Name, server.Country)
 	}
@@ -204,29 +225,26 @@ func prepareRunServer(m *model.Model, serverID string, interactive bool) int {
 // writeRunResults emits collected JSON or CSV results after all test runs complete.
 // JSON is emitted once after all runs so that --count N>1 produces valid JSON
 // (emitting per-iteration would produce concatenated bare objects).
-func writeRunResults(jsonResults []*model.SpeedTestResult, csvRows [][]string, outputJSON, outputCSV bool) {
-	if !outputJSON && !outputCSV {
-		return
-	}
-
-	if outputJSON {
+func writeRunResults(jsonResults []*model.SpeedTestResult, csvRows [][]string, format outputFormat) {
+	switch format {
+	case outputJSON:
 		data, err := marshalJSONResults(jsonResults)
 		if err != nil {
 			exitWithError("serialising results: %v", err)
 		}
 		fmt.Println(string(data))
-	}
-
-	if outputCSV {
+	case outputCSV:
 		writeCSVRows(model.SpeedTestCSVHeader(), csvRows)
+	case outputTable:
+		// Table output is handled inline by the caller; nothing to emit here.
 	}
 }
 
 // resolveMultiServers resolves the server list for multi-server flags.
 // For --best N it returns the first N servers from the already-sorted (by latency) list.
 // For --servers it looks up each ID and exits on any missing ID.
-func resolveMultiServers(m *model.Model, interactive bool) []*speedtest.Server {
-	if interactive {
+func resolveMultiServers(m *model.Model, mode runMode) []*speedtest.Server {
+	if mode == runInteractive {
 		fmt.Println("Fetching server list...")
 	}
 	fetchServersOrExit(m)
@@ -276,14 +294,14 @@ func resolveMultiServers(m *model.Model, interactive bool) []*speedtest.Server {
 }
 
 // runMultiServerHeadless is the multi-server CLI execution path for --best and --servers.
-func runMultiServerHeadless(m *model.Model, interactive bool) {
-	servers := resolveMultiServers(m, interactive)
+func runMultiServerHeadless(m *model.Model, mode runMode) {
+	servers := resolveMultiServers(m, mode)
 
 	opts := model.RunOptions{
 		SkipDownload: runF.noDownload,
 		SkipUpload:   runF.noUpload,
 	}
-	if interactive {
+	if mode == runInteractive {
 		opts.ProgressFn = interactiveProgressFn()
 	}
 
@@ -296,7 +314,7 @@ func runMultiServerHeadless(m *model.Model, interactive bool) {
 	defer cancel()
 
 	results, serverErrors := m.RunMultiServerHeadless(ctx, servers, opts)
-	if interactive {
+	if mode == runInteractive {
 		fmt.Fprint(os.Stderr, "\n")
 	}
 
@@ -329,9 +347,9 @@ func runMultiServerHeadless(m *model.Model, interactive bool) {
 }
 
 // formatComparisonRow formats a single row for the headless comparison table.
-func formatComparisonRow(res *model.SpeedTestResult, isBest bool) string {
+func formatComparisonRow(res *model.SpeedTestResult, mark comparisonMark) string {
 	star := ""
-	if isBest {
+	if mark == markBest {
 		star = comparisonStarMarker
 	}
 	return fmt.Sprintf("%-*s  %-*s  %*.2f  %*.2f  %*.2f  %*.2f  %*.2f%s",
@@ -375,8 +393,11 @@ func formatComparisonTable(results []*model.SpeedTestResult) string {
 	sb.WriteByte('\n')
 
 	for i, res := range results {
-		isBest := i == bm.DownloadIdx || i == bm.UploadIdx || i == bm.PingIdx || i == bm.JitterIdx
-		sb.WriteString(formatComparisonRow(res, isBest))
+		mark := markNone
+		if i == bm.DownloadIdx || i == bm.UploadIdx || i == bm.PingIdx || i == bm.JitterIdx {
+			mark = markBest
+		}
+		sb.WriteString(formatComparisonRow(res, mark))
 		sb.WriteByte('\n')
 	}
 
@@ -385,7 +406,10 @@ func formatComparisonTable(results []*model.SpeedTestResult) string {
 
 func runHeadlessTest() {
 	m := model.NewDefaultModel()
-	interactive := runIsInteractive()
+	mode := runHeadless
+	if runIsInteractive() {
+		mode = runInteractive
+	}
 
 	webhookCfg = m.Config.Webhooks
 	if runF.webhookURL != "" {
@@ -397,18 +421,18 @@ func runHeadlessTest() {
 	metricsCfg = m.Config.Metrics
 
 	if runF.best > 0 || runF.serverIDs != "" || runF.favorites {
-		runMultiServerHeadless(m, interactive)
+		runMultiServerHeadless(m, mode)
 		return
 	}
 
-	serverIdx := prepareRunServer(m, runF.serverID, interactive)
+	serverIdx := prepareRunServer(m, runF.serverID, mode)
 	server := m.Servers.Raw()[serverIdx]
 
 	opts := model.RunOptions{
 		SkipDownload: runF.noDownload,
 		SkipUpload:   runF.noUpload,
 	}
-	if interactive {
+	if mode == runInteractive {
 		opts.ProgressFn = interactiveProgressFn()
 	}
 
@@ -418,11 +442,11 @@ func runHeadlessTest() {
 	}
 
 	if runF.watch > 0 {
-		runWatchLoop(m, server, opts, interactive)
+		runWatchLoop(m, server, opts, mode)
 		return
 	}
 
-	runCountLoop(m, server, opts, interactive)
+	runCountLoop(m, server, opts, mode)
 }
 
 // recordResult prints any pending model warning and persists the result to history.
@@ -461,11 +485,11 @@ func dispatchResultSinks(ctx context.Context, result *model.SpeedTestResult) {
 
 // runSingleIteration runs one headless test with a timeout, records the result,
 // and returns it. Used by runCountLoop where each iteration is independent.
-func runSingleIteration(m *model.Model, server *speedtest.Server, opts model.RunOptions, interactive bool) (*model.SpeedTestResult, error) {
+func runSingleIteration(m *model.Model, server *speedtest.Server, opts model.RunOptions, mode runMode) (*model.SpeedTestResult, error) {
 	testCtx, testCancel := context.WithTimeout(context.Background(), m.Config.TestTimeoutDuration())
 	res, err := m.RunHeadless(testCtx, server, opts)
 	testCancel()
-	if interactive {
+	if mode == runInteractive {
 		fmt.Fprint(os.Stderr, "\n")
 	}
 	if err != nil {
@@ -496,7 +520,7 @@ func runWatchIteration(m *model.Model, server *speedtest.Server, opts model.RunO
 }
 
 // runCountLoop runs N sequential tests (the existing --count behavior).
-func runCountLoop(m *model.Model, server *speedtest.Server, opts model.RunOptions, interactive bool) {
+func runCountLoop(m *model.Model, server *speedtest.Server, opts model.RunOptions, mode runMode) {
 	var jsonResults []*model.SpeedTestResult
 	var csvRows [][]string
 
@@ -505,7 +529,7 @@ func runCountLoop(m *model.Model, server *speedtest.Server, opts model.RunOption
 			fmt.Printf("\n--- Test %d of %d ---\n", i+1, runF.count)
 		}
 
-		res, err := runSingleIteration(m, server, opts, interactive)
+		res, err := runSingleIteration(m, server, opts, mode)
 		if err != nil {
 			exitWithError("running test: %v", err)
 		}
@@ -524,11 +548,11 @@ func runCountLoop(m *model.Model, server *speedtest.Server, opts model.RunOption
 		}
 	}
 
-	writeRunResults(jsonResults, csvRows, runF.json, runF.csv)
+	writeRunResults(jsonResults, csvRows, resolveFormat(runF.json, runF.csv))
 }
 
 // runWatchLoop runs tests on a fixed interval until interrupted or --count is reached.
-func runWatchLoop(m *model.Model, server *speedtest.Server, opts model.RunOptions, interactive bool) {
+func runWatchLoop(m *model.Model, server *speedtest.Server, opts model.RunOptions, mode runMode) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(sigChan)
@@ -554,7 +578,7 @@ func runWatchLoop(m *model.Model, server *speedtest.Server, opts model.RunOption
 		}
 
 		res, err := runWatchIteration(m, server, opts, sigChan)
-		if interactive {
+		if mode == runInteractive {
 			fmt.Fprint(os.Stderr, "\n")
 		}
 

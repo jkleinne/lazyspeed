@@ -21,10 +21,10 @@ func ExportResult(result *model.SpeedTestResult, format string, dir string) (pat
 		path = filepath.Join(dir, fmt.Sprintf("lazyspeed_%s.json", timestampStr))
 		data, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
-			return "", fmt.Errorf("failed to serialise result: %v", err)
+			return "", fmt.Errorf("failed to serialise result: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
 		if err := os.WriteFile(path, data, 0644); err != nil {
-			return "", fmt.Errorf("failed to write file: %v", err)
+			return "", fmt.Errorf("failed to write file: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
 		return path, nil
 
@@ -32,11 +32,11 @@ func ExportResult(result *model.SpeedTestResult, format string, dir string) (pat
 		path = filepath.Join(dir, fmt.Sprintf("lazyspeed_%s.csv", timestampStr))
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
-			return "", fmt.Errorf("failed to create file: %v", err)
+			return "", fmt.Errorf("failed to create file: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
 		defer func() {
 			if cerr := f.Close(); cerr != nil && err == nil {
-				err = fmt.Errorf("failed to close export file: %v", cerr)
+				err = fmt.Errorf("failed to close export file: %v", cerr) //nolint:errorlint // project convention: %v not %w
 			}
 		}()
 		csvWriter := csv.NewWriter(f)
@@ -44,7 +44,7 @@ func ExportResult(result *model.SpeedTestResult, format string, dir string) (pat
 		_ = csvWriter.Write(result.CSVRow())
 		csvWriter.Flush()
 		if err = csvWriter.Error(); err != nil {
-			return "", fmt.Errorf("failed to flush CSV writer: %v", err)
+			return "", fmt.Errorf("failed to flush CSV writer: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
 		return path, nil
 

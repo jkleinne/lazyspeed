@@ -47,31 +47,37 @@ func (e WriteError) Error() string {
 	return fmt.Sprintf("metrics %s: %v", e.URL, e.Err)
 }
 
+// writeOpts holds retry and timeout settings for a single write attempt.
+type writeOpts struct {
+	timeout    time.Duration
+	maxRetries int
+}
+
 // writeOne sends the pre-encoded body to a single InfluxDB endpoint with
 // retry/backoff. Returns nil on success, a descriptive error on permanent
-// failure. Network errors and 5xx are retried up to maxRetries times with
+// failure. Network errors and 5xx are retried up to opts.maxRetries times with
 // exponential backoff; 4xx fails permanently on the first attempt.
-func writeOne(ctx context.Context, sender Sender, ep model.MetricsEndpoint, body []byte, timeout time.Duration, maxRetries int) error {
-	if maxRetries < 1 {
-		return fmt.Errorf("maxRetries must be >= 1, got %d", maxRetries)
+func writeOne(ctx context.Context, sender Sender, ep model.MetricsEndpoint, body []byte, opts writeOpts) error {
+	if opts.maxRetries < 1 {
+		return fmt.Errorf("maxRetries must be >= 1, got %d", opts.maxRetries)
 	}
 	writeURL, err := buildWriteURL(ep)
 	if err != nil {
-		return fmt.Errorf("failed to build write URL: %v", err)
+		return fmt.Errorf("failed to build write URL: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
 	var lastErr error
 	backoff := initialBackoff
 
-	for attempt := range maxRetries {
+	for attempt := range opts.maxRetries {
 		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("cancelled: %v", err)
+			return fmt.Errorf("cancelled: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
 
 		if attempt > 0 {
 			select {
 			case <-ctx.Done():
-				return fmt.Errorf("cancelled during backoff: %v", ctx.Err())
+				return fmt.Errorf("cancelled during backoff: %v", ctx.Err()) //nolint:errorlint // project convention: %v not %w
 			case <-time.After(backoff):
 				backoff *= backoffFactor
 				if backoff > maxBackoff {
@@ -80,11 +86,11 @@ func writeOne(ctx context.Context, sender Sender, ep model.MetricsEndpoint, body
 			}
 		}
 
-		reqCtx, reqCancel := context.WithTimeout(ctx, timeout)
+		reqCtx, reqCancel := context.WithTimeout(ctx, opts.timeout)
 		req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, writeURL, bytes.NewReader(body))
 		if err != nil {
 			reqCancel()
-			return fmt.Errorf("failed to create request: %v", err)
+			return fmt.Errorf("failed to create request: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
 		req.Header.Set("Content-Type", contentTypeLine)
 		applyAuth(req, ep)
@@ -92,7 +98,7 @@ func writeOne(ctx context.Context, sender Sender, ep model.MetricsEndpoint, body
 		resp, err := sender.Do(req)
 		if err != nil {
 			reqCancel()
-			lastErr = fmt.Errorf("request failed: %v", err)
+			lastErr = fmt.Errorf("request failed: %v", err) //nolint:errorlint // project convention: %v not %w
 			continue
 		}
 
@@ -122,7 +128,7 @@ func writeOne(ctx context.Context, sender Sender, ep model.MetricsEndpoint, body
 func buildWriteURL(ep model.MetricsEndpoint) (string, error) {
 	base, err := url.Parse(ep.URL)
 	if err != nil {
-		return "", fmt.Errorf("parsing base URL %q: %v", ep.URL, err)
+		return "", fmt.Errorf("parsing base URL %q: %v", ep.URL, err) //nolint:errorlint // project convention: %v not %w
 	}
 	q := url.Values{}
 	var suffix string

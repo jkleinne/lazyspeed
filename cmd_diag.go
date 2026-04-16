@@ -201,11 +201,11 @@ func diagCSVRow(r *diag.Result) []string {
 		r.Timestamp.Format(time.RFC3339),
 		r.Target,
 		r.Method,
-		fmt.Sprintf("%d", r.Quality.Score),
+		strconv.Itoa(r.Quality.Score),
 		string(r.Quality.Grade),
 		dnsMs,
 		dnsCached,
-		fmt.Sprintf("%d", len(r.Hops)),
+		strconv.Itoa(len(r.Hops)),
 		fmt.Sprintf("%.2f", packetLossPct),
 		fmt.Sprintf("%.3f", finalLatencyMs),
 	}

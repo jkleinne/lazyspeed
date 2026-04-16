@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -80,7 +81,7 @@ func (r *SpeedTestResult) UnmarshalJSON(data []byte) error {
 		Alias: (*Alias)(r),
 	}
 	if err := json.Unmarshal(data, aux); err != nil {
-		return fmt.Errorf("failed to unmarshal speed test result: %v", err)
+		return fmt.Errorf("failed to unmarshal speed test result: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 	// Prefer the canonical key; fall back to the legacy key.
 	if r.Country == "" && aux.ServerLoc != "" {
@@ -259,12 +260,18 @@ func callProgressFn(fn func(string), phase string) {
 	}
 }
 
+// transferDesc describes a transfer phase for progress reporting.
+type transferDesc struct {
+	label  string
+	prefix string
+}
+
 // runHeadlessTransfer executes a blocking transfer test while polling rateFn
 // to report live speed via the progress callback. This gives headless mode
 // the same real-time speed feedback the TUI gets from monitorTransferProgress.
 func runHeadlessTransfer(
 	ctx context.Context,
-	label, prefix string,
+	desc transferDesc,
 	progressFn func(string),
 	rateFn func() float64,
 	testFn func() error,
@@ -289,7 +296,7 @@ func runHeadlessTransfer(
 			return ctx.Err()
 		case <-ticker.C:
 			mbps := rateFn() / bytesPerMbit
-			callProgressFn(progressFn, fmt.Sprintf("%sTesting %s: %.2f Mbps...", prefix, label, mbps))
+			callProgressFn(progressFn, fmt.Sprintf("%sTesting %s: %.2f Mbps...", desc.prefix, desc.label, mbps))
 		}
 	}
 }
@@ -313,8 +320,8 @@ func runHeadlessDirection(ctx context.Context, htc headlessTestContext, prefix s
 		return 0, ctx.Err()
 	}
 	callProgressFn(htc.Opts.ProgressFn, prefix+"Testing "+dir.label+"...")
-	if err := runHeadlessTransfer(ctx, dir.label, prefix, htc.Opts.ProgressFn, dir.rateFn, dir.testFn); err != nil {
-		return 0, fmt.Errorf("failed to measure %s speed: %v", dir.label, err)
+	if err := runHeadlessTransfer(ctx, transferDesc{label: dir.label, prefix: prefix}, htc.Opts.ProgressFn, dir.rateFn, dir.testFn); err != nil {
+		return 0, fmt.Errorf("failed to measure %s speed: %v", dir.label, err) //nolint:errorlint // project convention: %v not %w
 	}
 	speed := dir.rawSpeedFn() / bytesPerMbit
 	doneLabel := strings.ToUpper(dir.label[:1]) + dir.label[1:]
@@ -416,7 +423,7 @@ func runTransferPhase(
 		return 0, ctx.Err()
 	}
 	if err != nil {
-		return 0, fmt.Errorf("%s test failed: %v", phase.label, err)
+		return 0, fmt.Errorf("%s test failed: %v", phase.label, err) //nolint:errorlint // project convention: %v not %w
 	}
 	return rawSpeed() / bytesPerMbit, nil
 }
@@ -553,11 +560,11 @@ func (m *Model) PerformSpeedTest(ctx context.Context, server *speedtest.Server, 
 		return err
 	}
 
-	sendUpdate(progressServer, fmt.Sprintf("Testing with server: %s", server.Name), updateChan)
+	sendUpdate(progressServer, "Testing with server: "+server.Name, updateChan)
 
 	pr, err := runPingPhase(ctx, m.backend, server, m.Config.PingCount(), updateChan)
 	if err != nil {
-		return fmt.Errorf("failed to measure ping: %v", err)
+		return fmt.Errorf("failed to measure ping: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 	if len(pr.pings) == 0 {
 		msg := "all ping measurements failed; ping and jitter are reported as 0"
@@ -662,7 +669,7 @@ func (m *Model) testSingleServerHeadless(ctx context.Context, htc headlessTestCo
 		callProgressFn(htc.Opts.ProgressFn, fmt.Sprintf("%sMeasuring ping (%d): %.1f ms", prefix, pingNum, ping))
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to measure ping: %v", err)
+		return nil, fmt.Errorf("failed to measure ping: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 	if msg := pingFailureMessage(pr); msg != "" {
 		return nil, fmt.Errorf("failed to measure ping: %s", msg)
@@ -718,33 +725,39 @@ func (m *Model) RunMultiServerHeadless(
 	})
 }
 
+// serverSlice describes a single server's portion of the overall progress range.
+type serverSlice struct {
+	baseProgress float64
+	span         float64
+	prefix       string
+}
+
 // testSingleServer runs all test phases for one server in TUI mode, using
 // runTransferPhase (with its EWMA-based live progress goroutine) for downloads
-// and uploads. Progress values are scaled into [baseProgress, baseProgress+serverSpan]
+// and uploads. Progress values are scaled into [slice.baseProgress, slice.baseProgress+slice.span]
 // so each server occupies its own slice of the overall 0–1 progress range.
 func (m *Model) testSingleServer(
 	ctx context.Context,
 	server *speedtest.Server,
-	baseProgress, serverSpan float64,
-	prefix string,
+	slice serverSlice,
 	updateChan chan<- ProgressUpdate,
 ) (*SpeedTestResult, error) {
 	scaleProgress := func(fraction float64) float64 {
-		return baseProgress + fraction*serverSpan
+		return slice.baseProgress + fraction*slice.span
 	}
 
-	sendUpdate(scaleProgress(progressPingStart), prefix+" — Measuring ping and jitter...", updateChan)
+	sendUpdate(scaleProgress(progressPingStart), slice.prefix+" — Measuring ping and jitter...", updateChan)
 	pr, err := measurePing(ctx, m.backend, server, m.Config.PingCount(), func(pingNum int, ping, jitter float64) {
 		if jitter > 0 {
 			sendUpdate(scaleProgress(progressPingStart+float64(pingNum)*progressPingIncrement),
-				fmt.Sprintf("%s — Ping: %.1f ms, Jitter: %.1f ms", prefix, ping, jitter), updateChan)
+				fmt.Sprintf("%s — Ping: %.1f ms, Jitter: %.1f ms", slice.prefix, ping, jitter), updateChan)
 		} else {
 			sendUpdate(scaleProgress(progressPingStart+float64(pingNum)*progressPingIncrement),
-				fmt.Sprintf("%s — Ping: %.1f ms", prefix, ping), updateChan)
+				fmt.Sprintf("%s — Ping: %.1f ms", slice.prefix, ping), updateChan)
 		}
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to measure ping: %v", err)
+		return nil, fmt.Errorf("failed to measure ping: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 	if msg := pingFailureMessage(pr); msg != "" {
 		return nil, fmt.Errorf("failed to measure ping: %s", msg)
@@ -752,24 +765,24 @@ func (m *Model) testSingleServer(
 
 	downloadSpeed, err := runTUITransfer(ctx, transferDirection{
 		label: "download", doneLabel: "Download",
-		startConst: progressDownloadStart, spanConst: serverSpan * progressDownloadSpan,
+		startConst: progressDownloadStart, spanConst: slice.span * progressDownloadSpan,
 		maxConst: progressDownloadMax, doneConst: progressDownloadDone,
 		rateFn:     func() float64 { return server.Context.GetEWMADownloadRate() },
 		testFn:     func() error { return m.backend.DownloadTest(server) },
 		rawSpeedFn: func() float64 { return float64(server.DLSpeed) },
-	}, prefix, scaleProgress, updateChan)
+	}, slice.prefix, scaleProgress, updateChan)
 	if err != nil {
 		return nil, err
 	}
 
 	uploadSpeed, err := runTUITransfer(ctx, transferDirection{
 		label: "upload", doneLabel: "Upload",
-		startConst: progressUploadStart, spanConst: serverSpan * progressUploadSpan,
+		startConst: progressUploadStart, spanConst: slice.span * progressUploadSpan,
 		maxConst: progressUploadMax, doneConst: progressUploadDone,
 		rateFn:     func() float64 { return server.Context.GetEWMAUploadRate() },
 		testFn:     func() error { return m.backend.UploadTest(server) },
 		rawSpeedFn: func() float64 { return float64(server.ULSpeed) },
-	}, prefix, scaleProgress, updateChan)
+	}, slice.prefix, scaleProgress, updateChan)
 	if err != nil {
 		return nil, err
 	}
@@ -800,15 +813,16 @@ func (m *Model) RunMultiServer(
 
 	if err := m.fetchNetworkInfo(ctx, updateChan); err != nil {
 		m.State = StateIdle
-		m.Error = fmt.Errorf("test cancelled")
+		m.Error = errors.New("test cancelled")
 		return nil, nil
 	}
 
 	results, serverErrors := m.runServerLoop(ctx, servers, func(ctx context.Context, server *speedtest.Server, i, total int) (*SpeedTestResult, error) {
-		baseProgress := float64(i) / float64(total)
-		serverSpan := 1.0 / float64(total)
-		prefix := fmt.Sprintf("[%d/%d] %s", i+1, total, server.Name)
-		return m.testSingleServer(ctx, server, baseProgress, serverSpan, prefix, updateChan)
+		return m.testSingleServer(ctx, server, serverSlice{
+			baseProgress: float64(i) / float64(total),
+			span:         1.0 / float64(total),
+			prefix:       fmt.Sprintf("[%d/%d] %s", i+1, total, server.Name),
+		}, updateChan)
 	})
 
 	m.State = StateIdle

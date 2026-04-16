@@ -2,6 +2,7 @@ version: "2"
 
 linters:
   enable:
+    # Baseline (pre-existing)
     - govet
     - errcheck
     - staticcheck
@@ -11,15 +12,116 @@ linters:
     - misspell
     - revive
     - exhaustive
+
+    # Added via init-project preset (CLAUDE.md alignment)
+    - gocyclo
+    - nestif
+    - mnd
+    - funlen
+    - perfsprint
+    - usestdlibvars
+    - errorlint
+    - gocritic
+
   settings:
     exhaustive:
       default-signifies-exhaustive: false
+
+    gocyclo:
+      min-complexity: 15
+
+    nestif:
+      min-complexity: 4
+
+    mnd:
+      ignored-functions:
+        - make
+        - strconv.*
+        - time.Date
+        - time.Duration
+        - os.MkdirAll
+        - os.OpenFile
+        - os.WriteFile
+        - bufio.NewScanner
+      ignored-numbers:
+        - "0"
+        - "1"
+        - "2"
+        - "3"
+
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+      match-constant: false
+      numbers: false
+
+    funlen:
+      lines: 60
+      statements: 40
+      ignore-comments: true
+
     revive:
       rules:
+        # Project-specific disables (pre-existing)
         - name: package-comments
           disabled: true
         - name: exported
           disabled: true
+        # Preset additions
+        - name: flag-parameter
+        - name: argument-limit
+          arguments:
+            - 5
+        - name: early-return
+        - name: unused-parameter
+        - name: confusing-naming
+        - name: unexported-return
+        - name: error-return
+        - name: error-strings
+        - name: var-naming
+
+    gocritic:
+      enabled-checks:
+        - commentedOutCode
+        - appendCombine
+      disabled-checks:
+        - exitAfterDefer
+        - singleCaseSwitch
+
+    perfsprint:
+      err-error: true
+      errorf: true
+      int-conversion: true
+      sprintf1: true
+      strconcat: true
+
+    errorlint:
+      errorf: true
+      asserts: true
+      comparison: true
+
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - gocyclo
+          - funlen
+          - goconst
+          - mnd
+          - nestif
+          - revive
+      - path: \.pb\.go$
+        linters:
+          - errcheck
+          - errorlint
+          - revive
+          - staticcheck
+      - path: _gen\.go$
+        linters:
+          - errcheck
+          - errorlint
+          - revive
+          - staticcheck
 
 formatters:
   enable:

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -151,7 +152,7 @@ func buildHistoryRows(history []*model.SpeedTestResult) [][]string {
 		}
 
 		rows = append(rows, []string{
-			fmt.Sprintf("%d", rowNum),
+			strconv.Itoa(rowNum),
 			test.Timestamp.Format("Jan 02 03:04 PM"),
 			fmt.Sprintf("%s (%s)", test.ServerName, test.Country),
 			sponsorStr,
@@ -236,11 +237,11 @@ func RenderWarning(warning string, width int) string {
 		return ""
 	}
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center,
-		warningStyle.Render(fmt.Sprintf("Warning: %s", warning)))
+		warningStyle.Render("Warning: "+warning))
 }
 
 // RenderHelp renders the help overlay. Pass hasResult=true to include the export hint.
-func RenderHelp(width int, hasResult bool) string {
+func RenderHelp(width int, hasResult bool) string { //nolint:revive // hasResult describes input state, not behavior
 	help := strings.Builder{}
 	help.WriteString("\n")
 	help.WriteString(sectionLabelStyle.Render("Controls:"))
@@ -311,7 +312,7 @@ func countLeadingFavorites(servers []model.Server, favoriteIDs map[string]bool) 
 
 // renderServerRow returns a styled server row with the appropriate prefix
 // (▸ for cursor, ✓ for selected, ★ for favorite) and styling applied.
-func renderServerRow(isCursor, isSelected, isFav bool, line string) string {
+func renderServerRow(isCursor, isSelected, isFav bool, line string) string { //nolint:revive // isFav describes input state, not behavior
 	switch {
 	case isCursor:
 		prefix := "▸ "

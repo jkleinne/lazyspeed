@@ -1911,7 +1911,7 @@ func TestErrorDuringTestRecovery(t *testing.T) {
 	s := &speedTest{model: m, spinner: ui.DefaultSpinner}
 
 	// 2. Simulate a test error.
-	updated, _ := s.Update(testComplete{err: fmt.Errorf("network timeout")})
+	updated, _ := s.Update(testComplete{err: errors.New("network timeout")})
 	s = updated.(*speedTest)
 
 	// 3. Verify recovery: back to idle, error is set, history unchanged.
@@ -1936,7 +1936,7 @@ func TestServerFetchFailureDuringIdle(t *testing.T) {
 
 	s := &speedTest{model: m, spinner: ui.DefaultSpinner}
 
-	updated, _ := s.Update(serverListMsg{err: fmt.Errorf("network unreachable")})
+	updated, _ := s.Update(serverListMsg{err: errors.New("network unreachable")})
 	s = updated.(*speedTest)
 
 	if s.model.State != model.StateIdle {
@@ -1960,7 +1960,7 @@ func TestServerFetchFailureDuringAwait(t *testing.T) {
 
 	s := &speedTest{model: m, spinner: ui.DefaultSpinner}
 
-	updated, _ := s.Update(serverListMsg{err: fmt.Errorf("timeout")})
+	updated, _ := s.Update(serverListMsg{err: errors.New("timeout")})
 	s = updated.(*speedTest)
 
 	if s.model.State != model.StateIdle {
@@ -1978,7 +1978,7 @@ func TestDiagFailureNilResult(t *testing.T) {
 	m := model.NewDefaultModel()
 	s := &speedTest{model: m, spinner: ui.DefaultSpinner, viewState: ViewDiagRunning}
 
-	updated, _ := s.Update(diagCompleteMsg{result: nil, err: fmt.Errorf("permission denied")})
+	updated, _ := s.Update(diagCompleteMsg{result: nil, err: errors.New("permission denied")})
 	s = updated.(*speedTest)
 
 	if s.viewState != ViewMain {
@@ -1996,7 +1996,7 @@ func TestExportFailureMessage(t *testing.T) {
 	m := model.NewDefaultModel()
 	s := &speedTest{model: m, spinner: ui.DefaultSpinner}
 
-	updated, _ := s.Update(exportDoneMsg{path: "", err: fmt.Errorf("disk full")})
+	updated, _ := s.Update(exportDoneMsg{path: "", err: errors.New("disk full")})
 	s = updated.(*speedTest)
 
 	if !strings.Contains(s.model.ExportMessage, "disk full") {

@@ -29,7 +29,7 @@ func (b *RealBackend) ResolveDNS(ctx context.Context, host string) (string, time
 	addrs, err := b.resolver.LookupHost(ctx, host)
 	latency := time.Since(start)
 	if err != nil {
-		return "", 0, fmt.Errorf("failed to resolve DNS for %s: %v", host, err)
+		return "", 0, fmt.Errorf("failed to resolve DNS for %s: %v", host, err) //nolint:errorlint // project convention: %v not %w
 	}
 	if len(addrs) == 0 {
 		return "", 0, fmt.Errorf("failed to resolve DNS for %s: no addresses found", host)
@@ -50,7 +50,7 @@ func (b *RealBackend) Traceroute(ctx context.Context, target string, maxHops int
 	if ip == nil {
 		addrs, err := b.resolver.LookupHost(ctx, target)
 		if err != nil {
-			return nil, "", fmt.Errorf("failed to resolve target %s: %v", target, err)
+			return nil, "", fmt.Errorf("failed to resolve target %s: %v", target, err) //nolint:errorlint // project convention: %v not %w
 		}
 		if len(addrs) == 0 {
 			return nil, "", fmt.Errorf("failed to resolve target %s: no addresses found", target)
@@ -70,12 +70,12 @@ func (b *RealBackend) Traceroute(ctx context.Context, target string, maxHops int
 	if isPermissionError(err) {
 		hops, udpErr := udpTraceroute(ctx, destIP, maxHops)
 		if udpErr != nil {
-			return nil, "", fmt.Errorf("failed to run traceroute: %v", udpErr)
+			return nil, "", fmt.Errorf("failed to run traceroute: %v", udpErr) //nolint:errorlint // project convention: %v not %w
 		}
 		return hops, MethodUDP, nil
 	}
 
-	return nil, "", fmt.Errorf("failed to run traceroute: %v", err)
+	return nil, "", fmt.Errorf("failed to run traceroute: %v", err) //nolint:errorlint // project convention: %v not %w
 }
 
 // isPermissionError checks if the error indicates a permission problem.
@@ -156,7 +156,7 @@ func readICMPResponse(conn *icmp.PacketConn, start time.Time, hop *Hop, rdns *re
 func icmpTraceroute(ctx context.Context, destIP string, maxHops int) ([]Hop, error) {
 	conn, err := icmp.ListenPacket("udp4", "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to open ICMP listener: %v", err)
+		return nil, fmt.Errorf("failed to open ICMP listener: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 	defer func() { _ = conn.Close() }()
 
@@ -179,17 +179,24 @@ func setHopDeadline(ctx context.Context, conn *icmp.PacketConn) error {
 	return conn.SetReadDeadline(deadline)
 }
 
+// hopProbe groups the per-hop state passed to awaitHopResponse.
+type hopProbe struct {
+	hop   *Hop
+	start time.Time
+	rdns  *reverseDNS
+}
+
 // awaitHopResponse sets the read deadline and waits for an ICMP response,
 // populating the hop on success. Returns the hop with Timeout=true on failure.
-func awaitHopResponse(ctx context.Context, conn *icmp.PacketConn, hop *Hop, start time.Time, rdns *reverseDNS, validTypes ...icmp.Type) Hop {
+func awaitHopResponse(ctx context.Context, conn *icmp.PacketConn, probe hopProbe, validTypes ...icmp.Type) Hop {
 	if err := setHopDeadline(ctx, conn); err != nil {
-		hop.Timeout = true
-		return *hop
+		probe.hop.Timeout = true
+		return *probe.hop
 	}
-	if !readICMPResponse(conn, start, hop, rdns, validTypes...) {
-		hop.Timeout = true
+	if !readICMPResponse(conn, probe.start, probe.hop, probe.rdns, validTypes...) {
+		probe.hop.Timeout = true
 	}
-	return *hop
+	return *probe.hop
 }
 
 // traceHop sends an ICMP echo request with the given TTL and waits for a response.
@@ -227,7 +234,7 @@ func traceHop(ctx context.Context, conn *icmp.PacketConn, destIP string, ttl int
 		return hop
 	}
 
-	return awaitHopResponse(ctx, conn, &hop, start, rdns, ipv4.ICMPTypeEchoReply, ipv4.ICMPTypeTimeExceeded)
+	return awaitHopResponse(ctx, conn, hopProbe{hop: &hop, start: start, rdns: rdns}, ipv4.ICMPTypeEchoReply, ipv4.ICMPTypeTimeExceeded)
 }
 
 // udpTraceroute performs traceroute using UDP packets with increasing TTL,
@@ -235,7 +242,7 @@ func traceHop(ctx context.Context, conn *icmp.PacketConn, destIP string, ttl int
 func udpTraceroute(ctx context.Context, destIP string, maxHops int) ([]Hop, error) {
 	icmpConn, err := icmp.ListenPacket("udp4", "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to listen for ICMP: %v", err)
+		return nil, fmt.Errorf("failed to listen for ICMP: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 	defer func() { _ = icmpConn.Close() }()
 
@@ -294,7 +301,7 @@ func udpTraceHop(ctx context.Context, icmpConn *icmp.PacketConn, destIP string, 
 		return hop
 	}
 
-	return awaitHopResponse(ctx, icmpConn, &hop, start, rdns, ipv4.ICMPTypeTimeExceeded, ipv4.ICMPTypeDestinationUnreachable)
+	return awaitHopResponse(ctx, icmpConn, hopProbe{hop: &hop, start: start, rdns: rdns}, ipv4.ICMPTypeTimeExceeded, ipv4.ICMPTypeDestinationUnreachable)
 }
 
 // reverseDNS holds shared state for reverse DNS lookups across a traceroute run.

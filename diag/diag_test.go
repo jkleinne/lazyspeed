@@ -3,7 +3,7 @@ package diag
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net"
 	"strings"
 	"testing"
@@ -77,7 +77,7 @@ func TestRun(t *testing.T) {
 			target: testExampleHost,
 			backend: &mockBackend{
 				TracerouteFn: func(_ context.Context, _ string, _ int, _ string) ([]Hop, string, error) {
-					return nil, "", fmt.Errorf("network unreachable")
+					return nil, "", errors.New("network unreachable")
 				},
 				ResolveDNSFn: func(_ context.Context, _ string) (string, time.Duration, error) {
 					return testExampleIP, 10 * time.Millisecond, nil
@@ -263,7 +263,7 @@ func TestRunDNSFailureContinuesTraceroute(t *testing.T) {
 			}, MethodICMP, nil
 		},
 		ResolveDNSFn: func(_ context.Context, _ string) (string, time.Duration, error) {
-			return "", 0, fmt.Errorf("dns resolution failed")
+			return "", 0, errors.New("dns resolution failed")
 		},
 	}
 
@@ -394,7 +394,7 @@ func TestRunWarmDNSFailureSetsCachedFalse(t *testing.T) {
 			if callCount == 1 {
 				return testExampleIP, 15 * time.Millisecond, nil
 			}
-			return "", 0, fmt.Errorf("warm DNS lookup failed")
+			return "", 0, errors.New("warm DNS lookup failed")
 		},
 	}
 

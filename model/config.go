@@ -197,70 +197,55 @@ func (c *Config) PingCount() int {
 	return defaultPingCount
 }
 
+// expandTilde replaces a leading "~" or "~/" in dir with the user's home
+// directory. Returns dir unchanged if it does not start with "~".
+func expandTilde(dir string) (string, error) {
+	if dir != "~" && !strings.HasPrefix(dir, "~/") {
+		return dir, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to expand home directory: %v", err) //nolint:errorlint // project convention: %v not %w
+	}
+	if dir == "~" {
+		return home, nil
+	}
+	return filepath.Join(home, dir[2:]), nil
+}
+
 // ExportDir resolves the configured export directory, creating it if it does
 // not exist. Falls back to the current working directory if none is configured.
 func (c *Config) ExportDir() (string, error) {
-	if c.Export.Directory != "" {
-		dir := c.Export.Directory
-		if dir == "~" || strings.HasPrefix(dir, "~/") {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return "", fmt.Errorf("failed to expand home directory: %v", err)
-			}
-			if dir == "~" {
-				dir = home
-			} else {
-				dir = filepath.Join(home, dir[2:])
-			}
+	if c.Export.Directory == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("could not determine working directory: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return "", fmt.Errorf("failed to create export directory: %v", err)
-		}
-		return dir, nil
+		return cwd, nil
 	}
-	cwd, err := os.Getwd()
+
+	dir, err := expandTilde(c.Export.Directory)
 	if err != nil {
-		return "", fmt.Errorf("could not determine working directory: %v", err)
+		return "", err
 	}
-	return cwd, nil
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create export directory: %v", err) //nolint:errorlint // project convention: %v not %w
+	}
+	return dir, nil
 }
 
-// LoadConfig reads ~/.config/lazyspeed/config.yaml, returning defaults for any
-// missing file or unspecified fields. Returns an error only on YAML parse failures.
-func LoadConfig() (*Config, error) {
-	cfg := DefaultConfig()
-
-	configPath, err := defaultConfigPath()
-	if err != nil {
-		return cfg, fmt.Errorf("failed to resolve config path: %v", err)
-	}
-
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return cfg, nil // No config file yet — use defaults
-		}
-		return nil, fmt.Errorf("failed to read config file: %v", err)
-	}
-
-	// Unmarshal into a partial struct and overlay onto defaults so unspecified
-	// fields retain their default values.
-	var partial Config
-	if err := yaml.Unmarshal(data, &partial); err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %v", err)
-	}
-
-	// Overlay non-zero partial values onto defaults. Each field must be checked
-	// individually — adding a new config field requires adding a corresponding
-	// overlay line here. This is a maintenance hazard: if a new field is added
-	// to the Config struct but not to this overlay, it will silently use its
-	// zero value instead of the default.
+// overlayHistory applies non-zero history fields from partial onto cfg.
+func overlayHistory(cfg, partial *Config) {
 	if partial.History.MaxEntries > 0 {
 		cfg.History.MaxEntries = partial.History.MaxEntries
 	}
 	if partial.History.Path != "" {
 		cfg.History.Path = partial.History.Path
 	}
+}
+
+// overlayTest applies non-zero test fields from partial onto cfg.
+func overlayTest(cfg, partial *Config) {
 	if partial.Test.PingCount > 0 {
 		cfg.Test.PingCount = partial.Test.PingCount
 	}
@@ -270,9 +255,17 @@ func LoadConfig() (*Config, error) {
 	if partial.Test.TestTimeout > 0 {
 		cfg.Test.TestTimeout = partial.Test.TestTimeout
 	}
+}
+
+// overlayExport applies non-zero export fields from partial onto cfg.
+func overlayExport(cfg, partial *Config) {
 	if partial.Export.Directory != "" {
 		cfg.Export.Directory = partial.Export.Directory
 	}
+}
+
+// overlayDiagnostics applies non-zero diagnostics fields from partial onto cfg.
+func overlayDiagnostics(cfg, partial *Config) {
 	if partial.Diagnostics.MaxHops > 0 {
 		cfg.Diagnostics.MaxHops = partial.Diagnostics.MaxHops
 	}
@@ -285,9 +278,17 @@ func LoadConfig() (*Config, error) {
 	if partial.Diagnostics.Path != "" {
 		cfg.Diagnostics.Path = partial.Diagnostics.Path
 	}
+}
+
+// overlayServers applies non-zero server fields from partial onto cfg.
+func overlayServers(cfg, partial *Config) {
 	if len(partial.Servers.FavoriteIDs) > 0 {
 		cfg.Servers.FavoriteIDs = deduplicateStrings(partial.Servers.FavoriteIDs)
 	}
+}
+
+// overlayWebhooks applies non-zero webhook fields from partial onto cfg.
+func overlayWebhooks(cfg, partial *Config) {
 	if len(partial.Webhooks.Endpoints) > 0 {
 		cfg.Webhooks.Endpoints = partial.Webhooks.Endpoints
 	}
@@ -309,6 +310,10 @@ func LoadConfig() (*Config, error) {
 	if partial.Webhooks.MaxRetries > 0 {
 		cfg.Webhooks.MaxRetries = partial.Webhooks.MaxRetries
 	}
+}
+
+// overlayMetrics applies non-zero metrics fields from partial onto cfg.
+func overlayMetrics(cfg, partial *Config) {
 	if len(partial.Metrics.Endpoints) > 0 {
 		cfg.Metrics.Endpoints = partial.Metrics.Endpoints
 	}
@@ -324,19 +329,74 @@ func LoadConfig() (*Config, error) {
 	if partial.Metrics.OmitHostTag {
 		cfg.Metrics.OmitHostTag = true
 	}
+}
+
+// LoadConfig reads ~/.config/lazyspeed/config.yaml, returning defaults for any
+// missing file or unspecified fields. Returns an error only on YAML parse failures.
+func LoadConfig() (*Config, error) {
+	cfg := DefaultConfig()
+
+	configPath, err := defaultConfigPath()
+	if err != nil {
+		return cfg, fmt.Errorf("failed to resolve config path: %v", err) //nolint:errorlint // project convention: %v not %w
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return cfg, nil // No config file yet — use defaults
+		}
+		return nil, fmt.Errorf("failed to read config file: %v", err) //nolint:errorlint // project convention: %v not %w
+	}
+
+	// Unmarshal into a partial struct and overlay onto defaults so unspecified
+	// fields retain their default values.
+	var partial Config
+	if err := yaml.Unmarshal(data, &partial); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %v", err) //nolint:errorlint // project convention: %v not %w
+	}
+
+	// Overlay non-zero partial values onto defaults. Each section is handled by
+	// a dedicated helper so that adding a new config field only requires updating
+	// the relevant overlay function.
+	overlayHistory(cfg, &partial)
+	overlayTest(cfg, &partial)
+	overlayExport(cfg, &partial)
+	overlayDiagnostics(cfg, &partial)
+	overlayServers(cfg, &partial)
+	overlayWebhooks(cfg, &partial)
+	overlayMetrics(cfg, &partial)
 
 	if len(cfg.Webhooks.Endpoints) > 0 {
 		if err := ValidateWebhookConfig(cfg.Webhooks); err != nil {
-			return nil, fmt.Errorf("invalid webhook config: %v", err)
+			return nil, fmt.Errorf("invalid webhook config: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
 	}
 	if len(cfg.Metrics.Endpoints) > 0 {
 		if err := ValidateMetricsConfig(cfg.Metrics); err != nil {
-			return nil, fmt.Errorf("invalid metrics config: %v", err)
+			return nil, fmt.Errorf("invalid metrics config: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
 	}
 
 	return cfg, nil
+}
+
+// validateWebhookEndpoints checks that each webhook endpoint has a valid URL
+// with an http or https scheme.
+func validateWebhookEndpoints(endpoints []WebhookEndpoint) error {
+	for i, ep := range endpoints {
+		if ep.URL == "" {
+			return fmt.Errorf("endpoint %d has an empty URL", i)
+		}
+		parsed, err := url.Parse(ep.URL)
+		if err != nil {
+			return fmt.Errorf("endpoint %d has an invalid URL %q: %v", i, ep.URL, err) //nolint:errorlint // project convention: %v not %w
+		}
+		if parsed.Scheme != "http" && parsed.Scheme != "https" {
+			return fmt.Errorf("endpoint %d URL %q must use http or https scheme", i, ep.URL)
+		}
+	}
+	return nil
 }
 
 // ValidateWebhookConfig checks that a WebhookConfig is self-consistent.
@@ -346,17 +406,8 @@ func ValidateWebhookConfig(cfg WebhookConfig) error {
 	if len(cfg.Endpoints) == 0 {
 		return nil
 	}
-	for i, ep := range cfg.Endpoints {
-		if ep.URL == "" {
-			return fmt.Errorf("endpoint %d has an empty URL", i)
-		}
-		parsed, err := url.Parse(ep.URL)
-		if err != nil {
-			return fmt.Errorf("endpoint %d has an invalid URL %q: %v", i, ep.URL, err)
-		}
-		if parsed.Scheme != "http" && parsed.Scheme != "https" {
-			return fmt.Errorf("endpoint %d URL %q must use http or https scheme", i, ep.URL)
-		}
+	if err := validateWebhookEndpoints(cfg.Endpoints); err != nil {
+		return err
 	}
 	if cfg.Timeout <= 0 {
 		return fmt.Errorf("webhook timeout must be > 0, got %d", cfg.Timeout)
@@ -379,6 +430,60 @@ func ValidateWebhookConfig(cfg WebhookConfig) error {
 	return nil
 }
 
+// validateMetricsEndpointAuth checks that exactly one auth block (V1 or V2) is
+// present and that its required fields are populated.
+func validateMetricsEndpointAuth(i int, ep MetricsEndpoint) error {
+	hasV1 := ep.V1 != nil
+	hasV2 := ep.V2 != nil
+	if !hasV1 && !hasV2 {
+		return fmt.Errorf("metrics endpoint %d has no auth block (set v1 or v2)", i)
+	}
+	if hasV1 && hasV2 {
+		return fmt.Errorf("metrics endpoint %d has both v1 and v2 set", i)
+	}
+	if hasV2 {
+		if ep.V2.Token == "" {
+			return fmt.Errorf("metrics endpoint %d v2 token is empty", i)
+		}
+		if ep.V2.Org == "" {
+			return fmt.Errorf("metrics endpoint %d v2 org is empty", i)
+		}
+		if ep.V2.Bucket == "" {
+			return fmt.Errorf("metrics endpoint %d v2 bucket is empty", i)
+		}
+	}
+	if hasV1 {
+		if ep.V1.Database == "" {
+			return fmt.Errorf("metrics endpoint %d v1 database is empty", i)
+		}
+		if ep.V1.Password != "" && ep.V1.Username == "" {
+			return fmt.Errorf("metrics endpoint %d v1 password set without username", i)
+		}
+	}
+	return nil
+}
+
+// validateMetricsEndpoints checks that each metrics endpoint has a valid URL
+// and exactly one auth block (V1 or V2) with required fields populated.
+func validateMetricsEndpoints(endpoints []MetricsEndpoint) error {
+	for i, ep := range endpoints {
+		if ep.URL == "" {
+			return fmt.Errorf("metrics endpoint %d has an empty URL", i)
+		}
+		parsed, err := url.Parse(ep.URL)
+		if err != nil {
+			return fmt.Errorf("metrics endpoint %d has an invalid URL %q: %v", i, ep.URL, err) //nolint:errorlint // project convention: %v not %w
+		}
+		if parsed.Scheme != "http" && parsed.Scheme != "https" {
+			return fmt.Errorf("metrics endpoint %d URL %q must use http or https scheme", i, ep.URL)
+		}
+		if err := validateMetricsEndpointAuth(i, ep); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ValidateMetricsConfig checks that a MetricsConfig is self-consistent.
 // Returns an error describing the first violation found.
 // An empty Endpoints slice is always valid (export disabled).
@@ -386,45 +491,8 @@ func ValidateMetricsConfig(cfg MetricsConfig) error {
 	if len(cfg.Endpoints) == 0 {
 		return nil
 	}
-	for i, ep := range cfg.Endpoints {
-		if ep.URL == "" {
-			return fmt.Errorf("metrics endpoint %d has an empty URL", i)
-		}
-		parsed, err := url.Parse(ep.URL)
-		if err != nil {
-			return fmt.Errorf("metrics endpoint %d has an invalid URL %q: %v", i, ep.URL, err)
-		}
-		if parsed.Scheme != "http" && parsed.Scheme != "https" {
-			return fmt.Errorf("metrics endpoint %d URL %q must use http or https scheme", i, ep.URL)
-		}
-
-		hasV1 := ep.V1 != nil
-		hasV2 := ep.V2 != nil
-		if !hasV1 && !hasV2 {
-			return fmt.Errorf("metrics endpoint %d has no auth block (set v1 or v2)", i)
-		}
-		if hasV1 && hasV2 {
-			return fmt.Errorf("metrics endpoint %d has both v1 and v2 set", i)
-		}
-		if hasV2 {
-			if ep.V2.Token == "" {
-				return fmt.Errorf("metrics endpoint %d v2 token is empty", i)
-			}
-			if ep.V2.Org == "" {
-				return fmt.Errorf("metrics endpoint %d v2 org is empty", i)
-			}
-			if ep.V2.Bucket == "" {
-				return fmt.Errorf("metrics endpoint %d v2 bucket is empty", i)
-			}
-		}
-		if hasV1 {
-			if ep.V1.Database == "" {
-				return fmt.Errorf("metrics endpoint %d v1 database is empty", i)
-			}
-			if ep.V1.Password != "" && ep.V1.Username == "" {
-				return fmt.Errorf("metrics endpoint %d v1 password set without username", i)
-			}
-		}
+	if err := validateMetricsEndpoints(cfg.Endpoints); err != nil {
+		return err
 	}
 	if cfg.Timeout <= 0 {
 		return fmt.Errorf("metrics timeout must be > 0, got %d", cfg.Timeout)
@@ -468,7 +536,7 @@ func defaultConfigPath() (string, error) {
 	}
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to resolve home directory: %v", err)
+		return "", fmt.Errorf("failed to resolve home directory: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 	return filepath.Join(homeDir, ".config", "lazyspeed", "config.yaml"), nil
 }
@@ -478,7 +546,7 @@ func defaultConfigPath() (string, error) {
 func LegacyHistoryPath() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to resolve legacy history path: %v", err)
+		return "", fmt.Errorf("failed to resolve legacy history path: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 	return filepath.Join(homeDir, ".lazyspeed_history.json"), nil
 }
@@ -490,26 +558,26 @@ const configFilePerm = 0644
 func SaveConfig(cfg *Config) error {
 	configPath, err := defaultConfigPath()
 	if err != nil {
-		return fmt.Errorf("failed to resolve config path: %v", err)
+		return fmt.Errorf("failed to resolve config path: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
 	if err := os.MkdirAll(filepath.Dir(configPath), 0700); err != nil {
-		return fmt.Errorf("failed to create config directory: %v", err)
+		return fmt.Errorf("failed to create config directory: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to serialize config: %v", err)
+		return fmt.Errorf("failed to serialize config: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
 	tmpPath := configPath + ".tmp"
 	if err := os.WriteFile(tmpPath, data, configFilePerm); err != nil {
-		return fmt.Errorf("failed to write config file: %v", err)
+		return fmt.Errorf("failed to write config file: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
 	if err := os.Rename(tmpPath, configPath); err != nil {
 		_ = os.Remove(tmpPath)
-		return fmt.Errorf("failed to commit config file: %v", err)
+		return fmt.Errorf("failed to commit config file: %v", err) //nolint:errorlint // project convention: %v not %w
 	}
 
 	return nil

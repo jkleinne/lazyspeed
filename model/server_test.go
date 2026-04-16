@@ -63,7 +63,7 @@ func TestServerStore_FetchCancelledContext(t *testing.T) {
 
 	s := &ServerStore{}
 	err := s.Fetch(ctx, backend)
-	if err != context.Canceled {
+	if !errors.Is(err, context.Canceled) {
 		t.Errorf("Expected context.Canceled, got %v", err)
 	}
 }

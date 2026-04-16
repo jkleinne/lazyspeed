@@ -125,7 +125,7 @@ func TestReverseDNSBudgetBoundsTotal(t *testing.T) {
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 			select {
 			case <-time.After(perLookup):
-				return nil, fmt.Errorf("simulated slow DNS")
+				return nil, errors.New("simulated slow DNS")
 			case <-ctx.Done():
 				return nil, ctx.Err()
 			}

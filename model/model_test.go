@@ -313,7 +313,7 @@ func TestFetchServers(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	err = m.FetchServers(ctx)
-	if err != context.Canceled {
+	if !errors.Is(err, context.Canceled) {
 		t.Errorf("Expected context.Canceled, got %v", err)
 	}
 }
@@ -2297,7 +2297,7 @@ func TestNewDefaultModelConfigWarning(t *testing.T) {
 }
 
 func TestMeasurePingAllFailPreservesError(t *testing.T) {
-	pingErr := fmt.Errorf("connection refused")
+	pingErr := errors.New("connection refused")
 	backend := &mockBackend{
 		pingTestFn: func(_ *speedtest.Server, _ func(latency time.Duration)) error {
 			return pingErr

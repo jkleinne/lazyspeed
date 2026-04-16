@@ -22,11 +22,14 @@ func Dispatch(ctx context.Context, sender Sender, cfg model.MetricsConfig, resul
 
 	host := resolveHost(cfg)
 	body := EncodePoint(result, host)
-	timeout := time.Duration(cfg.Timeout) * time.Second
+	opts := writeOpts{
+		timeout:    time.Duration(cfg.Timeout) * time.Second,
+		maxRetries: cfg.MaxRetries,
+	}
 
 	var errs []WriteError
 	for _, ep := range cfg.Endpoints {
-		if err := writeOne(ctx, sender, ep, body, timeout, cfg.MaxRetries); err != nil {
+		if err := writeOne(ctx, sender, ep, body, opts); err != nil {
 			errs = append(errs, WriteError{URL: ep.URL, Err: err})
 		}
 	}

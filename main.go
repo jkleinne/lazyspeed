@@ -241,44 +241,13 @@ func (s *speedTest) adjustServerListOffset() {
 func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		s.model.Width = msg.Width
-		s.model.Height = msg.Height
-		return s, nil
-
+		return s.handleWindowSize(msg)
 	case spinner.TickMsg:
-		var cmd tea.Cmd
-		s.spinner, cmd = s.spinner.Update(msg)
-		return s, cmd
-
+		return s.handleSpinnerTick(msg)
 	case exportDoneMsg:
-		if msg.err != nil {
-			s.model.ExportMessage = fmt.Sprintf("Export failed: %v", msg.err)
-		} else {
-			s.model.ExportMessage = fmt.Sprintf("Saved to %s", msg.path)
-		}
-		return s, nil
-
+		return s.handleExportDone(msg)
 	case resultSinksDoneMsg:
-		var warnings []string
-		if len(msg.webhookErrs) > 0 {
-			webhookMessages := make([]string, len(msg.webhookErrs))
-			for i, e := range msg.webhookErrs {
-				webhookMessages[i] = e.Error()
-			}
-			warnings = append(warnings, fmt.Sprintf("Webhook: %s", strings.Join(webhookMessages, "; ")))
-		}
-		if len(msg.metricsErrs) > 0 {
-			metricsMessages := make([]string, len(msg.metricsErrs))
-			for i, e := range msg.metricsErrs {
-				metricsMessages[i] = e.Error()
-			}
-			warnings = append(warnings, fmt.Sprintf("Metrics: %s", strings.Join(metricsMessages, "; ")))
-		}
-		if len(warnings) > 0 {
-			s.model.Warning = strings.Join(warnings, " | ")
-		}
-		return s, nil
-
+		return s.handleResultSinksDone(msg)
 	case serverListMsg:
 		return s.handleServerListMsg(msg)
 
@@ -295,32 +264,38 @@ func (s *speedTest) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return s.handleMultiServerComplete(msg)
 
 	case tea.KeyMsg:
-		switch s.viewState {
-		case ViewComparison:
-			return s.handleComparisonKeys(msg)
-		case ViewAnalytics:
-			return s.handleAnalyticsKeys(msg)
-		case ViewDiagExpanded:
-			return s.handleDiagExpandedKeys(msg)
-		case ViewDiagCompact:
-			return s.handleDiagCompactKeys(msg)
-		case ViewDiagInput:
-			return s.handleDiagInputKeys(msg)
-		case ViewDiagRunning:
-			return s.handleDiagRunningKeys(msg)
-		case ViewMain:
-			switch s.model.State {
-			case model.StateExporting:
-				return s.handleExportKeys(msg)
-			case model.StateAwaitingServers:
-				return s.handleAwaitingServersKeys(msg)
-			case model.StateSelectingServer:
-				return s.handleServerSelectionKeys(msg)
-			case model.StateTesting:
-				return s.handleTestingKeys(msg)
-			case model.StateIdle:
-				return s.handleIdleKeys(msg)
-			}
+		return s.handleKeyMsg(msg)
+	}
+	return s, nil
+}
+
+// handleKeyMsg dispatches a key event to the focused view's handler.
+func (s *speedTest) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch s.viewState {
+	case ViewComparison:
+		return s.handleComparisonKeys(msg)
+	case ViewAnalytics:
+		return s.handleAnalyticsKeys(msg)
+	case ViewDiagExpanded:
+		return s.handleDiagExpandedKeys(msg)
+	case ViewDiagCompact:
+		return s.handleDiagCompactKeys(msg)
+	case ViewDiagInput:
+		return s.handleDiagInputKeys(msg)
+	case ViewDiagRunning:
+		return s.handleDiagRunningKeys(msg)
+	case ViewMain:
+		switch s.model.State {
+		case model.StateExporting:
+			return s.handleExportKeys(msg)
+		case model.StateAwaitingServers:
+			return s.handleAwaitingServersKeys(msg)
+		case model.StateSelectingServer:
+			return s.handleServerSelectionKeys(msg)
+		case model.StateTesting:
+			return s.handleTestingKeys(msg)
+		case model.StateIdle:
+			return s.handleIdleKeys(msg)
 		}
 	}
 	return s, nil
@@ -372,19 +347,63 @@ func (s *speedTest) handleTestComplete(msg testComplete) (tea.Model, tea.Cmd) {
 	return s, nil
 }
 
+func (s *speedTest) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
+	s.model.Width = msg.Width
+	s.model.Height = msg.Height
+	return s, nil
+}
+
+func (s *speedTest) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	s.spinner, cmd = s.spinner.Update(msg)
+	return s, cmd
+}
+
+func (s *speedTest) handleExportDone(msg exportDoneMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		s.model.ExportMessage = fmt.Sprintf("Export failed: %v", msg.err)
+	} else {
+		s.model.ExportMessage = "Saved to " + msg.path
+	}
+	return s, nil
+}
+
+func (s *speedTest) handleResultSinksDone(msg resultSinksDoneMsg) (tea.Model, tea.Cmd) {
+	var warnings []string
+	if len(msg.webhookErrs) > 0 {
+		webhookMessages := make([]string, len(msg.webhookErrs))
+		for i, e := range msg.webhookErrs {
+			webhookMessages[i] = e.Error()
+		}
+		warnings = append(warnings, "Webhook: "+strings.Join(webhookMessages, "; "))
+	}
+	if len(msg.metricsErrs) > 0 {
+		metricsMessages := make([]string, len(msg.metricsErrs))
+		for i, e := range msg.metricsErrs {
+			metricsMessages[i] = e.Error()
+		}
+		warnings = append(warnings, "Metrics: "+strings.Join(metricsMessages, "; "))
+	}
+	if len(warnings) > 0 {
+		s.model.Warning = strings.Join(warnings, " | ")
+	}
+	return s, nil
+}
+
 func (s *speedTest) handleDiagComplete(msg diagCompleteMsg) (tea.Model, tea.Cmd) {
 	s.model.CurrentPhase = ""
 	if msg.err != nil {
 		s.model.Error = msg.err
 		s.viewState = ViewMain
-	} else {
-		s.diagResult = msg.result
-		s.viewState = ViewDiagCompact
-		cfg := diagConfig(s.model.Config.Diagnostics)
-		if cfg.MaxEntries > 0 {
-			if err := diag.AppendHistory(cfg.Path, msg.result, cfg.MaxEntries); err != nil {
-				s.model.Warning = fmt.Sprintf("failed to persist diagnostics history: %v", err)
-			}
+		return s, nil
+	}
+
+	s.diagResult = msg.result
+	s.viewState = ViewDiagCompact
+	cfg := diagConfig(s.model.Config.Diagnostics)
+	if cfg.MaxEntries > 0 {
+		if err := diag.AppendHistory(cfg.Path, msg.result, cfg.MaxEntries); err != nil {
+			s.model.Warning = fmt.Sprintf("failed to persist diagnostics history: %v", err)
 		}
 	}
 	return s, nil
@@ -464,10 +483,11 @@ func (s *speedTest) toggleFavorite() (tea.Model, tea.Cmd) {
 	favs := s.model.Config.Servers.FavoriteIDs
 	idx := favoriteIndex(favs, serverID)
 	if idx >= 0 {
-		s.model.Config.Servers.FavoriteIDs = append(favs[:idx], favs[idx+1:]...)
+		favs = append(favs[:idx], favs[idx+1:]...)
 	} else {
-		s.model.Config.Servers.FavoriteIDs = append(favs, serverID)
+		favs = append(favs, serverID)
 	}
+	s.model.Config.Servers.FavoriteIDs = favs
 
 	if err := model.SaveConfig(s.model.Config); err != nil {
 		s.model.Warning = fmt.Sprintf("could not save config: %v", err)
@@ -711,7 +731,7 @@ func (s *speedTest) View() string {
 func (s *speedTest) startSpeedTest() (tea.Model, tea.Cmd) {
 	rawIdx := s.rawIndex(s.cursor)
 	if rawIdx < 0 || rawIdx >= s.model.Servers.Len() {
-		s.model.Error = fmt.Errorf("invalid server selection")
+		s.model.Error = errors.New("invalid server selection")
 		s.model.State = model.StateIdle
 		s.showHelp = false
 		return s, nil

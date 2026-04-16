@@ -90,6 +90,7 @@ const (
 	PeakEndHour       = 21
 	trendRecentWindow = 5
 	trendThresholdPct = 5.0
+	percentMultiplier = 100.0
 )
 
 // peakComparison splits entries into peak (09:00–20:59) and off-peak buckets
@@ -134,7 +135,7 @@ func detectTrend(values []float64, avg float64) (TrendDirection, float64) {
 		recentSum += v
 	}
 	recentAvg := recentSum / float64(trendRecentWindow)
-	pct := (recentAvg - avg) / avg * 100
+	pct := (recentAvg - avg) / avg * percentMultiplier
 
 	if pct > trendThresholdPct {
 		return TrendUp, pct

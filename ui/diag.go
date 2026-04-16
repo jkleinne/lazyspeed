@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -143,7 +144,7 @@ func RenderDiagCompact(result *diag.Result, width int) string {
 		infoStyle.Render(dnsStr) +
 		diagSummarySepStyle.Render(" │ ") +
 		diagSummaryLabelStyle.Render("Hops: ") +
-		infoStyle.Render(fmt.Sprintf("%d", len(result.Hops))) +
+		infoStyle.Render(strconv.Itoa(len(result.Hops))) +
 		diagSummarySepStyle.Render(" │ ") +
 		diagSummaryLabelStyle.Render("Route: ") +
 		routeStatusStyled(result.Hops)
