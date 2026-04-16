@@ -36,7 +36,7 @@ func TestDeliver_Success(t *testing.T) {
 	endpoints := []model.WebhookEndpoint{{URL: "http://example.com/hook"}}
 	payload := NewPayload(&model.SpeedTestResult{DownloadSpeed: 100}, nil, "1.0.0", time.Now())
 
-	errs := Deliver(context.Background(), sender, endpoints, payload, deliverOpts{timeout: 5 * time.Second, maxRetries: 1})
+	errs := deliver(context.Background(), sender, endpoints, payload, deliverOpts{timeout: 5 * time.Second, maxRetries: 1})
 
 	if len(errs) != 0 {
 		t.Fatalf("expected no errors, got %v", errs)
@@ -67,7 +67,7 @@ func TestDeliver_CustomHeaders(t *testing.T) {
 	}}
 	payload := NewPayload(&model.SpeedTestResult{}, nil, "1.0.0", time.Now())
 
-	errs := Deliver(context.Background(), sender, endpoints, payload, deliverOpts{timeout: 5 * time.Second, maxRetries: 1})
+	errs := deliver(context.Background(), sender, endpoints, payload, deliverOpts{timeout: 5 * time.Second, maxRetries: 1})
 
 	if len(errs) != 0 {
 		t.Fatalf("expected no errors, got %v", errs)
@@ -92,7 +92,7 @@ func TestDeliver_4xxNoRetry(t *testing.T) {
 	endpoints := []model.WebhookEndpoint{{URL: "http://example.com/hook"}}
 	payload := NewPayload(&model.SpeedTestResult{}, nil, "1.0.0", time.Now())
 
-	errs := Deliver(context.Background(), sender, endpoints, payload, deliverOpts{timeout: 5 * time.Second, maxRetries: 3})
+	errs := deliver(context.Background(), sender, endpoints, payload, deliverOpts{timeout: 5 * time.Second, maxRetries: 3})
 
 	if len(errs) != 1 {
 		t.Fatalf("expected 1 error, got %d", len(errs))
@@ -116,7 +116,7 @@ func TestDeliver_5xxRetries(t *testing.T) {
 
 	// maxRetries=3 means 3 total attempts with exponential backoff between them.
 	// Backoff: 1s after attempt 1, 2s after attempt 2. This test takes ~3 seconds.
-	errs := Deliver(context.Background(), sender, endpoints, payload, deliverOpts{timeout: 5 * time.Second, maxRetries: 3})
+	errs := deliver(context.Background(), sender, endpoints, payload, deliverOpts{timeout: 5 * time.Second, maxRetries: 3})
 
 	if len(errs) != 1 {
 		t.Fatalf("expected 1 error, got %d", len(errs))
@@ -140,7 +140,7 @@ func TestDeliver_NetworkErrorRetries(t *testing.T) {
 
 	// maxRetries=2 means 2 total attempts with 1s backoff between them.
 	// This test takes ~1 second.
-	errs := Deliver(context.Background(), sender, endpoints, payload, deliverOpts{timeout: 5 * time.Second, maxRetries: 2})
+	errs := deliver(context.Background(), sender, endpoints, payload, deliverOpts{timeout: 5 * time.Second, maxRetries: 2})
 
 	if len(errs) != 1 {
 		t.Fatalf("expected 1 error, got %d", len(errs))
@@ -168,7 +168,7 @@ func TestDeliver_MultipleEndpointsPartialFailure(t *testing.T) {
 	}
 	payload := NewPayload(&model.SpeedTestResult{}, nil, "1.0.0", time.Now())
 
-	errs := Deliver(context.Background(), sender, endpoints, payload, deliverOpts{timeout: 5 * time.Second, maxRetries: 1})
+	errs := deliver(context.Background(), sender, endpoints, payload, deliverOpts{timeout: 5 * time.Second, maxRetries: 1})
 
 	if len(errs) != 1 {
 		t.Fatalf("expected 1 error for 1 failing endpoint, got %d", len(errs))
@@ -186,7 +186,7 @@ func TestDeliver_ContextCancellation(t *testing.T) {
 	endpoints := []model.WebhookEndpoint{{URL: "http://example.com/hook"}}
 	payload := NewPayload(&model.SpeedTestResult{}, nil, "1.0.0", time.Now())
 
-	errs := Deliver(ctx, sender, endpoints, payload, deliverOpts{timeout: 5 * time.Second, maxRetries: 1})
+	errs := deliver(ctx, sender, endpoints, payload, deliverOpts{timeout: 5 * time.Second, maxRetries: 1})
 
 	if len(errs) != 1 {
 		t.Fatalf("expected 1 error for cancelled context, got %d", len(errs))
@@ -376,7 +376,7 @@ func TestDeliver_DrainsResponseBody(t *testing.T) {
 
 			endpoints := []model.WebhookEndpoint{{URL: "http://example.com/hook"}}
 			payload := NewPayload(&model.SpeedTestResult{}, nil, "1.0.0", time.Now())
-			Deliver(context.Background(), sender, endpoints, payload, deliverOpts{timeout: 5 * time.Second, maxRetries: 1})
+			deliver(context.Background(), sender, endpoints, payload, deliverOpts{timeout: 5 * time.Second, maxRetries: 1})
 
 			if !drained {
 				t.Errorf("response body was not drained for status %d", tt.status)

@@ -36,11 +36,7 @@ func GetVersionInfo() string {
 
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
-		versionLine := "lazyspeed version " + fallbackVersion
-		if buildDate != "" {
-			versionLine += fmt.Sprintf(" (built: %s)", buildDate)
-		}
-		return versionLine
+		return "lazyspeed version " + fallbackVersion
 	}
 
 	if info.Main.Version != "" && info.Main.Version != "(devel)" {

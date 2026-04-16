@@ -41,9 +41,9 @@ func (e DeliveryError) Error() string {
 }
 
 // Deliver sends the payload to all configured endpoints sequentially.
-// Returns a slice of DeliveryError for every endpoint that failed; nil means all succeeded.
-// A cancelled context aborts at the next delivery attempt.
-func Deliver(ctx context.Context, sender Sender, endpoints []model.WebhookEndpoint, payload Payload, opts deliverOpts) []DeliveryError {
+// deliver sends payload to each endpoint sequentially, returning a DeliveryError per failure.
+// Nil means all succeeded. A cancelled context aborts at the next attempt.
+func deliver(ctx context.Context, sender Sender, endpoints []model.WebhookEndpoint, payload Payload, opts deliverOpts) []DeliveryError {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return []DeliveryError{{URL: "(marshal)", Err: fmt.Errorf("failed to marshal payload: %v", err)}} //nolint:errorlint // project convention: %v not %w
@@ -134,7 +134,7 @@ func Dispatch(ctx context.Context, sender Sender, cfg model.WebhookConfig, resul
 	}
 
 	payload := NewPayload(result, breaches, version, time.Now())
-	return Deliver(ctx, sender, cfg.Endpoints, payload, deliverOpts{
+	return deliver(ctx, sender, cfg.Endpoints, payload, deliverOpts{
 		timeout:    time.Duration(cfg.Timeout) * time.Second,
 		maxRetries: cfg.MaxRetries,
 	})
