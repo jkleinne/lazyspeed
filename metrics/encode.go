@@ -12,6 +12,16 @@ import (
 	"github.com/jkleinne/lazyspeed/model"
 )
 
+// fieldPosition indicates whether a field is the first in the field set.
+type fieldPosition int
+
+const (
+	// fieldFirst means no comma prefix is needed.
+	fieldFirst fieldPosition = iota
+	// fieldSubsequent means a comma prefix is prepended.
+	fieldSubsequent
+)
+
 // measurement is the fixed InfluxDB measurement name for every exported
 // point. Not user-configurable to keep the schema predictable for
 // dashboards. Future additional measurements would be separate functions.
@@ -39,11 +49,11 @@ func EncodePoint(result *model.SpeedTestResult, host string) []byte {
 	writeTag(&buf, "user_isp", result.UserISP)
 
 	buf.WriteByte(' ')
-	writeField(&buf, "download_mbps", result.DownloadSpeed, true)
-	writeField(&buf, "upload_mbps", result.UploadSpeed, false)
-	writeField(&buf, "ping_ms", result.Ping, false)
-	writeField(&buf, "jitter_ms", result.Jitter, false)
-	writeField(&buf, "distance_km", result.Distance, false)
+	writeField(&buf, "download_mbps", result.DownloadSpeed, fieldFirst)
+	writeField(&buf, "upload_mbps", result.UploadSpeed, fieldSubsequent)
+	writeField(&buf, "ping_ms", result.Ping, fieldSubsequent)
+	writeField(&buf, "jitter_ms", result.Jitter, fieldSubsequent)
+	writeField(&buf, "distance_km", result.Distance, fieldSubsequent)
 
 	buf.WriteByte(' ')
 	buf.WriteString(strconv.FormatInt(result.Timestamp.UnixNano(), 10))
@@ -69,8 +79,8 @@ func writeTag(buf *bytes.Buffer, key, value string) {
 // significant digits while avoiding scientific notation. Non-finite values
 // (NaN, +Inf, -Inf) are substituted with 0 because InfluxDB line protocol
 // only accepts numeric literals for float fields.
-func writeField(buf *bytes.Buffer, key string, value float64, first bool) {
-	if !first {
+func writeField(buf *bytes.Buffer, key string, value float64, pos fieldPosition) {
+	if pos == fieldSubsequent {
 		buf.WriteByte(',')
 	}
 	buf.WriteString(key)

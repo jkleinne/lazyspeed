@@ -24,6 +24,12 @@ type Sender interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
+// deliverOpts holds retry and timeout settings for webhook delivery.
+type deliverOpts struct {
+	timeout    time.Duration
+	maxRetries int
+}
+
 // DeliveryError records a webhook delivery failure for a specific endpoint.
 type DeliveryError struct {
 	URL string
@@ -37,7 +43,7 @@ func (e DeliveryError) Error() string {
 // Deliver sends the payload to all configured endpoints sequentially.
 // Returns a slice of DeliveryError for every endpoint that failed; nil means all succeeded.
 // A cancelled context aborts at the next delivery attempt.
-func Deliver(ctx context.Context, sender Sender, endpoints []model.WebhookEndpoint, payload Payload, timeout time.Duration, maxRetries int) []DeliveryError {
+func Deliver(ctx context.Context, sender Sender, endpoints []model.WebhookEndpoint, payload Payload, opts deliverOpts) []DeliveryError {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return []DeliveryError{{URL: "(marshal)", Err: fmt.Errorf("failed to marshal payload: %v", err)}} //nolint:errorlint // project convention: %v not %w
@@ -45,7 +51,7 @@ func Deliver(ctx context.Context, sender Sender, endpoints []model.WebhookEndpoi
 
 	var errs []DeliveryError
 	for _, ep := range endpoints {
-		if err := deliverOne(ctx, sender, ep, body, timeout, maxRetries); err != nil {
+		if err := deliverOne(ctx, sender, ep, body, opts); err != nil {
 			errs = append(errs, DeliveryError{URL: ep.URL, Err: err})
 		}
 	}
@@ -54,11 +60,11 @@ func Deliver(ctx context.Context, sender Sender, endpoints []model.WebhookEndpoi
 
 // deliverOne sends the pre-serialized body to a single endpoint with retry/backoff.
 // Returns nil on success, a descriptive error on permanent failure.
-func deliverOne(ctx context.Context, sender Sender, ep model.WebhookEndpoint, body []byte, timeout time.Duration, maxRetries int) error {
+func deliverOne(ctx context.Context, sender Sender, ep model.WebhookEndpoint, body []byte, opts deliverOpts) error {
 	var lastErr error
 	backoff := initialBackoff
 
-	for attempt := range maxRetries {
+	for attempt := range opts.maxRetries {
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("cancelled: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
@@ -75,7 +81,7 @@ func deliverOne(ctx context.Context, sender Sender, ep model.WebhookEndpoint, bo
 			}
 		}
 
-		reqCtx, reqCancel := context.WithTimeout(ctx, timeout)
+		reqCtx, reqCancel := context.WithTimeout(ctx, opts.timeout)
 		req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, ep.URL, bytes.NewReader(body))
 		if err != nil {
 			reqCancel()
@@ -128,6 +134,8 @@ func Dispatch(ctx context.Context, sender Sender, cfg model.WebhookConfig, resul
 	}
 
 	payload := NewPayload(result, breaches, version, time.Now())
-	timeout := time.Duration(cfg.Timeout) * time.Second
-	return Deliver(ctx, sender, cfg.Endpoints, payload, timeout, cfg.MaxRetries)
+	return Deliver(ctx, sender, cfg.Endpoints, payload, deliverOpts{
+		timeout:    time.Duration(cfg.Timeout) * time.Second,
+		maxRetries: cfg.MaxRetries,
+	})
 }

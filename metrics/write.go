@@ -47,13 +47,19 @@ func (e WriteError) Error() string {
 	return fmt.Sprintf("metrics %s: %v", e.URL, e.Err)
 }
 
+// writeOpts holds retry and timeout settings for a single write attempt.
+type writeOpts struct {
+	timeout    time.Duration
+	maxRetries int
+}
+
 // writeOne sends the pre-encoded body to a single InfluxDB endpoint with
 // retry/backoff. Returns nil on success, a descriptive error on permanent
-// failure. Network errors and 5xx are retried up to maxRetries times with
+// failure. Network errors and 5xx are retried up to opts.maxRetries times with
 // exponential backoff; 4xx fails permanently on the first attempt.
-func writeOne(ctx context.Context, sender Sender, ep model.MetricsEndpoint, body []byte, timeout time.Duration, maxRetries int) error {
-	if maxRetries < 1 {
-		return fmt.Errorf("maxRetries must be >= 1, got %d", maxRetries)
+func writeOne(ctx context.Context, sender Sender, ep model.MetricsEndpoint, body []byte, opts writeOpts) error {
+	if opts.maxRetries < 1 {
+		return fmt.Errorf("maxRetries must be >= 1, got %d", opts.maxRetries)
 	}
 	writeURL, err := buildWriteURL(ep)
 	if err != nil {
@@ -63,7 +69,7 @@ func writeOne(ctx context.Context, sender Sender, ep model.MetricsEndpoint, body
 	var lastErr error
 	backoff := initialBackoff
 
-	for attempt := range maxRetries {
+	for attempt := range opts.maxRetries {
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("cancelled: %v", err) //nolint:errorlint // project convention: %v not %w
 		}
@@ -80,7 +86,7 @@ func writeOne(ctx context.Context, sender Sender, ep model.MetricsEndpoint, body
 			}
 		}
 
-		reqCtx, reqCancel := context.WithTimeout(ctx, timeout)
+		reqCtx, reqCancel := context.WithTimeout(ctx, opts.timeout)
 		req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, writeURL, bytes.NewReader(body))
 		if err != nil {
 			reqCancel()

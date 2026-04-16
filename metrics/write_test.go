@@ -44,7 +44,7 @@ func TestWriteOne_Success2xx(t *testing.T) {
 	sender := &mockSender{DoFn: func(*http.Request) (*http.Response, error) {
 		return okResponse(), nil
 	}}
-	err := writeOne(context.Background(), sender, v2Endpoint(), []byte("line\n"), time.Second, 3)
+	err := writeOne(context.Background(), sender, v2Endpoint(), []byte("line\n"), writeOpts{timeout: time.Second, maxRetries: 3})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestWriteOne_4xxPermanent(t *testing.T) {
 	sender := &mockSender{DoFn: func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: http.StatusUnauthorized, Body: io.NopCloser(strings.NewReader(""))}, nil
 	}}
-	err := writeOne(context.Background(), sender, v2Endpoint(), []byte("line\n"), time.Second, 3)
+	err := writeOne(context.Background(), sender, v2Endpoint(), []byte("line\n"), writeOpts{timeout: time.Second, maxRetries: 3})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -72,7 +72,7 @@ func TestWriteOne_5xxRetriedThenFails(t *testing.T) {
 	}}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	err := writeOne(ctx, sender, v2Endpoint(), []byte("line\n"), time.Second, 2)
+	err := writeOne(ctx, sender, v2Endpoint(), []byte("line\n"), writeOpts{timeout: time.Second, maxRetries: 2})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -90,7 +90,7 @@ func TestWriteOne_NetworkErrorRetried(t *testing.T) {
 		}
 		return okResponse(), nil
 	}}
-	err := writeOne(context.Background(), sender, v2Endpoint(), []byte("line\n"), time.Second, 3)
+	err := writeOne(context.Background(), sender, v2Endpoint(), []byte("line\n"), writeOpts{timeout: time.Second, maxRetries: 3})
 	if err != nil {
 		t.Fatalf("unexpected error after retry: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestWriteOne_ContextCancelledDuringBackoff(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 		cancel()
 	}()
-	err := writeOne(ctx, sender, v2Endpoint(), []byte("line\n"), time.Second, 5)
+	err := writeOne(ctx, sender, v2Endpoint(), []byte("line\n"), writeOpts{timeout: time.Second, maxRetries: 5})
 	if err == nil {
 		t.Fatal("expected cancelled error")
 	}
@@ -185,7 +185,7 @@ func TestWriteOne_V2AuthHeader(t *testing.T) {
 		URL: "https://example.com",
 		V2:  &model.InfluxV2{Token: "secret-token", Org: "o", Bucket: "b"},
 	}
-	if err := writeOne(context.Background(), sender, ep, []byte("line\n"), time.Second, 1); err != nil {
+	if err := writeOne(context.Background(), sender, ep, []byte("line\n"), writeOpts{timeout: time.Second, maxRetries: 1}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if seenAuth != "Token secret-token" {
@@ -204,7 +204,7 @@ func TestWriteOne_V1BasicAuth(t *testing.T) {
 		URL: "http://localhost:8086",
 		V1:  &model.InfluxV1{Database: "db", Username: "admin", Password: "pw"},
 	}
-	if err := writeOne(context.Background(), sender, ep, []byte("line\n"), time.Second, 1); err != nil {
+	if err := writeOne(context.Background(), sender, ep, []byte("line\n"), writeOpts{timeout: time.Second, maxRetries: 1}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !hadAuth {
@@ -225,7 +225,7 @@ func TestWriteOne_V1NoAuthWhenUsernameEmpty(t *testing.T) {
 		URL: "http://localhost:8086",
 		V1:  &model.InfluxV1{Database: "db"},
 	}
-	if err := writeOne(context.Background(), sender, ep, []byte("line\n"), time.Second, 1); err != nil {
+	if err := writeOne(context.Background(), sender, ep, []byte("line\n"), writeOpts{timeout: time.Second, maxRetries: 1}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if hadAuth {
@@ -238,7 +238,7 @@ func TestWriteOne_ZeroMaxRetriesRejected(t *testing.T) {
 		t.Fatal("sender should not be called when maxRetries < 1")
 		return nil, nil
 	}}
-	err := writeOne(context.Background(), sender, v2Endpoint(), []byte("line\n"), time.Second, 0)
+	err := writeOne(context.Background(), sender, v2Endpoint(), []byte("line\n"), writeOpts{timeout: time.Second, maxRetries: 0})
 	if err == nil {
 		t.Fatal("expected error for maxRetries=0, got nil")
 	}
@@ -269,7 +269,7 @@ func TestWriteOne_DrainsBodyBeforeClose(t *testing.T) {
 	sender := &mockSender{DoFn: func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: http.StatusOK, Body: rb}, nil
 	}}
-	if err := writeOne(context.Background(), sender, v2Endpoint(), []byte("line\n"), time.Second, 1); err != nil {
+	if err := writeOne(context.Background(), sender, v2Endpoint(), []byte("line\n"), writeOpts{timeout: time.Second, maxRetries: 1}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !rb.read {

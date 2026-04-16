@@ -179,17 +179,24 @@ func setHopDeadline(ctx context.Context, conn *icmp.PacketConn) error {
 	return conn.SetReadDeadline(deadline)
 }
 
+// hopProbe groups the per-hop state passed to awaitHopResponse.
+type hopProbe struct {
+	hop   *Hop
+	start time.Time
+	rdns  *reverseDNS
+}
+
 // awaitHopResponse sets the read deadline and waits for an ICMP response,
 // populating the hop on success. Returns the hop with Timeout=true on failure.
-func awaitHopResponse(ctx context.Context, conn *icmp.PacketConn, hop *Hop, start time.Time, rdns *reverseDNS, validTypes ...icmp.Type) Hop {
+func awaitHopResponse(ctx context.Context, conn *icmp.PacketConn, probe hopProbe, validTypes ...icmp.Type) Hop {
 	if err := setHopDeadline(ctx, conn); err != nil {
-		hop.Timeout = true
-		return *hop
+		probe.hop.Timeout = true
+		return *probe.hop
 	}
-	if !readICMPResponse(conn, start, hop, rdns, validTypes...) {
-		hop.Timeout = true
+	if !readICMPResponse(conn, probe.start, probe.hop, probe.rdns, validTypes...) {
+		probe.hop.Timeout = true
 	}
-	return *hop
+	return *probe.hop
 }
 
 // traceHop sends an ICMP echo request with the given TTL and waits for a response.
@@ -227,7 +234,7 @@ func traceHop(ctx context.Context, conn *icmp.PacketConn, destIP string, ttl int
 		return hop
 	}
 
-	return awaitHopResponse(ctx, conn, &hop, start, rdns, ipv4.ICMPTypeEchoReply, ipv4.ICMPTypeTimeExceeded)
+	return awaitHopResponse(ctx, conn, hopProbe{hop: &hop, start: start, rdns: rdns}, ipv4.ICMPTypeEchoReply, ipv4.ICMPTypeTimeExceeded)
 }
 
 // udpTraceroute performs traceroute using UDP packets with increasing TTL,
@@ -294,7 +301,7 @@ func udpTraceHop(ctx context.Context, icmpConn *icmp.PacketConn, destIP string, 
 		return hop
 	}
 
-	return awaitHopResponse(ctx, icmpConn, &hop, start, rdns, ipv4.ICMPTypeTimeExceeded, ipv4.ICMPTypeDestinationUnreachable)
+	return awaitHopResponse(ctx, icmpConn, hopProbe{hop: &hop, start: start, rdns: rdns}, ipv4.ICMPTypeTimeExceeded, ipv4.ICMPTypeDestinationUnreachable)
 }
 
 // reverseDNS holds shared state for reverse DNS lookups across a traceroute run.
